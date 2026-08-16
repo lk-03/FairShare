@@ -7,14 +7,30 @@ interface TitleBarProps {
   title?: string;
   onNotificationPress?: () => void;
   onProfilePress?: () => void;
+  onLayoutToggle?: () => void;
+  isGroupsOnlyView?: boolean;
 }
 
-export function TitleBar({ title = 'fairsharew', onNotificationPress, onProfilePress }: TitleBarProps) {
+export function TitleBar({
+  title = 'fairsharew',
+  onNotificationPress,
+  onProfilePress,
+  onLayoutToggle,
+  isGroupsOnlyView = false,
+}: TitleBarProps) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
 
   return (
-    <View style={[styles.container, { paddingTop: Math.max(insets.top, 12), backgroundColor: theme.backgroundElement }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: Math.max(insets.top, 12),
+          backgroundColor: theme.backgroundElement,
+        },
+      ]}
+    >
       <View style={styles.content}>
         <View style={styles.titleSection}>
           <Text style={[styles.titleText, { color: theme.text }]}>{title}</Text>
@@ -24,16 +40,38 @@ export function TitleBar({ title = 'fairsharew', onNotificationPress, onProfileP
         </View>
 
         <View style={styles.actionSection}>
-          <TouchableOpacity 
-            style={[styles.iconButton, { backgroundColor: theme.backgroundSelected }]} 
+          {/* Layout Toggle Button */}
+          {onLayoutToggle && (
+            <TouchableOpacity
+              style={[
+                styles.iconButton,
+                {
+                  backgroundColor: isGroupsOnlyView
+                    ? '#6366F1'
+                    : theme.backgroundSelected,
+                },
+              ]}
+              onPress={onLayoutToggle}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.iconSymbol}>
+                {isGroupsOnlyView ? '▦' : '☰'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Notification Bell */}
+          <TouchableOpacity
+            style={[styles.iconButton, { backgroundColor: theme.backgroundSelected }]}
             onPress={onNotificationPress}
             activeOpacity={0.7}
           >
             <Text style={styles.iconSymbol}>🔔</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={[styles.avatarButton, { backgroundColor: '#6366F1' }]} 
+          {/* User Profile Avatar */}
+          <TouchableOpacity
+            style={[styles.avatarButton, { backgroundColor: '#6366F1' }]}
             onPress={onProfilePress}
             activeOpacity={0.7}
           >
@@ -82,7 +120,7 @@ const styles = StyleSheet.create({
   actionSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   iconButton: {
     width: 36,
