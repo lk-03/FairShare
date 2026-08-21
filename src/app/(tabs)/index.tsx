@@ -24,7 +24,6 @@ export default function HomeScreen() {
   const theme = useTheme();
   const [addExpenseVisible, setAddExpenseVisible] = useState(false);
   const [createGroupVisible, setCreateGroupVisible] = useState(false);
-  const [isGroupsOnlyView, setIsGroupsOnlyView] = useState(false);
 
   const { cohorts, members, expenses, currentUser } = useExpenseStore();
 
@@ -47,11 +46,10 @@ export default function HomeScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      {/* Top Title Bar with Layout Toggle */}
+      {/* Top Title Bar */}
       <TitleBar
         title="fairsharew"
-        isGroupsOnlyView={isGroupsOnlyView}
-        onLayoutToggle={() => setIsGroupsOnlyView(!isGroupsOnlyView)}
+        isGroupsOnlyView={false}
         onNotificationPress={() => alert('Notifications')}
         onProfilePress={() => alert(`Logged in as ${currentUser.fullName}`)}
       />
@@ -63,70 +61,7 @@ export default function HomeScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {isGroupsOnlyView ? (
-          /* GROUPS ONLY FOCUSED VIEW (Hides Net Balance, Quick Actions & Recent Activity) */
-          <View style={styles.groupsOnlyContainer}>
-            <View style={styles.sectionHeader}>
-              <ThemedText type="subtitle" style={styles.sectionTitle}>
-                Event Cohorts & Ledgers
-              </ThemedText>
-              <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-                <TouchableOpacity onPress={() => setCreateGroupVisible(true)}>
-                  <ThemedText type="linkPrimary">+ New Event</ThemedText>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => router.push('/scan' as any)}>
-                  <ThemedText type="linkPrimary">Scan QR</ThemedText>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.groupsGrid}>
-              {cohorts.map((cohort) => {
-                const cohortM = members[cohort.id] || [];
-                const cohortE = expenses[cohort.id] || [];
-                const res = calculateSimplifiedDebts(cohort.id, cohortM, cohortE);
-                const userBal = res.netBalances[currentUser.id] || 0;
-
-                return (
-                  <TouchableOpacity
-                    key={cohort.id}
-                    style={[
-                      styles.groupFullCard,
-                      { backgroundColor: theme.backgroundElement },
-                    ]}
-                    activeOpacity={0.8}
-                    onPress={() => router.push(`/event/${cohort.id}` as any)}
-                  >
-                    <CategoryIcon
-                      category={cohort.category}
-                      customIcon={cohort.customIcon}
-                      size={42}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.groupNameLarge, { color: theme.text }]}>
-                        {cohort.name}
-                      </Text>
-                      <Text style={[styles.groupDesc, { color: theme.textSecondary }]}>
-                        {cohort.description || `${cohortM.length} active members`}
-                      </Text>
-                    </View>
-                    <Text
-                      style={[
-                        styles.groupBalanceLarge,
-                        { color: userBal >= 0 ? '#10B981' : '#EF4444' },
-                      ]}
-                    >
-                      {userBal >= 0 ? `+₹${userBal.toFixed(2)}` : `-₹${Math.abs(userBal).toFixed(2)}`}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        ) : (
-          /* DEFAULT FULL DASHBOARD VIEW */
-          <>
-            {/* Total Net Balance Card */}
+        {/* Total Net Balance Card */}
             <View
               style={[
                 styles.balanceCard,
@@ -313,8 +248,6 @@ export default function HomeScreen() {
                   </View>
                 ))}
             </View>
-          </>
-        )}
       </ScrollView>
 
       <AddExpenseModal

@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Modal } from 'react-native';
 import { BottomTabInset } from '@/constants/theme';
 import { DirectDebt } from '@/types';
+import { ExpenseDetailsModal } from '@/components/ExpenseDetailsModal';
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -49,6 +50,7 @@ export default function EventDetailScreen() {
   );
 
   const userNetBalance = simplificationResult.netBalances[currentUser.id] || 0;
+  const selectedExpense = cohortExpenses.find(e => e.id === selectedExpenseId) || null;
 
   const handleSettleUpUPI = async (debt: DirectDebt) => {
     const payeeName = debt.toProfile?.fullName || 'Payee';
@@ -269,42 +271,6 @@ export default function EventDetailScreen() {
                       ₹{exp.totalAmount}
                     </Text>
                   </TouchableOpacity>
-
-                  {/* Expandable detailed breakdown & comments */}
-                  {selectedExpenseId === exp.id && (
-                    <View style={[styles.detailsBox, { backgroundColor: theme.backgroundSelected }]}>
-                      <Text style={[styles.detailsHeader, { color: theme.text }]}>
-                        Split Breakdown ({exp.splitType.toUpperCase()})
-                      </Text>
-
-                      <View style={styles.splitsBreakdownList}>
-                        {exp.splits.map((s) => {
-                          const memberObj = cohortMembers.find((m) => m.userId === s.userId);
-                          const name = s.userId === currentUser.id ? 'You' : memberObj?.profile?.fullName || s.userId;
-                          const isPayer = s.userId === exp.paidByUserId;
-
-                          return (
-                            <View key={s.userId} style={styles.splitMemberRow}>
-                              <Text style={[styles.splitMemberName, { color: theme.text }]}>
-                                {name} {isPayer ? '(Paid Total)' : ''}
-                              </Text>
-                              <Text style={[styles.splitMemberAmt, { color: isPayer ? '#10B981' : theme.text }]}>
-                                ₹{s.amount.toFixed(2)} {s.percentage ? `(${s.percentage}%)` : ''}
-                              </Text>
-                            </View>
-                          );
-                        })}
-                      </View>
-
-                      {exp.notes && (
-                        <Text style={[styles.expenseNotes, { color: theme.textSecondary }]}>
-                          Notes: {exp.notes}
-                        </Text>
-                      )}
-
-                      <TransactionComments expenseId={exp.id} />
-                    </View>
-                  )}
                 </View>
               ))}
             </View>
@@ -341,6 +307,14 @@ export default function EventDetailScreen() {
         visible={editModalVisible}
         onClose={() => setEditModalVisible(false)}
         cohort={cohort}
+      />
+
+      <ExpenseDetailsModal
+        visible={!!selectedExpenseId}
+        onClose={() => setSelectedExpenseId(null)}
+        expense={selectedExpense}
+        cohortMembers={cohortMembers}
+        currentUser={currentUser}
       />
 
       {/* Three Dot Options Menu Modal */}

@@ -34,6 +34,7 @@ interface ExpenseState {
   addCohort: (cohort: EventCohort) => void;
   updateCohort: (cohortId: string, updates: Partial<EventCohort>) => void;
   addExpense: (expense: Expense) => void;
+  updateExpense: (expense: Expense) => void;
   deleteExpense: (expenseId: string, cohortId: string) => void;
   addComment: (comment: TransactionComment) => void;
   joinCohortByInviteCode: (inviteCode: string) => EventCohort | null;
@@ -334,6 +335,17 @@ export const useExpenseStore = create<ExpenseState>()(
             expenses: {
               ...state.expenses,
               [expense.cohortId]: [expense, ...cohortExpenses],
+            },
+          };
+        }),
+
+      updateExpense: (expense) =>
+        set((state) => {
+          const cohortExpenses = state.expenses[expense.cohortId] || [];
+          return {
+            expenses: {
+              ...state.expenses,
+              [expense.cohortId]: cohortExpenses.map(e => e.id === expense.id ? expense : e),
             },
           };
         }),
