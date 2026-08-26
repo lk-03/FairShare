@@ -1,12 +1,12 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Text } from 'react-native';
+import { View, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useTheme } from '@/hooks/use-theme';
 import { useExpenseStore } from '@/store/useExpenseStore';
 import { BottomTabInset } from '@/constants/theme';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
+import { Ionicons } from '@expo/vector-icons';
+import { Button } from '@/components/ui/Button';
+import { Text } from '@/components/ui/Text';
 
 // Simple relative time formatter
 function formatTimeAgo(dateStr: string) {
@@ -22,7 +22,6 @@ function formatTimeAgo(dateStr: string) {
 
 export default function ActivityScreen() {
   const router = useRouter();
-  const theme = useTheme();
   const { expenses, comments, cohorts, currentUser, members } = useExpenseStore();
 
   const activityFeed = useMemo(() => {
@@ -110,120 +109,59 @@ export default function ActivityScreen() {
   }, [expenses, comments, cohorts, currentUser, members]);
 
   return (
-    <ThemedView style={styles.container}>
-      <View style={styles.header}>
-        <ThemedText type="title">Activity</ThemedText>
+    <View className="flex-1 bg-screen pt-safe">
+      <View className="screen-header">
+        <Text className="screen-title">Activity</Text>
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: BottomTabInset + 24 }]}
+        contentContainerClassName="px-5 pb-10 gap-3"
+        style={{ paddingBottom: BottomTabInset + 24 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.feedList}>
-          {activityFeed.length === 0 ? (
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No recent activity.</Text>
-          ) : (
-            activityFeed.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[
-                  styles.feedCard,
-                  { backgroundColor: theme.backgroundElement },
-                ]}
-                activeOpacity={0.8}
-                onPress={() => router.push(`/event/${item.cohortId}` as any)}
-              >
-                <View style={styles.feedIconBg}>
+        {activityFeed.length === 0 ? (
+          <Text className="text-center mt-10 text-secondary text-sm">No recent activity.</Text>
+        ) : (
+          activityFeed.map((item) => (
+            <TouchableOpacity
+              key={item.id}
+              activeOpacity={0.8}
+              className="card-item"
+              onPress={() => router.push(`/event/${item.cohortId}` as any)}
+            >
+              <View className="flex-row items-center gap-4 flex-1 pr-2">
+                <View className="mr-4">
                   {item.type === 'comment' ? (
-                     <Text style={{ fontSize: 24 }}>💬</Text>
+                    <View className="w-12 h-12 rounded-full bg-accent-pill border border-surface items-center justify-center">
+                      <Text className="text-2xl">💬</Text>
+                    </View>
                   ) : (
-                    <CategoryIcon
-                      category={item.category}
-                      customIcon={item.customIcon}
-                      size={28}
-                    />
+                    <CategoryIcon category={item.category} customIcon={item.customIcon} size={48} variant="solid" />
                   )}
                 </View>
 
-                <View style={styles.feedInfo}>
-                  <Text style={[styles.feedMeta, { color: theme.textSecondary }]}>
+                <View className="flex-1 gap-1">
+                  <Text className="text-[12px] font-medium text-secondary leading-tight">
                     {item.meta} • {item.cohortName}
                   </Text>
-                  <Text style={[styles.feedTitle, { color: theme.text }]}>
+                  <Text className="text-base font-bold text-main leading-tight">
                     {item.title}
                   </Text>
-                  <Text style={[styles.feedTime, { color: theme.textSecondary }]}>
+                  <Text className="text-[11px] text-secondary">
                     {formatTimeAgo(item.dateStr)}
                   </Text>
                 </View>
+              </View>
 
-                {item.amount !== null && (
-                  <Text style={[styles.feedAmountText, { color: theme.text }]}>
-                    ₹{item.amount}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
+              {item.amount !== null && (
+                <Text className="text-base font-extrabold text-main">
+                  ₹{item.amount}
+                </Text>
+              )}
+            </TouchableOpacity>
+          ))
+        )}
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 60,
-    paddingBottom: 16,
-  },
-  scrollContent: {
-    padding: 16,
-    gap: 20,
-  },
-  feedList: {
-    gap: 12,
-  },
-  feedCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 14,
-    gap: 12,
-  },
-  feedIconBg: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  feedInfo: {
-    flex: 1,
-    gap: 4,
-  },
-  feedMeta: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  feedTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  feedTime: {
-    fontSize: 11,
-  },
-  feedAmountText: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  emptyText: {
-    textAlign: 'center',
-    marginTop: 40,
-    fontSize: 14,
-  },
-});

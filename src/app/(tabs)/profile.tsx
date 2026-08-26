@@ -1,150 +1,107 @@
-import React from 'react';
-import { StyleSheet, View, ScrollView, Text, TouchableOpacity } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useTheme } from '@/hooks/use-theme';
+import React, { useState } from 'react';
+import { View, ScrollView, TouchableOpacity } from 'react-native';
 import { useExpenseStore } from '@/store/useExpenseStore';
 import { BottomTabInset } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { Button } from '@/components/ui/Button';
+import { Text } from '@/components/ui/Text';
+import { ThemeSettingsModal } from '@/components/ThemeSettingsModal';
 
 export default function ProfileScreen() {
-  const theme = useTheme();
   const { currentUser } = useExpenseStore();
+  const [themeModalVisible, setThemeModalVisible] = useState(false);
 
   return (
-    <ThemedView style={styles.container}>
-      <View style={styles.header}>
-        <ThemedText type="title">Profile</ThemedText>
+    <View className="flex-1 bg-screen pt-safe">
+      <View className="screen-header">
+        <Text className="screen-title">Profile</Text>
+        <Button variant="ghost" size="icon" className="btn-icon-circle" onPress={() => setThemeModalVisible(true)}>
+          <Ionicons name="color-palette-outline" size={20} color="#94A3B8" />
+        </Button>
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: BottomTabInset + 24 }]}
+        contentContainerClassName="px-5 pb-10 gap-6"
+        style={{ paddingBottom: BottomTabInset + 24 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.profileCard, { backgroundColor: theme.backgroundElement }]}>
-          <View style={[styles.avatar, { backgroundColor: '#6366F1' }]}>
-            <Text style={styles.avatarText}>
+        <View className="card-main p-8 items-center mt-2">
+          <View className="w-24 h-24 bg-accent-pill rounded-full items-center justify-center mb-4 border border-surface">
+            <Text className="text-4xl font-bold text-main">
               {currentUser.fullName.charAt(0)}
             </Text>
           </View>
-          <View style={styles.profileInfo}>
-            <Text style={[styles.name, { color: theme.text }]}>{currentUser.fullName}</Text>
-            <Text style={[styles.email, { color: theme.textSecondary }]}>{currentUser.email}</Text>
-          </View>
+          <Text className="text-xl font-bold text-main mb-1">{currentUser.fullName}</Text>
+          <Text className="text-sm text-secondary">{currentUser.email}</Text>
         </View>
 
-        <View style={styles.settingsGroup}>
-          <Text style={[styles.settingsTitle, { color: theme.textSecondary }]}>ACCOUNT</Text>
-          <TouchableOpacity style={[styles.settingsRow, { backgroundColor: theme.backgroundElement }]}>
-            <Ionicons name="card-outline" size={20} color={theme.text} />
-            <Text style={[styles.settingsRowText, { color: theme.text }]}>Payment Methods (VPA: {currentUser.vpaId})</Text>
-            <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+        <View className="gap-3">
+          <Text className="section-label ml-1 mb-1">
+            ACCOUNT
+          </Text>
+          
+          <TouchableOpacity activeOpacity={0.8} className="card-item">
+            <View className="flex-row items-center gap-4 flex-1">
+              <Ionicons name="card-outline" size={24} color="#94A3B8" />
+              <View className="flex-1">
+                <Text className="text-base font-bold text-main">Payment Methods</Text>
+                <Text className="text-sm text-secondary">VPA: {currentUser.vpaId}</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.settingsRow, { backgroundColor: theme.backgroundElement }]}>
-            <Ionicons name="notifications-outline" size={20} color={theme.text} />
-            <Text style={[styles.settingsRowText, { color: theme.text }]}>Notifications</Text>
-            <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.settingsGroup}>
-          <Text style={[styles.settingsTitle, { color: theme.textSecondary }]}>APP</Text>
-          <TouchableOpacity style={[styles.settingsRow, { backgroundColor: theme.backgroundElement }]}>
-            <Ionicons name="color-palette-outline" size={20} color={theme.text} />
-            <Text style={[styles.settingsRowText, { color: theme.text }]}>Theme Settings</Text>
-            <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.settingsRow, { backgroundColor: theme.backgroundElement }]}>
-            <Ionicons name="help-circle-outline" size={20} color={theme.text} />
-            <Text style={[styles.settingsRowText, { color: theme.text }]}>Help & Support</Text>
-            <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+          
+          <TouchableOpacity activeOpacity={0.8} className="card-item">
+            <View className="flex-row items-center gap-4 flex-1">
+              <Ionicons name="notifications-outline" size={24} color="#94A3B8" />
+              <View className="flex-1">
+                <Text className="text-base font-bold text-main">Notifications</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.logoutBtn}>
-          <Text style={styles.logoutText}>Log Out</Text>
+        <View className="gap-3 mt-2">
+          <Text className="section-label ml-1 mb-1">
+            APP & THEME
+          </Text>
+          
+          <TouchableOpacity
+            activeOpacity={0.8}
+            className="card-item"
+            onPress={() => setThemeModalVisible(true)}
+          >
+            <View className="flex-row items-center gap-4 flex-1">
+              <Ionicons name="sparkles-outline" size={24} color="#38BDF8" />
+              <View className="flex-1">
+                <Text className="text-base font-bold text-main">Theme & Appearance</Text>
+                <Text className="text-xs text-secondary mt-0.5">Choose from 4 aesthetic palettes</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity activeOpacity={0.8} className="card-item">
+            <View className="flex-row items-center gap-4 flex-1">
+              <Ionicons name="help-circle-outline" size={24} color="#94A3B8" />
+              <View className="flex-1">
+                <Text className="text-base font-bold text-main">Help & Support</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity activeOpacity={0.8} className="w-full rounded-2xl py-4 mt-4 border border-surface bg-surface items-center shadow-sm">
+          <Text className="text-base font-bold text-negative">Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
-    </ThemedView>
+
+      <ThemeSettingsModal
+        visible={themeModalVisible}
+        onClose={() => setThemeModalVisible(false)}
+      />
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 60,
-    paddingBottom: 16,
-  },
-  scrollContent: {
-    padding: 16,
-    gap: 24,
-  },
-  profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 20,
-    borderRadius: 16,
-    gap: 16,
-  },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  profileInfo: {
-    flex: 1,
-  },
-  name: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  email: {
-    fontSize: 14,
-    marginTop: 2,
-  },
-  settingsGroup: {
-    gap: 8,
-  },
-  settingsTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginLeft: 8,
-    marginBottom: 4,
-  },
-  settingsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    gap: 12,
-    marginBottom: 4,
-  },
-  settingsRowText: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  logoutBtn: {
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-  },
-  logoutText: {
-    color: '#EF4444',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-});

@@ -1,8 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-  StyleSheet,
   View,
-  Text,
   TextInput,
   TouchableOpacity,
   Modal,
@@ -10,9 +8,9 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@/hooks/use-theme';
 import { useExpenseStore } from '@/store/useExpenseStore';
 import { SharedListItem, PersonalReminderSettings } from '@/types';
+import { Text } from '@/components/ui/Text';
 
 interface NeedsListTabProps {
   cohortId: string;
@@ -27,7 +25,6 @@ const CREATIVE_REMINDERS = [
 ];
 
 export function NeedsListTab({ cohortId }: NeedsListTabProps) {
-  const theme = useTheme();
   const {
     sharedLists,
     reminderSettings,
@@ -96,38 +93,44 @@ export function NeedsListTab({ cohortId }: NeedsListTabProps) {
   };
 
   return (
-    <View style={styles.container}>
+    <View className="gap-3 mt-1">
       {/* Creative Reminder Banner */}
-      <View style={[styles.reminderBanner, { backgroundColor: 'rgba(99, 102, 241, 0.12)' }]}>
-        <Ionicons name="sparkles" size={18} color="#6366F1" />
-        <Text style={[styles.reminderText, { color: theme.text }]}>
+      <View className="card-main p-4 flex-row items-center gap-3 bg-indigo-50/50 border-indigo-100">
+        <Ionicons name="sparkles" size={20} color="#4F46E5" />
+        <Text className="flex-1 text-xs font-semibold text-slate-700 leading-snug">
           {randomReminder}
         </Text>
-        <TouchableOpacity style={styles.settingsBtn} onPress={() => setSettingsVisible(true)}>
-          <Ionicons name="settings-outline" size={18} color={theme.text} />
+        <TouchableOpacity
+          className="p-1.5 rounded-full bg-white border border-indigo-100"
+          onPress={() => setSettingsVisible(true)}
+        >
+          <Ionicons name="settings-outline" size={16} color="#4F46E5" />
         </TouchableOpacity>
       </View>
 
       {/* Add Item Bar */}
-      <View style={styles.addBar}>
+      <View className="flex-row gap-2">
         <TextInput
-          style={[styles.addInput, { backgroundColor: theme.backgroundElement, color: theme.text }]}
+          className="flex-1 h-12 bg-white border border-slate-200 rounded-2xl px-4 text-sm text-slate-900 shadow-sm"
           placeholder="Add needed item (e.g. Milk, Batteries, Bread)..."
-          placeholderTextColor={theme.textSecondary}
+          placeholderTextColor="#94A3B8"
           value={newItemTitle}
           onChangeText={setNewItemTitle}
           onSubmitEditing={handleAddItem}
         />
-        <TouchableOpacity style={styles.addBtn} onPress={handleAddItem}>
-          <Ionicons name="add" size={22} color="#FFFFFF" />
+        <TouchableOpacity
+          className="w-12 h-12 rounded-2xl bg-slate-900 items-center justify-center shadow-sm"
+          onPress={handleAddItem}
+        >
+          <Ionicons name="add" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
       {/* Checklist Items */}
-      <View style={styles.listContainer}>
+      <View className="gap-2.5">
         {activeList.length === 0 ? (
-          <View style={[styles.emptyBox, { backgroundColor: theme.backgroundElement }]}>
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+          <View className="card-main items-center py-8">
+            <Text className="text-sm font-semibold text-slate-500">
               🛒 House cart is empty! Add items above.
             </Text>
           </View>
@@ -143,41 +146,34 @@ export function NeedsListTab({ cohortId }: NeedsListTabProps) {
             return (
               <View
                 key={item.id}
-                style={[
-                  styles.itemRow,
-                  { backgroundColor: theme.backgroundElement, opacity: isDone ? 0.7 : 1 },
-                ]}
+                className={`card-item ${isDone ? 'opacity-60 bg-slate-50' : 'bg-white'}`}
               >
                 <TouchableOpacity
-                  style={styles.checkboxTouch}
+                  className="flex-row items-center gap-3 flex-1 pr-2"
                   onPress={() => toggleListItem(item.id, cohortId)}
                 >
                   <Ionicons
                     name={isDone ? 'checkbox' : 'square-outline'}
                     size={22}
-                    color={isDone ? '#10B981' : theme.textSecondary}
+                    color={isDone ? '#10B981' : '#94A3B8'}
                   />
                   <Text
-                    style={[
-                      styles.itemTitle,
-                      { color: theme.text },
-                      isDone && styles.itemTitleDone,
-                    ]}
+                    className={`text-sm font-semibold text-slate-900 flex-1 ${isDone ? 'line-through text-slate-400' : ''}`}
                   >
                     {item.title}
                   </Text>
                 </TouchableOpacity>
 
-                <View style={styles.itemRight}>
+                <View className="flex-row items-center gap-3">
                   {isDone && (
-                    <View style={styles.expiryBadge}>
-                      <Text style={styles.expiryBadgeText}>
-                        Auto-deletes in {expiryDaysLeft}d
+                    <View className="bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100">
+                      <Text className="text-[10px] font-bold text-rose-600">
+                        {expiryDaysLeft}d left
                       </Text>
                     </View>
                   )}
                   <TouchableOpacity onPress={() => deleteListItem(item.id, cohortId)}>
-                    <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -188,44 +184,42 @@ export function NeedsListTab({ cohortId }: NeedsListTabProps) {
 
       {/* Personal Reminder Settings Modal */}
       <Modal visible={settingsVisible} transparent animationType="slide" onRequestClose={() => setSettingsVisible(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { backgroundColor: theme.backgroundElement }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>Personal Reminder Settings</Text>
+        <View className="flex-1 bg-black/50 justify-end">
+          <View className="bg-white rounded-t-3xl p-6 gap-4 border-t border-slate-200">
+            <View className="flex-row justify-between items-center">
+              <Text className="text-lg font-bold text-slate-900">Personal Reminder Settings</Text>
               <TouchableOpacity onPress={() => setSettingsVisible(false)}>
-                <Text style={[styles.closeX, { color: theme.textSecondary }]}>✕</Text>
+                <Text className="text-xl font-bold text-slate-400 p-1">✕</Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={[styles.settingDesc, { color: theme.textSecondary }]}>
+            <Text className="text-xs text-slate-500 leading-relaxed">
               These notification reminders are personal to you and remind you to check the house list before shopping on Blinkit, BigBasket, or Instamart.
             </Text>
 
-            <View style={styles.settingRow}>
-              <Text style={[styles.settingLabel, { color: theme.text }]}>Enable Reminders</Text>
-              <Switch value={enabled} onValueChange={setEnabled} trackColor={{ true: '#6366F1' }} />
+            <View className="flex-row justify-between items-center py-2 border-y border-slate-100">
+              <Text className="text-sm font-bold text-slate-900">Enable Reminders</Text>
+              <Switch value={enabled} onValueChange={setEnabled} trackColor={{ true: '#0F172A' }} />
             </View>
 
             {enabled && (
               <>
-                <Text style={[styles.label, { color: theme.textSecondary }]}>REMINDER FREQUENCY</Text>
-                <View style={styles.freqRow}>
+                <Text className="section-label mt-1">REMINDER FREQUENCY</Text>
+                <View className="flex-row gap-2">
                   {[1, 2, 3, 5, 7].map((d) => (
                     <TouchableOpacity
                       key={d}
-                      style={[
-                        styles.freqBtn,
-                        freqDays === d ? styles.freqBtnActive : { backgroundColor: theme.backgroundSelected },
-                      ]}
+                      className={`flex-1 py-2.5 rounded-xl items-center border ${
+                        freqDays === d ? 'bg-slate-900 border-slate-900' : 'bg-slate-50 border-slate-200'
+                      }`}
                       onPress={() => setFreqDays(d)}
                     >
                       <Text
-                        style={[
-                          styles.freqText,
-                          freqDays === d ? styles.freqTextActive : { color: theme.text },
-                        ]}
+                        className={`text-xs font-bold ${
+                          freqDays === d ? 'text-white' : 'text-slate-700'
+                        }`}
                       >
-                        Every {d}d
+                        {d}d
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -233,8 +227,11 @@ export function NeedsListTab({ cohortId }: NeedsListTabProps) {
               </>
             )}
 
-            <TouchableOpacity style={styles.saveSettingsBtn} onPress={handleSaveSettings}>
-              <Text style={styles.saveSettingsText}>Save Personal Settings</Text>
+            <TouchableOpacity
+              className="bg-slate-900 py-3.5 rounded-2xl items-center mt-3"
+              onPress={handleSaveSettings}
+            >
+              <Text className="text-white font-bold text-sm">Save Personal Settings</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -242,167 +239,3 @@ export function NeedsListTab({ cohortId }: NeedsListTabProps) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    gap: 12,
-    marginTop: 4,
-  },
-  reminderBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 14,
-    gap: 10,
-  },
-  reminderText: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  settingsBtn: {
-    padding: 4,
-  },
-  addBar: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  addInput: {
-    flex: 1,
-    height: 44,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    fontSize: 14,
-  },
-  addBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#6366F1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  listContainer: {
-    gap: 8,
-  },
-  emptyBox: {
-    padding: 24,
-    borderRadius: 14,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  itemRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 12,
-  },
-  checkboxTouch: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  itemTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  itemTitleDone: {
-    textDecorationLine: 'line-through',
-    opacity: 0.6,
-  },
-  itemRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  expiryBadge: {
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  expiryBadgeText: {
-    color: '#EF4444',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    gap: 16,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  closeX: {
-    fontSize: 18,
-    fontWeight: '700',
-    padding: 4,
-  },
-  settingDesc: {
-    fontSize: 13,
-  },
-  settingRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  settingLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  label: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  freqRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  freqBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  freqBtnActive: {
-    backgroundColor: '#6366F1',
-  },
-  freqText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  freqTextActive: {
-    color: '#FFFFFF',
-  },
-  saveSettingsBtn: {
-    backgroundColor: '#6366F1',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  saveSettingsText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 15,
-  },
-});

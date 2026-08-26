@@ -1,22 +1,18 @@
 import React, { useState } from 'react';
 import {
-  StyleSheet,
   View,
-  Text,
   TextInput,
   TouchableOpacity,
-  FlatList,
 } from 'react-native';
-import { useTheme } from '@/hooks/use-theme';
 import { useExpenseStore } from '@/store/useExpenseStore';
 import { TransactionComment } from '@/types';
+import { Text } from '@/components/ui/Text';
 
 interface TransactionCommentsProps {
   expenseId: string;
 }
 
 export function TransactionComments({ expenseId }: TransactionCommentsProps) {
-  const theme = useTheme();
   const { comments, addComment, currentUser } = useExpenseStore();
   const expenseComments = comments[expenseId] || [];
 
@@ -39,27 +35,27 @@ export function TransactionComments({ expenseId }: TransactionCommentsProps) {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundElement }]}>
-      <Text style={[styles.title, { color: theme.text }]}>Discussion & Notes</Text>
+    <View className="gap-3">
+      <Text className="section-label">Discussion & Notes</Text>
 
       {expenseComments.length === 0 ? (
-        <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+        <Text className="text-xs text-slate-400 italic py-2">
           No comments yet. Start a discussion or add a note about this expense.
         </Text>
       ) : (
-        <View style={styles.list}>
+        <View className="gap-2.5 my-1">
           {expenseComments.map((item) => (
-            <View key={item.id} style={styles.commentRow}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
+            <View key={item.id} className="flex-row gap-2.5 items-start">
+              <View className="w-7 h-7 rounded-full bg-slate-200 items-center justify-center">
+                <Text className="text-slate-700 font-bold text-[10px]">
                   {item.profile?.fullName?.[0]?.toUpperCase() || 'U'}
                 </Text>
               </View>
-              <View style={styles.bubble}>
-                <Text style={[styles.author, { color: theme.text }]}>
+              <View className="flex-1 bg-slate-50 border border-slate-100 p-2.5 rounded-2xl">
+                <Text className="text-xs font-bold text-slate-900 mb-0.5">
                   {item.profile?.fullName || 'User'}
                 </Text>
-                <Text style={[styles.body, { color: theme.text }]}>{item.content}</Text>
+                <Text className="text-xs text-slate-700">{item.content}</Text>
               </View>
             </View>
           ))}
@@ -67,97 +63,21 @@ export function TransactionComments({ expenseId }: TransactionCommentsProps) {
       )}
 
       {/* Input row */}
-      <View style={styles.inputRow}>
+      <View className="flex-row gap-2 mt-1">
         <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: theme.backgroundSelected,
-              color: theme.text,
-            },
-          ]}
+          className="flex-1 h-11 bg-slate-50 border border-slate-200 rounded-2xl px-3.5 text-xs text-slate-900"
           placeholder="Add a comment or note..."
-          placeholderTextColor={theme.textSecondary}
+          placeholderTextColor="#94A3B8"
           value={text}
           onChangeText={setText}
         />
-        <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
-          <Text style={styles.sendText}>Send</Text>
+        <TouchableOpacity
+          className="bg-slate-900 px-4 rounded-2xl items-center justify-center shadow-sm"
+          onPress={handleSend}
+        >
+          <Text className="text-white font-bold text-xs">Send</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    borderRadius: 12,
-    padding: 14,
-    gap: 12,
-    marginTop: 12,
-  },
-  title: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  emptyText: {
-    fontSize: 13,
-    fontStyle: 'italic',
-  },
-  list: {
-    gap: 10,
-  },
-  commentRow: {
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'flex-start',
-  },
-  avatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#6366F1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: '#FFF',
-    fontWeight: '700',
-    fontSize: 11,
-  },
-  bubble: {
-    flex: 1,
-    gap: 2,
-  },
-  author: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  body: {
-    fontSize: 14,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
-  },
-  input: {
-    flex: 1,
-    height: 38,
-    borderRadius: 19,
-    paddingHorizontal: 14,
-    fontSize: 13,
-  },
-  sendButton: {
-    backgroundColor: '#6366F1',
-    paddingHorizontal: 16,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendText: {
-    color: '#FFF',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-});

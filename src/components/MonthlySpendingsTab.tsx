@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, View, Text, ScrollView } from 'react-native';
-import { useTheme } from '@/hooks/use-theme';
+import { View, ScrollView } from 'react-native';
 import { EventCohort, Expense } from '@/types';
+import { Text } from '@/components/ui/Text';
 
 interface MonthlySpendingsTabProps {
   cohort: EventCohort;
@@ -14,8 +14,6 @@ export function MonthlySpendingsTab({
   expenses,
   currentUserId,
 }: MonthlySpendingsTabProps) {
-  const theme = useTheme();
-
   // Aggregate monthly spending starting from group creation month to current month
   const monthlyData = useMemo(() => {
     const creationDate = new Date(cohort.createdAt || Date.now());
@@ -72,79 +70,75 @@ export function MonthlySpendingsTab({
   const avgMonthly = Math.round((grandTotalGroup / Math.max(monthlyData.monthsList.length, 1)) * 100) / 100;
 
   return (
-    <View style={styles.container}>
+    <View className="gap-4 mt-1">
       {/* Monthly Summary Cards */}
-      <View style={styles.metricsRow}>
-        <View style={[styles.metricCard, { backgroundColor: theme.backgroundElement }]}>
-          <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>TOTAL GROUP SPEND</Text>
-          <Text style={[styles.metricValue, { color: '#6366F1' }]}>₹{grandTotalGroup.toFixed(2)}</Text>
+      <View className="flex-row gap-3">
+        <View className="flex-1 border border-slate-200 rounded-2xl p-3 bg-white shadow-sm items-center">
+          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">TOTAL GROUP SPEND</Text>
+          <Text className="text-sm font-extrabold text-indigo-600">₹{grandTotalGroup.toFixed(2)}</Text>
         </View>
 
-        <View style={[styles.metricCard, { backgroundColor: theme.backgroundElement }]}>
-          <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>YOUR CUMULATIVE SHARE</Text>
-          <Text style={[styles.metricValue, { color: '#10B981' }]}>₹{grandTotalUser.toFixed(2)}</Text>
+        <View className="flex-1 border border-slate-200 rounded-2xl p-3 bg-white shadow-sm items-center">
+          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">YOUR SHARE</Text>
+          <Text className="text-sm font-extrabold text-emerald-600">₹{grandTotalUser.toFixed(2)}</Text>
         </View>
 
-        <View style={[styles.metricCard, { backgroundColor: theme.backgroundElement }]}>
-          <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>AVG MONTHLY SPEND</Text>
-          <Text style={[styles.metricValue, { color: theme.text }]}>₹{avgMonthly.toFixed(2)}</Text>
+        <View className="flex-1 border border-slate-200 rounded-2xl p-3 bg-white shadow-sm items-center">
+          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">AVG MONTHLY</Text>
+          <Text className="text-sm font-extrabold text-slate-900">₹{avgMonthly.toFixed(2)}</Text>
         </View>
       </View>
 
       {/* Monthly Spendings Combined Bar Graph */}
-      <View style={[styles.chartCard, { backgroundColor: theme.backgroundElement }]}>
-        <View style={styles.chartHeader}>
-          <Text style={[styles.chartTitle, { color: theme.text }]}>
+      <View className="card-main p-5 gap-4">
+        <View className="flex-row items-center justify-between">
+          <Text className="text-base font-bold text-slate-900">
             Monthly Spendings Comparison
           </Text>
-          <View style={styles.legendRow}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#6366F1' }]} />
-              <Text style={[styles.legendText, { color: theme.textSecondary }]}>Group Total</Text>
+          <View className="flex-row gap-3 items-center">
+            <View className="flex-row items-center gap-1.5">
+              <View className="w-2.5 h-2.5 rounded-full bg-slate-900" />
+              <Text className="text-xs text-slate-500 font-medium">Group</Text>
             </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
-              <Text style={[styles.legendText, { color: theme.textSecondary }]}>Your Share</Text>
+            <View className="flex-row items-center gap-1.5">
+              <View className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              <Text className="text-xs text-slate-500 font-medium">You</Text>
             </View>
           </View>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.barScroll}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-5 items-end pt-4 pb-2">
           {monthlyData.monthsList.map((m) => {
             const groupBarHeight = Math.round((m.groupTotal / monthlyData.maxVal) * 120);
             const userBarHeight = Math.round((m.userTotal / monthlyData.maxVal) * 120);
 
             return (
-              <View key={m.key} style={styles.barColumn}>
-                <View style={styles.barPairContainer}>
+              <View key={m.key} className="items-center gap-2">
+                <View className="flex-row items-end gap-1.5 h-36">
                   {/* Group Bar */}
-                  <View style={styles.singleBarWrapper}>
-                    <Text style={[styles.barAmtText, { color: theme.textSecondary }]}>
+                  <View className="items-center justify-end w-6">
+                    <Text className="text-[9px] font-bold text-slate-400 mb-1">
                       {m.groupTotal > 0 ? `₹${Math.round(m.groupTotal)}` : ''}
                     </Text>
                     <View
-                      style={[
-                        styles.barFill,
-                        { height: Math.max(groupBarHeight, 4), backgroundColor: '#6366F1' },
-                      ]}
+                      className="w-4 rounded-t-md bg-slate-900"
+                      style={{ height: Math.max(groupBarHeight, 4) }}
                     />
                   </View>
 
                   {/* User Share Bar */}
-                  <View style={styles.singleBarWrapper}>
-                    <Text style={[styles.barAmtText, { color: theme.textSecondary }]}>
+                  <View className="items-center justify-end w-6">
+                    <Text className="text-[9px] font-bold text-slate-400 mb-1">
                       {m.userTotal > 0 ? `₹${Math.round(m.userTotal)}` : ''}
                     </Text>
                     <View
-                      style={[
-                        styles.barFill,
-                        { height: Math.max(userBarHeight, 4), backgroundColor: '#10B981' },
-                      ]}
+                      className="w-4 rounded-t-md bg-emerald-500"
+                      style={{ height: Math.max(userBarHeight, 4) }}
                     />
                   </View>
                 </View>
 
-                <Text style={[styles.monthLabel, { color: theme.text }]}>{m.label}</Text>
+                <Text className="text-xs font-bold text-slate-700">{m.label}</Text>
               </View>
             );
           })}
@@ -153,96 +147,3 @@ export function MonthlySpendingsTab({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    gap: 14,
-    marginTop: 4,
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  metricCard: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 12,
-    gap: 4,
-  },
-  metricLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  metricValue: {
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  chartCard: {
-    padding: 16,
-    borderRadius: 16,
-    gap: 16,
-  },
-  chartHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  chartTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  legendRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  legendText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  barScroll: {
-    gap: 18,
-    alignItems: 'flex-end',
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  barColumn: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  barPairContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 4,
-    height: 140,
-  },
-  singleBarWrapper: {
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    width: 24,
-  },
-  barAmtText: {
-    fontSize: 9,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  barFill: {
-    width: 18,
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
-  },
-  monthLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-});

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 export type CategoryIconType =
@@ -49,48 +49,51 @@ interface CategoryIconProps {
   customIcon?: string;
   size?: number;
   color?: string;
+  variant?: 'solid' | 'light';
 }
 
 export function CategoryIcon({
   category,
   customIcon,
-  size = 36,
+  size = 48,
   color,
+  variant = 'solid',
 }: CategoryIconProps) {
   const cat = (category || 'custom').toLowerCase();
 
   let iconName: keyof typeof Ionicons.glyphMap = 'apps';
-  let bgColor = '#64748B';
+  let bgColor = '#3A3E45';
+  let iconColor = '#E2E8F0';
 
   switch (cat) {
     case 'trip':
       iconName = 'airplane';
-      bgColor = '#6366F1';
+      bgColor = '#334454';
       break;
 
     case 'house':
       iconName = 'home';
-      bgColor = '#10B981';
+      bgColor = '#2E4036';
       break;
 
     case 'dining':
       iconName = 'restaurant';
-      bgColor = '#F59E0B';
+      bgColor = '#42372E';
       break;
 
     case 'event':
       iconName = 'calendar';
-      bgColor = '#F43F5E';
+      bgColor = '#44323B';
       break;
 
     case 'transport':
       iconName = 'car';
-      bgColor = '#0EA5E9';
+      bgColor = '#303E48';
       break;
 
     case 'utilities':
       iconName = 'flash';
-      bgColor = '#8B5CF6';
+      bgColor = '#383344';
       break;
 
     case 'custom':
@@ -100,33 +103,30 @@ export function CategoryIcon({
       } else {
         iconName = 'apps';
       }
-      bgColor = '#EC4899';
+      bgColor = '#3A3E45';
       break;
   }
 
   const activeColor = color || bgColor;
-  const iconSize = Math.round(size * 0.55);
+  const iconSize = Math.round(size * 0.52);
+
+  if (variant === 'light') {
+    return (
+      <View
+        className="items-center justify-center bg-accent-pill border border-surface"
+        style={{ width: size, height: size, borderRadius: size / 2 }}
+      >
+        <Ionicons name={iconName} size={iconSize} color="#94A3B8" />
+      </View>
+    );
+  }
 
   return (
     <View
-      style={[
-        styles.circle,
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: activeColor,
-        },
-      ]}
+      className="items-center justify-center border border-white/10 shadow-sm"
+      style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: activeColor }}
     >
-      <Ionicons name={iconName} size={iconSize} color="#FFFFFF" />
+      <Ionicons name={iconName} size={iconSize} color={iconColor} />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  circle: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

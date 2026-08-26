@@ -1,88 +1,75 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Text } from 'react-native';
+import { View, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useTheme } from '@/hooks/use-theme';
 import { useExpenseStore } from '@/store/useExpenseStore';
 import { calculateSimplifiedDebts } from '@/utils/debtSimplifier';
 import { BottomTabInset } from '@/constants/theme';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { CreateGroupModal } from '@/components/CreateGroupModal';
+import { Ionicons } from '@expo/vector-icons';
+import { Button } from '@/components/ui/Button';
+import { Text } from '@/components/ui/Text';
 
 export default function GroupsScreen() {
   const router = useRouter();
-  const theme = useTheme();
   const [createGroupVisible, setCreateGroupVisible] = useState(false);
   const { cohorts, members, expenses, currentUser } = useExpenseStore();
 
   return (
-    <ThemedView style={styles.container}>
-      <View style={styles.header}>
-        <ThemedText type="title">Groups</ThemedText>
+    <View className="flex-1 bg-screen pt-safe">
+      <View className="screen-header">
+        <Text className="screen-title">Groups</Text>
+        <Button variant="ghost" size="icon" className="btn-icon-circle" onPress={() => setCreateGroupVisible(true)}>
+          <Ionicons name="add" size={20} color="#94A3B8" />
+        </Button>
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: BottomTabInset + 24 }]}
+        contentContainerClassName="px-5 pb-10 gap-4"
+        style={{ paddingBottom: BottomTabInset + 24 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.groupsOnlyContainer}>
-          <View style={styles.sectionHeader}>
-            <ThemedText type="subtitle" style={styles.sectionTitle}>
-              Event Cohorts & Ledgers
-            </ThemedText>
-            <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-              <TouchableOpacity onPress={() => setCreateGroupVisible(true)}>
-                <ThemedText type="linkPrimary">+ New Event</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push('/scan' as any)}>
-                <ThemedText type="linkPrimary">Scan QR</ThemedText>
-              </TouchableOpacity>
-            </View>
+        <View className="flex-row items-center justify-between mb-2">
+          <Text className="text-sm font-bold text-main">Event Cohorts & Ledgers</Text>
+          <View className="flex-row gap-4 items-center">
+            <TouchableOpacity onPress={() => setCreateGroupVisible(true)}>
+              <Text className="text-sm font-semibold text-sky-500">+ New Event</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/scan' as any)}>
+              <Text className="text-sm font-semibold text-sky-500">Scan QR</Text>
+            </TouchableOpacity>
           </View>
+        </View>
 
-          <View style={styles.groupsGrid}>
-            {cohorts.map((cohort) => {
-              const cohortM = members[cohort.id] || [];
-              const cohortE = expenses[cohort.id] || [];
-              const res = calculateSimplifiedDebts(cohort.id, cohortM, cohortE);
-              const userBal = res.netBalances[currentUser.id] || 0;
+        <View className="gap-3">
+          {cohorts.map((cohort) => {
+            const cohortM = members[cohort.id] || [];
+            const cohortE = expenses[cohort.id] || [];
+            const res = calculateSimplifiedDebts(cohort.id, cohortM, cohortE);
+            const userBal = res.netBalances[currentUser.id] || 0;
 
-              return (
-                <TouchableOpacity
-                  key={cohort.id}
-                  style={[
-                    styles.groupFullCard,
-                    { backgroundColor: theme.backgroundElement },
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={() => router.push(`/event/${cohort.id}` as any)}
-                >
-                  <CategoryIcon
-                    category={cohort.category}
-                    customIcon={cohort.customIcon}
-                    size={42}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.groupNameLarge, { color: theme.text }]}>
-                      {cohort.name}
-                    </Text>
-                    <Text style={[styles.groupDesc, { color: theme.textSecondary }]}>
+            return (
+              <TouchableOpacity
+                key={cohort.id}
+                activeOpacity={0.8}
+                className="card-item"
+                onPress={() => router.push(`/event/${cohort.id}` as any)}
+              >
+                <View className="flex-row items-center gap-4 flex-1 pr-4">
+                  <CategoryIcon category={cohort.category} customIcon={cohort.customIcon} size={48} variant="solid" />
+                  <View className="flex-1">
+                    <Text className="text-lg font-bold text-main">{cohort.name}</Text>
+                    <Text className="text-sm text-secondary" numberOfLines={2}>
                       {cohort.description || `${cohortM.length} active members`}
                     </Text>
                   </View>
-                  <Text
-                    style={[
-                      styles.groupBalanceLarge,
-                      { color: userBal >= 0 ? '#10B981' : '#EF4444' },
-                    ]}
-                  >
-                    {userBal >= 0 ? `+₹${userBal.toFixed(2)}` : `-₹${Math.abs(userBal).toFixed(2)}`}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+                </View>
+                <Text className={`text-base ${userBal >= 0 ? 'balance-positive' : 'balance-negative'}`}>
+                  {userBal >= 0 ? `+₹${userBal.toFixed(2)}` : `-₹${Math.abs(userBal).toFixed(2)}`}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </ScrollView>
 
@@ -90,56 +77,6 @@ export default function GroupsScreen() {
         visible={createGroupVisible}
         onClose={() => setCreateGroupVisible(false)}
       />
-    </ThemedView>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 60,
-    paddingBottom: 16,
-  },
-  scrollContent: {
-    padding: 16,
-    gap: 20,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  groupsOnlyContainer: {
-    gap: 16,
-  },
-  groupsGrid: {
-    gap: 12,
-  },
-  groupFullCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 16,
-    gap: 14,
-  },
-  groupNameLarge: {
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  groupDesc: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  groupBalanceLarge: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-});
