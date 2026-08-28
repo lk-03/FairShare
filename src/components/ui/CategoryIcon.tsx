@@ -52,6 +52,40 @@ interface CategoryIconProps {
   variant?: 'solid' | 'light';
 }
 
+export function getCategoryMetadata(category?: string, customIcon?: string): {
+  iconName: keyof typeof Ionicons.glyphMap;
+  label: string;
+  bgColor: string;
+} {
+  const cat = (category || 'custom').toLowerCase();
+  switch (cat) {
+    case 'trip':
+      return { iconName: 'airplane', label: 'Trip', bgColor: '#334454' };
+    case 'house':
+      return { iconName: 'home', label: 'House', bgColor: '#2E4036' };
+    case 'dining':
+      return { iconName: 'restaurant', label: 'Dining', bgColor: '#42372E' };
+    case 'event':
+      return { iconName: 'calendar', label: 'Event', bgColor: '#44323B' };
+    case 'transport':
+      return { iconName: 'car', label: 'Transport', bgColor: '#303E48' };
+    case 'utilities':
+      return { iconName: 'flash', label: 'Utilities', bgColor: '#383344' };
+    case 'custom':
+    default: {
+      let icon: keyof typeof Ionicons.glyphMap = 'apps';
+      if (customIcon && (Ionicons.glyphMap as any)[customIcon]) {
+        icon = customIcon as keyof typeof Ionicons.glyphMap;
+      }
+      const label =
+        !category || cat === 'custom'
+          ? (customIcon ? customIcon.charAt(0).toUpperCase() + customIcon.slice(1) : 'Custom')
+          : category.charAt(0).toUpperCase() + category.slice(1);
+      return { iconName: icon, label, bgColor: '#3A3E45' };
+    }
+  }
+}
+
 export function CategoryIcon({
   category,
   customIcon,
@@ -113,8 +147,16 @@ export function CategoryIcon({
   if (variant === 'light') {
     return (
       <View
-        className="items-center justify-center bg-accent-pill border border-surface"
-        style={{ width: size, height: size, borderRadius: size / 2 }}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: 'rgba(148, 163, 184, 0.15)',
+          borderWidth: 1,
+          borderColor: 'rgba(148, 163, 184, 0.25)',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
       >
         <Ionicons name={iconName} size={iconSize} color="#94A3B8" />
       </View>
@@ -123,8 +165,16 @@ export function CategoryIcon({
 
   return (
     <View
-      className="items-center justify-center border border-white/10 shadow-sm"
-      style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: activeColor }}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: activeColor,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.15)',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
     >
       <Ionicons name={iconName} size={iconSize} color={iconColor} />
     </View>

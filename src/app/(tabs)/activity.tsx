@@ -133,7 +133,7 @@ export default function ActivityScreen() {
                 <View className="mr-4">
                   {item.type === 'comment' ? (
                     <View className="w-12 h-12 rounded-full bg-accent-pill border border-surface items-center justify-center">
-                      <Text className="text-2xl">💬</Text>
+                      <Ionicons name="chatbubble-ellipses-outline" size={22} color="#38BDF8" />
                     </View>
                   ) : (
                     <CategoryIcon category={item.category} customIcon={item.customIcon} size={48} variant="solid" />

@@ -14,6 +14,16 @@ module.exports = {
         negative: 'var(--text-negative)',
         'accent-pill': 'var(--accent-pill)',
         'accent-pill-text': 'var(--accent-pill-text)',
+        chart: {
+          1: 'var(--chart-1)',
+          2: 'var(--chart-2)',
+          3: 'var(--chart-3)',
+          4: 'var(--chart-4)',
+          5: 'var(--chart-5)',
+          6: 'var(--chart-6)',
+          7: 'var(--chart-7)',
+          8: 'var(--chart-8)',
+        },
       },
       borderColor: {
         surface: 'var(--border-surface)',

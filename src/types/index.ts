@@ -1,4 +1,4 @@
-export type SplitType = 'equal' | 'exact' | 'percentage' | 'shares';
+export type SplitType = 'equal' | 'exact' | 'percentage' | 'shares' | 'adjustment';
 
 export type EventCategory = 'trip' | 'house' | 'event' | 'dining' | 'transport' | 'utilities' | 'custom';
 
@@ -20,6 +20,7 @@ export interface EventCohort {
   category: EventCategory;
   customIcon?: string;
   bannerUrl?: string;
+  avatarUrl?: string;
   currency: string; // e.g. 'INR', 'USD'
   createdBy: string; // UserProfile id
   inviteCode: string;
@@ -119,8 +120,14 @@ export interface SharedListItem {
   createdAt: string;
 }
 
+export type ReminderFrequencyUnit = 'hours' | 'days';
+
 export interface PersonalReminderSettings {
   enabled: boolean;
-  frequencyDays: number;
-  reminderTime: string;
+  frequencyUnit?: ReminderFrequencyUnit; // 'hours' | 'days' (default: 'hours')
+  frequencyHours?: number; // 2, 4, 6, 8, 12, 24 (default: 6)
+  frequencyDays?: number; // 1, 2, 3, 5, 7 (default: 1)
+  reminderTime?: string; // '09:00', '13:00', '18:00', '21:00'
+  notifyStaleItems?: boolean; // notify everyone when an item is unchecked for 3+ days
 }
+

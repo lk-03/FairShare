@@ -4,11 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { ThemeGradientHeader } from '@/components/ui/ThemeGradientHeader';
 import {
   useThemeStore,
+  getActiveThemeClass,
   THEME_METADATA,
   THEME_GRADIENTS,
   ThemeBase,
   ColorSchemeOption,
 } from '@/store/useThemeStore';
+import { useColorScheme } from 'react-native';
 import { Text } from '@/components/ui/Text';
 
 interface ThemeSettingsModalProps {
@@ -17,7 +19,9 @@ interface ThemeSettingsModalProps {
 }
 
 export function ThemeSettingsModal({ visible, onClose }: ThemeSettingsModalProps) {
+  const systemScheme = useColorScheme();
   const { themeBase, colorScheme, setThemeBase, setColorScheme } = useThemeStore();
+  const activeThemeClass = getActiveThemeClass(themeBase, colorScheme, systemScheme);
 
   const themes: ThemeBase[] = ['nordic', 'sage', 'taupe', 'cobalt'];
   const modes: { label: string; value: ColorSchemeOption; icon: string }[] = [
@@ -33,15 +37,13 @@ export function ThemeSettingsModal({ visible, onClose }: ThemeSettingsModalProps
       animationType="slide"
       onRequestClose={onClose}
     >
-      <TouchableOpacity
-        className="flex-1 bg-black/60 justify-end"
-        activeOpacity={1}
-        onPress={onClose}
-      >
+      <View className={`flex-1 ${activeThemeClass} bg-black/60 justify-end`}>
         <TouchableOpacity
+          className="flex-1"
           activeOpacity={1}
-          className="bg-surface rounded-t-3xl p-6 border-t border-surface max-h-[85%]"
-        >
+          onPress={onClose}
+        />
+        <View className="bg-surface rounded-t-3xl p-6 border-t border-surface max-h-[85%]">
           {/* Header */}
           <View className="flex-row justify-between items-center mb-6">
             <View>
@@ -146,8 +148,8 @@ export function ThemeSettingsModal({ visible, onClose }: ThemeSettingsModalProps
               </View>
             </View>
           </ScrollView>
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </View>
+      </View>
     </Modal>
   );
 }

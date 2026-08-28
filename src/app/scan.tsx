@@ -18,7 +18,7 @@ export default function ScanScreen() {
     }
   }, [permission]);
 
-  const handleBarcodeScanned = ({ data }: { data: string }) => {
+  const handleBarcodeScanned = async ({ data }: { data: string }) => {
     if (scanned) return;
     setScanned(true);
 
@@ -27,7 +27,7 @@ export default function ScanScreen() {
       inviteCode = data.split('fairshare://join/')[1];
     }
 
-    const cohort = joinCohortByInviteCode(inviteCode);
+    const cohort = await joinCohortByInviteCode(inviteCode);
 
     if (cohort) {
       Alert.alert('Success!', `Joined ${cohort.name}`, [

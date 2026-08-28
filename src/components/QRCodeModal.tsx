@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
-import { View, Modal, TouchableOpacity } from 'react-native';
+import { View, Modal, TouchableOpacity, useColorScheme } from 'react-native';
 import QRCode from 'qrcode';
+import { useThemeStore, getActiveThemeClass } from '@/store/useThemeStore';
 import { Text } from '@/components/ui/Text';
 
 interface QRCodeModalProps {
@@ -11,6 +12,10 @@ interface QRCodeModalProps {
 }
 
 export function QRCodeModal({ visible, onClose, title, inviteCode }: QRCodeModalProps) {
+  const systemScheme = useColorScheme();
+  const { themeBase, colorScheme } = useThemeStore();
+  const activeThemeClass = getActiveThemeClass(themeBase, colorScheme, systemScheme);
+
   const deepLink = `fairshare://join/${inviteCode}`;
 
   // Generate pure matrix modules (size x size array of 0s and 1s)
@@ -37,12 +42,17 @@ export function QRCodeModal({ visible, onClose, title, inviteCode }: QRCodeModal
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity className="flex-1 bg-black/50 items-center justify-center p-5" activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity activeOpacity={1} className="w-full max-w-[340px] rounded-3xl p-6 bg-white border border-slate-200 shadow-xl items-center gap-4">
-          <Text className="text-xl font-extrabold text-slate-900 text-center">Join {title}</Text>
-          <Text className="text-xs text-slate-500 text-center">
+      <View className={`flex-1 ${activeThemeClass} bg-black/50 items-center justify-center p-5`}>
+        <TouchableOpacity
+          className="absolute inset-0"
+          activeOpacity={1}
+          onPress={onClose}
+        />
+        <View className="w-full max-w-[340px] rounded-3xl p-6 bg-surface border border-surface shadow-xl items-center gap-4">
+          <Text className="text-xl font-extrabold text-main text-center">Join {title}</Text>
+          <Text className="text-xs text-secondary text-center">
             Scan QR code or use code:{' '}
-            <Text className="font-extrabold text-slate-900">{inviteCode}</Text>
+            <Text className="font-extrabold text-main">{inviteCode}</Text>
           </Text>
 
           <View className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
@@ -66,11 +76,14 @@ export function QRCodeModal({ visible, onClose, title, inviteCode }: QRCodeModal
             )}
           </View>
 
-          <TouchableOpacity className="w-full bg-slate-900 py-3.5 rounded-2xl items-center mt-2 shadow-sm" onPress={onClose}>
-            <Text className="text-white font-bold text-sm">Done</Text>
+          <TouchableOpacity
+            className="w-full bg-main py-3.5 rounded-2xl items-center mt-2 shadow-sm"
+            onPress={onClose}
+          >
+            <Text className="text-screen font-bold text-sm">Done</Text>
           </TouchableOpacity>
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </View>
+      </View>
     </Modal>
   );
 }

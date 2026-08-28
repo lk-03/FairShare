@@ -15,17 +15,26 @@ import { AddExpenseModal } from '@/components/AddExpenseModal';
 import { EditGroupModal } from '@/components/EditGroupModal';
 import { MonthlySpendingsTab } from '@/components/MonthlySpendingsTab';
 import { NeedsListTab } from '@/components/NeedsListTab';
-import { CategoryIcon } from '@/components/ui/CategoryIcon';
+import { CategoryIcon, getCategoryMetadata } from '@/components/ui/CategoryIcon';
+import { GroupAvatar } from '@/components/ui/GroupAvatar';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabInset } from '@/constants/theme';
 import { DirectDebt } from '@/types';
 import { ExpenseDetailsModal } from '@/components/ExpenseDetailsModal';
+import { StaleNeedsReminderModal } from '@/components/StaleNeedsReminderModal';
 import { Text } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
+import { useThemeStore, getActiveThemeClass } from '@/store/useThemeStore';
+import { useColorScheme } from 'react-native';
 
 export default function EventDetailScreen() {
+  const systemScheme = useColorScheme();
+  const { themeBase, colorScheme } = useThemeStore();
+  const activeThemeClass = getActiveThemeClass(themeBase, colorScheme, systemScheme);
+
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const cohortId = Array.isArray(id) ? id[0] : (id || '');
 
   const { cohorts, members, expenses, currentUser } = useExpenseStore();
 
@@ -36,18 +45,19 @@ export default function EventDetailScreen() {
   const [menuVisible, setMenuVisible] = useState(false);
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
 
-  const cohort = cohorts.find((c) => c.id === id);
-  const cohortMembers = members[id as string] || [];
-  const cohortExpenses = expenses[id as string] || [];
+  const cohort = cohorts.find((c) => c.id === cohortId);
+  const cohortMembers = members[cohortId] || [];
+  const cohortExpenses = expenses[cohortId] || [];
 
   const simplificationResult = calculateSimplifiedDebts(
-    id as string,
+    cohortId,
     cohortMembers,
     cohortExpenses
   );
 
   const userNetBalance = simplificationResult.netBalances[currentUser.id] || 0;
   const selectedExpense = cohortExpenses.find(e => e.id === selectedExpenseId) || null;
+  const categoryMeta = getCategoryMetadata(cohort?.category, cohort?.customIcon);
 
   const handleSettleUpUPI = async (debt: DirectDebt) => {
     const payeeName = debt.toProfile?.fullName || 'Payee';
@@ -59,17 +69,20 @@ export default function EventDetailScreen() {
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Pay via UPI',
+          text: 'Open UPI App',
           onPress: async () => {
-            const res = await launchUPIIntent({
+            const success = await launchUPIIntent({
               vpaId: payeeVpa,
               payeeName,
               amount: debt.amount,
               currency: 'INR',
-              note: `FairShare - ${cohort?.name || 'Event Settlement'}`,
+              note: `FairShare Settlement - ${cohort?.name || 'Group'}`,
             });
-            if (!res.success) {
-              Alert.alert('UPI Launch Info', res.message);
+            if (!success) {
+              Alert.alert(
+                'UPI Apps Not Found',
+                `Could not open UPI app. You can manually pay ₹${debt.amount} to VPA: ${payeeVpa}`
+              );
             }
           },
         },
@@ -79,10 +92,16 @@ export default function EventDetailScreen() {
 
   if (!cohort) {
     return (
-      <View className="flex-1 bg-screen items-center justify-center p-6">
+      <View className="flex-1 bg-screen items-center justify-center p-6 gap-4">
         <Text className="text-secondary text-center text-base">
           Event cohort not found.
         </Text>
+        <TouchableOpacity
+          className="bg-main px-5 py-2.5 rounded-2xl items-center justify-center"
+          onPress={() => router.back()}
+        >
+          <Text className="text-screen font-bold text-sm">Go Back</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -118,17 +137,45 @@ export default function EventDetailScreen() {
       >
         {/* Banner Card */}
         <View className="card-main">
-          <View className="flex-row items-center gap-3 mb-4">
-            <CategoryIcon category={cohort.category} customIcon={cohort.customIcon} size={48} variant="solid" />
-            <View className="flex-1">
-              <Text className="section-label">{cohort.category}</Text>
-              <Text className="text-2xl font-extrabold text-main">{cohort.name}</Text>
+          <View className="flex-row items-center gap-3.5 mb-4">
+            <GroupAvatar
+              avatarUrl={cohort.avatarUrl || cohort.bannerUrl}
+              category={cohort.category}
+              customIcon={cohort.customIcon}
+              size={56}
+              variant="solid"
+            />
+            <View className="flex-1 justify-center">
+              <View className="flex-row items-center justify-between gap-2">
+                <Text className="text-xl font-extrabold text-main flex-1" numberOfLines={1}>
+                  {cohort.name}
+                </Text>
+                <View className="flex-row items-center gap-1 bg-accent-pill px-2.5 py-1 rounded-full border border-surface">
+                  <Ionicons name={categoryMeta.iconName} size={12} color="#94A3B8" />
+                  <Text className="text-[11px] font-semibold text-secondary lowercase">
+                    {categoryMeta.label}
+                  </Text>
+                </View>
+              </View>
+
+              {cohort.description ? (
+                <Text className="text-xs text-secondary mt-1" numberOfLines={2}>
+                  {cohort.description}
+                </Text>
+              ) : (
+                <Text className="text-xs text-secondary/60 mt-1 italic">
+                  No description
+                </Text>
+              )}
             </View>
           </View>
 
           <View className="border-t border-surface pt-3 flex-row items-center justify-between">
-            <Text className="section-label">YOUR NET POSITION</Text>
-            <Text className={`text-2xl font-extrabold ${userNetBalance >= 0 ? 'balance-positive' : 'balance-negative'}`}>
+            <Text className="section-label" numberOfLines={1}>YOUR NET POSITION</Text>
+            <Text
+              className={`text-2xl font-extrabold ${userNetBalance >= 0 ? 'balance-positive' : 'balance-negative'}`}
+              numberOfLines={1}
+            >
               {userNetBalance >= 0 ? `+₹${userNetBalance.toFixed(2)}` : `-₹${Math.abs(userNetBalance).toFixed(2)}`}
             </Text>
           </View>
@@ -150,11 +197,12 @@ export default function EventDetailScreen() {
             onPress={() => setActiveTab('general')}
           >
             <Text
-              className={`text-xs font-bold ${
+              className={`text-xs font-semibold ${
                 activeTab === 'general' ? 'text-screen' : 'text-secondary'
               }`}
+              numberOfLines={1}
             >
-              📋 General Ledger
+              General Ledger
             </Text>
           </TouchableOpacity>
 
@@ -167,11 +215,12 @@ export default function EventDetailScreen() {
             onPress={() => setActiveTab('monthly')}
           >
             <Text
-              className={`text-xs font-bold ${
+              className={`text-xs font-semibold ${
                 activeTab === 'monthly' ? 'text-screen' : 'text-secondary'
               }`}
+              numberOfLines={1}
             >
-              📊 Monthly Spendings
+              Monthly Spendings
             </Text>
           </TouchableOpacity>
 
@@ -184,11 +233,12 @@ export default function EventDetailScreen() {
             onPress={() => setActiveTab('needs')}
           >
             <Text
-              className={`text-xs font-bold ${
+              className={`text-xs font-semibold ${
                 activeTab === 'needs' ? 'text-screen' : 'text-secondary'
               }`}
+              numberOfLines={1}
             >
-              🛒 Needs / House Cart
+              Needs / House Cart
             </Text>
           </TouchableOpacity>
         </ScrollView>
@@ -196,51 +246,76 @@ export default function EventDetailScreen() {
         {/* SUB TAB CONTENTS */}
         {activeTab === 'general' && (
           <>
-            {/* Simplified Settlement Matrix */}
+            {/* Status Section */}
             <View className="section-header-row">
-              <Text className="section-header-title">Simplified P2P Settlements</Text>
+              <Text className="section-header-title">Status</Text>
             </View>
 
             {simplificationResult.simplifiedDebts.length === 0 ? (
               <View className="card-main items-center py-8">
                 <Text className="text-sm font-semibold text-secondary">
-                  🎉 All debts are completely settled up!
+                  All debts are completely settled up!
                 </Text>
               </View>
             ) : (
               <View className="gap-3">
-                {simplificationResult.simplifiedDebts.map((debt, index) => (
-                  <View key={index} className="card-item">
-                    <View className="flex-1 pr-3">
-                      <Text className="text-base font-bold text-main">
-                        {debt.fromProfile?.fullName || debt.fromUserId} → {debt.toProfile?.fullName || debt.toUserId}
-                      </Text>
-                      <Text className="text-xs text-secondary mt-0.5">
-                        Direct P2P Settlement
-                      </Text>
-                    </View>
+                {simplificationResult.simplifiedDebts.map((debt, index) => {
+                  const isDebtor = debt.fromUserId === currentUser.id;
+                  const isCreditor = debt.toUserId === currentUser.id;
+                  const fromName = isDebtor ? 'You' : (debt.fromProfile?.fullName || debt.fromUserId);
+                  const toName = isCreditor ? 'you' : (debt.toProfile?.fullName || debt.toUserId);
 
-                    <View className="items-end gap-2">
-                      <Text className="text-base font-extrabold text-negative">
-                        ₹{debt.amount.toFixed(2)}
-                      </Text>
-                      {debt.fromUserId === currentUser.id && (
-                        <TouchableOpacity
-                          className="bg-emerald-500 px-3 py-1.5 rounded-xl items-center"
-                          onPress={() => handleSettleUpUPI(debt)}
-                        >
-                          <Text className="text-white text-xs font-bold">Pay UPI</Text>
-                        </TouchableOpacity>
-                      )}
+                  let headline = '';
+                  let subtitle = '';
+                  let amountClass = '';
+                  let amountPrefix = '';
+
+                  if (isCreditor) {
+                    headline = `${fromName} owes you`;
+                    subtitle = 'Pending settlement to you';
+                    amountClass = 'text-emerald-400';
+                    amountPrefix = '+';
+                  } else if (isDebtor) {
+                    headline = `You owe ${toName}`;
+                    subtitle = 'Direct P2P Settlement';
+                    amountClass = 'text-negative';
+                    amountPrefix = '-';
+                  } else {
+                    headline = `${fromName} owes ${toName}`;
+                    subtitle = 'Group Settlement';
+                    amountClass = 'text-secondary';
+                    amountPrefix = '';
+                  }
+
+                  return (
+                    <View key={index} className="card-item">
+                      <View className="flex-1 pr-3">
+                        <Text className="text-base font-bold text-main">{headline}</Text>
+                        <Text className="text-xs text-secondary mt-0.5">{subtitle}</Text>
+                      </View>
+
+                      <View className="items-end gap-1.5">
+                        <Text className={`text-base font-extrabold ${amountClass}`}>
+                          {amountPrefix}₹{debt.amount.toFixed(2)}
+                        </Text>
+                        {isDebtor && (
+                          <TouchableOpacity
+                            className="bg-emerald-500 px-3 py-1.5 rounded-xl items-center mt-1"
+                            onPress={() => handleSettleUpUPI(debt)}
+                          >
+                            <Text className="text-white text-xs font-bold">Pay UPI</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     </View>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             )}
 
-            {/* Ledger Activity Feed */}
+            {/* History Feed */}
             <View className="section-header-row mt-4">
-              <Text className="section-header-title">Ledger Logs & Invoices</Text>
+              <Text className="section-header-title">History</Text>
             </View>
 
             <View className="gap-3">
@@ -251,28 +326,65 @@ export default function EventDetailScreen() {
                   </Text>
                 </View>
               ) : (
-                cohortExpenses.map((exp) => (
-                  <TouchableOpacity
-                    key={exp.id}
-                    activeOpacity={0.8}
-                    className="card-item"
-                    onPress={() => setSelectedExpenseId(exp.id)}
-                  >
-                    <View className="flex-row items-center gap-4 flex-1 pr-3">
-                      <CategoryIcon category={exp.category} customIcon={exp.customIcon} size={44} variant="solid" />
-                      <View className="flex-1">
-                        <Text className="text-base font-bold text-main">{exp.title}</Text>
-                        <Text className="text-xs text-secondary mt-0.5">
-                          Paid by {exp.paidByUserId === currentUser.id ? 'You' : 'Member'} • {exp.category}
+                cohortExpenses.map((exp) => {
+                  const isPayer = exp.paidByUserId === currentUser.id;
+                  const payerMember = cohortMembers.find((m) => m.userId === exp.paidByUserId);
+                  const payerName = isPayer ? 'You' : (payerMember?.profile?.fullName || 'Member');
+
+                  // Calculate net share that current user gets or owes
+                  const mySplitObj = exp.splits?.find((s) => s.userId === currentUser.id);
+                  const mySplit = mySplitObj ? mySplitObj.amount : 0;
+
+                  let netText = '';
+                  let netClass = '';
+
+                  if (isPayer) {
+                    const lentAmount = exp.totalAmount - mySplit;
+                    if (lentAmount > 0) {
+                      netText = `+₹${lentAmount.toFixed(2)}`;
+                      netClass = 'text-emerald-400';
+                    } else {
+                      netText = `₹0.00`;
+                      netClass = 'text-secondary';
+                    }
+                  } else {
+                    if (mySplit > 0) {
+                      netText = `-₹${mySplit.toFixed(2)}`;
+                      netClass = 'text-rose-400';
+                    } else {
+                      netText = `Not involved`;
+                      netClass = 'text-secondary';
+                    }
+                  }
+
+                  return (
+                    <TouchableOpacity
+                      key={exp.id}
+                      activeOpacity={0.8}
+                      className="card-item"
+                      onPress={() => setSelectedExpenseId(exp.id)}
+                    >
+                      <View className="flex-row items-center gap-4 flex-1 pr-3">
+                        <CategoryIcon category={exp.category} customIcon={exp.customIcon} size={44} variant="solid" />
+                        <View className="flex-1">
+                          <Text className="text-base font-bold text-main">{exp.title}</Text>
+                          <Text className="text-xs text-secondary mt-0.5">
+                            Paid by {payerName} • {exp.category}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View className="items-end justify-center">
+                        <Text className="text-base font-extrabold text-main">
+                          ₹{exp.totalAmount.toFixed(2)}
+                        </Text>
+                        <Text className={`text-[11px] font-semibold mt-0.5 ${netClass}`}>
+                          {netText}
                         </Text>
                       </View>
-                    </View>
-
-                    <Text className="text-base font-extrabold text-main">
-                      ₹{exp.totalAmount}
-                    </Text>
-                  </TouchableOpacity>
-                ))
+                    </TouchableOpacity>
+                  );
+                })
               )}
             </View>
           </>
@@ -283,6 +395,7 @@ export default function EventDetailScreen() {
             cohort={cohort}
             expenses={cohortExpenses}
             currentUserId={currentUser.id}
+            members={cohortMembers}
           />
         )}
 
@@ -293,11 +406,15 @@ export default function EventDetailScreen() {
 
       {/* Floating Action Button (FAB) for Add Expense */}
       <TouchableOpacity
-        className="absolute right-6 bottom-8 w-14 h-14 rounded-full bg-main items-center justify-center shadow-lg"
+        className="fab-main-btn"
+        style={{
+          right: 20,
+          bottom: 24,
+        }}
         activeOpacity={0.85}
         onPress={() => setAddModalVisible(true)}
       >
-        <Ionicons name="add" size={28} color="#FFFFFF" />
+        <Ionicons name="add" size={28} color="#38BDF8" />
       </TouchableOpacity>
 
       <QRCodeModal
@@ -329,11 +446,12 @@ export default function EventDetailScreen() {
 
       {/* Three Dot Options Menu Modal */}
       <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
-        <TouchableOpacity
-          className="flex-1 bg-black/50 justify-end"
-          activeOpacity={1}
-          onPress={() => setMenuVisible(false)}
-        >
+        <View className={`flex-1 ${activeThemeClass} bg-black/50 justify-end`}>
+          <TouchableOpacity
+            className="flex-1"
+            activeOpacity={1}
+            onPress={() => setMenuVisible(false)}
+          />
           <View className="bg-surface rounded-t-3xl p-6 gap-4 border-t border-surface">
             <Text className="section-label">
               GROUP OPTIONS
@@ -368,8 +486,11 @@ export default function EventDetailScreen() {
               <Text className="text-base font-bold text-negative">Cancel</Text>
             </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
+
+      {/* Stale Needs Reminder Modal */}
+      <StaleNeedsReminderModal />
     </View>
   );
 }

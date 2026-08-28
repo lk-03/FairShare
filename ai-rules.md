@@ -50,3 +50,8 @@ You are an expert React Native and Expo developer assisting with an 80%-complete
 - If NativeWind styles aren't applying during a refactor, remind yourself that the Metro bundler often needs its cache cleared (`npx expo start --clear`). 
 - Do not attempt to modify `babel.config.js` or `metro.config.js` without explicit permission—NativeWind v4 relies on a fragile JSX import source transform.
 - Only output the exact code changes requested. Do not hallucinate massive rewrites of surrounding files.
+
+---
+
+## 📝 6. Documentation & Context Maintenance (MANDATORY)
+- **Always Keep `ai-context.md` Updated:** Whenever you create, modify, rename, or delete any files, or make architectural/state changes to the project, you **MUST** update [`ai-context.md`](file:///home/lk-hypr/Me/Projects/FairShare/ai-context.md) to keep the project goals, file inventory, and architecture synchronized.
