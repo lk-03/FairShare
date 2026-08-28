@@ -5,13 +5,13 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
   useColorScheme,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useExpenseStore } from '@/store/useExpenseStore';
 import { useThemeStore, getActiveThemeClass } from '@/store/useThemeStore';
+import { showAlert } from '@/store/useAlertStore';
 import { EventCategory, EventCohort } from '@/types';
 import { CategoryIcon, GENERIC_CUSTOM_ICONS } from '@/components/ui/CategoryIcon';
 import { GroupAvatar } from '@/components/ui/GroupAvatar';
@@ -24,24 +24,24 @@ interface CreateGroupModalProps {
 }
 
 export function CreateGroupModal({ visible, onClose }: CreateGroupModalProps) {
-  const router = useRouter();
   const systemScheme = useColorScheme();
   const { themeBase, colorScheme } = useThemeStore();
   const activeThemeClass = getActiveThemeClass(themeBase, colorScheme, systemScheme);
 
+  const router = useRouter();
   const { addCohort, currentUser } = useExpenseStore();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<EventCategory>('trip');
-  const [customCategoryName, setCustomCategoryName] = useState('');
-  const [customIcon, setCustomIcon] = useState('gift');
+  const [category, setCategory] = useState<EventCategory>('house');
   const [currency, setCurrency] = useState('INR');
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>();
+  const [customCategoryName, setCustomCategoryName] = useState('');
+  const [customIcon, setCustomIcon] = useState('shapes-outline');
 
   const categories: { label: string; value: EventCategory }[] = [
-    { label: 'Trip', value: 'trip' },
-    { label: 'House', value: 'house' },
+    { label: 'House / Roommates', value: 'house' },
+    { label: 'Trip / Travel', value: 'trip' },
     { label: 'Event', value: 'event' },
     { label: 'Dining', value: 'dining' },
     { label: 'Transport', value: 'transport' },
@@ -53,7 +53,7 @@ export function CreateGroupModal({ visible, onClose }: CreateGroupModalProps) {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(
+        showAlert(
           'Permission Denied',
           'Camera roll access is needed to select a group profile picture.'
         );
@@ -77,7 +77,7 @@ export function CreateGroupModal({ visible, onClose }: CreateGroupModalProps) {
 
   const handleCreate = async () => {
     if (!name.trim()) {
-      Alert.alert('Name Required', 'Please enter a group or event name.');
+      showAlert('Name Required', 'Please enter a group or event name.');
       return;
     }
 
@@ -118,7 +118,7 @@ export function CreateGroupModal({ visible, onClose }: CreateGroupModalProps) {
     setCategory('trip');
     setCustomIcon('gift');
     setCurrency('INR');
-    setAvatarUrl(null);
+    setAvatarUrl(undefined);
   };
 
   return (
@@ -170,7 +170,7 @@ export function CreateGroupModal({ visible, onClose }: CreateGroupModalProps) {
                 </TouchableOpacity>
                 {avatarUrl && (
                   <TouchableOpacity
-                    onPress={() => setAvatarUrl(null)}
+                    onPress={() => setAvatarUrl(undefined)}
                     className="px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/20"
                   >
                     <Text className="text-xs font-semibold text-rose-400">Remove</Text>

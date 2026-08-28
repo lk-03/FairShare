@@ -5,13 +5,13 @@ import {
   TouchableOpacity,
   Modal,
   Switch,
-  Alert,
   ScrollView,
   useColorScheme,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useExpenseStore } from '@/store/useExpenseStore';
-import { useThemeStore, getActiveThemeClass } from '@/store/useThemeStore';
+import { useThemeStore, getActiveThemeClass, getThemePalette } from '@/store/useThemeStore';
+import { showAlert } from '@/store/useAlertStore';
 import { SharedListItem, PersonalReminderSettings, ReminderFrequencyUnit } from '@/types';
 import { Text } from '@/components/ui/Text';
 
@@ -40,6 +40,7 @@ export function NeedsListTab({ cohortId }: NeedsListTabProps) {
   const systemScheme = useColorScheme();
   const { themeBase, colorScheme } = useThemeStore();
   const activeThemeClass = getActiveThemeClass(themeBase, colorScheme, systemScheme);
+  const colors = getThemePalette(themeBase, colorScheme, systemScheme);
   const isDark =
     colorScheme === 'dark' ||
     (colorScheme === 'system' && (systemScheme === 'dark' || !systemScheme));
@@ -121,24 +122,34 @@ export function NeedsListTab({ cohortId }: NeedsListTabProps) {
     setSettingsVisible(false);
 
     if (!enabled) {
-      Alert.alert('Notifications Disabled', 'You will not receive shopping reminders for this house cart.');
+      showAlert('Notifications Disabled', 'You will not receive shopping reminders for this house cart.');
     } else if (unit === 'hours') {
-      Alert.alert('Reminder Settings Saved', `You will be reminded every ${freqHours} hour(s) before grocery runs.`);
+      showAlert('Reminder Settings Saved', `You will be reminded every ${freqHours} hour(s) before grocery runs.`);
     } else {
-      Alert.alert('Reminder Settings Saved', `You will be reminded every ${freqDays} day(s) at ${reminderTime}.`);
+      showAlert('Reminder Settings Saved', `You will be reminded every ${freqDays} day(s) at ${reminderTime}.`);
     }
   };
 
   return (
     <View className="gap-3 mt-1">
       {/* Creative Reminder Banner (Accent-Themed) */}
-      <View className="card-main p-4 flex-row items-center gap-3 bg-accent-pill border-surface">
-        <Ionicons name="sparkles" size={18} color="#38BDF8" />
-        <Text className="flex-1 text-xs font-semibold text-main leading-snug">
+      <View
+        className="p-4 rounded-3xl flex-row items-center gap-3"
+        style={{
+          backgroundColor: isDark ? colors.accentPill : '#F1F5F9',
+          borderWidth: 1,
+          borderColor: colors.border,
+          elevation: 0,
+          shadowOpacity: 0,
+        }}
+      >
+        <Ionicons name="sparkles" size={18} color={colors.cyan} />
+        <Text className="flex-1 text-xs font-semibold leading-snug" style={{ color: colors.textMain }}>
           {randomReminder}
         </Text>
         <TouchableOpacity
-          className="p-2 rounded-full bg-surface border border-surface shadow-sm"
+          className="p-2 rounded-full shadow-sm"
+          style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}
           onPress={() => {
             setEnabled(currentSettings.enabled ?? true);
             setUnit(currentSettings.frequencyUnit || 'hours');
@@ -149,25 +160,33 @@ export function NeedsListTab({ cohortId }: NeedsListTabProps) {
             setSettingsVisible(true);
           }}
         >
-          <Ionicons name="settings-outline" size={15} color="#94A3B8" />
+          <Ionicons name="settings-outline" size={15} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
       {/* Add Item Bar */}
       <View className="flex-row gap-2">
         <TextInput
-          className="flex-1 h-12 bg-surface border border-surface rounded-2xl px-4 text-sm text-main shadow-sm"
+          className="flex-1 h-12 rounded-2xl px-4 text-sm font-semibold shadow-sm"
+          style={{
+            backgroundColor: colors.surface,
+            borderWidth: 1,
+            borderColor: colors.border,
+            color: colors.textMain,
+          }}
           placeholder="Add needed item (e.g. Milk, Batteries, Bread)..."
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={colors.textSecondary}
           value={newItemTitle}
           onChangeText={setNewItemTitle}
           onSubmitEditing={handleAddItem}
         />
         <TouchableOpacity
-          className="w-12 h-12 rounded-2xl bg-main items-center justify-center shadow-sm"
+          className="w-12 h-12 rounded-2xl items-center justify-center shadow-sm"
+          style={{ backgroundColor: colors.cyan }}
           onPress={handleAddItem}
+          activeOpacity={0.8}
         >
-          <Ionicons name="add" size={24} color={isDark ? '#0F172A' : '#FFFFFF'} />
+          <Ionicons name="add" size={24} color="#0F172A" />
         </TouchableOpacity>
       </View>
 

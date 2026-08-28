@@ -1,11 +1,16 @@
 import React from 'react';
-import { View, TouchableOpacity } from 'react-native';
+import { View, TouchableOpacity, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@/components/ui/Text';
+import { useThemeStore, getThemePalette } from '@/store/useThemeStore';
 
 export function BottomNav({ state, descriptors, navigation }: any) {
+  const systemScheme = useColorScheme();
+  const { themeBase, colorScheme } = useThemeStore();
+  const colors = getThemePalette(themeBase, colorScheme, systemScheme);
+
   return (
-    <View className="bottom-nav-bar">
+    <View className="bottom-nav-bar" style={{ backgroundColor: colors.surface, borderTopColor: colors.border }}>
       {state.routes.map((route: any, index: number) => {
         const { options } = descriptors[route.key];
         const isFocused = state.index === index;
@@ -42,9 +47,12 @@ export function BottomNav({ state, descriptors, navigation }: any) {
             <Ionicons
               name={iconName}
               size={22}
-              color={isFocused ? '#E2E8F0' : '#64748B'}
+              color={isFocused ? colors.cyan : colors.textSecondary}
             />
-            <Text className={isFocused ? 'tab-label-active' : 'tab-label-inactive'}>
+            <Text
+              className="text-[11px] mt-1 font-semibold"
+              style={{ color: isFocused ? colors.textMain : colors.textSecondary }}
+            >
               {label}
             </Text>
           </TouchableOpacity>
@@ -53,4 +61,3 @@ export function BottomNav({ state, descriptors, navigation }: any) {
     </View>
   );
 }
-

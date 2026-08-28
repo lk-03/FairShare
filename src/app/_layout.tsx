@@ -8,6 +8,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { CustomAlertModal } from '@/components/ui/CustomAlertModal';
 import { useThemeStore, getActiveThemeClass } from '@/store/useThemeStore';
 
 SplashScreen.preventAutoHideAsync();
@@ -31,6 +32,7 @@ export default function RootLayout() {
           <Stack.Screen name="event/[id]" />
           <Stack.Screen name="scan" options={{ presentation: 'modal' }} />
         </Stack>
+        <CustomAlertModal />
       </View>
     </SafeAreaProvider>
   );

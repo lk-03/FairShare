@@ -6,6 +6,7 @@ import {
   EventCohort,
   GroupMember,
   Expense,
+  ExpenseShortcut,
   TransactionComment,
   SharedListItem,
   PersonalReminderSettings,
@@ -15,6 +16,7 @@ import {
   DEFAULT_COHORTS,
   DEFAULT_MEMBERS,
   DEFAULT_EXPENSES,
+  DEFAULT_SHORTCUTS,
   DEFAULT_SHARED_LISTS,
   DEFAULT_REMINDER_SETTINGS,
 } from '@/services/supabase/placeholderData';
@@ -34,6 +36,7 @@ interface ExpenseState {
   // Expenses & Ledger
   expenses: Record<string, Expense[]>; // cohortId -> Expense[]
   comments: Record<string, TransactionComment[]>; // expenseId -> TransactionComment[]
+  shortcuts: Record<string, ExpenseShortcut[]>; // cohortId -> ExpenseShortcut[]
   sharedLists: Record<string, SharedListItem[]>; // cohortId -> SharedListItem[]
   reminderSettings: Record<string, PersonalReminderSettings>; // cohortId -> PersonalReminderSettings
 
@@ -54,6 +57,8 @@ interface ExpenseState {
 
   // User Actions
   setCurrentUser: (user: UserProfile) => void;
+  updateCurrentUserVpa: (vpaId: string) => Promise<void>;
+  updateUserProfile: (updates: Partial<UserProfile>) => Promise<void>;
   setActiveCohort: (cohortId: string | null) => void;
 
   // Cohort Actions
@@ -66,6 +71,11 @@ interface ExpenseState {
   updateExpense: (expense: Expense) => Promise<void>;
   deleteExpense: (expenseId: string, cohortId: string) => Promise<void>;
   addComment: (comment: TransactionComment) => Promise<void>;
+
+  // Expense Shortcut Actions
+  addShortcut: (shortcut: ExpenseShortcut) => void;
+  updateShortcut: (shortcutId: string, cohortId: string, updates: Partial<ExpenseShortcut>) => void;
+  deleteShortcut: (shortcutId: string, cohortId: string) => void;
 
   // Shared Needs List Actions
   addListItem: (item: SharedListItem) => void;
@@ -83,6 +93,7 @@ export const useExpenseStore = create<ExpenseState>()(
       members: DEFAULT_MEMBERS,
       expenses: DEFAULT_EXPENSES,
       comments: {},
+      shortcuts: DEFAULT_SHORTCUTS,
       sharedLists: DEFAULT_SHARED_LISTS,
       reminderSettings: DEFAULT_REMINDER_SETTINGS,
       offlineQueue: [],
@@ -94,6 +105,76 @@ export const useExpenseStore = create<ExpenseState>()(
       clearError: () => set({ error: null }),
 
       setCurrentUser: (user) => set({ currentUser: user }),
+
+      updateCurrentUserVpa: async (vpaId: string) => {
+        const currentUser = get().currentUser;
+        const updatedUser: UserProfile = { ...currentUser, vpaId };
+
+        // 1. Optimistic local state update
+        set((state) => {
+          const updatedMembers: Record<string, GroupMember[]> = {};
+          Object.keys(state.members).forEach((cohortId) => {
+            updatedMembers[cohortId] = (state.members[cohortId] || []).map((m) => {
+              if (m.userId === currentUser.id) {
+                return {
+                  ...m,
+                  profile: m.profile
+                    ? { ...m.profile, vpaId }
+                    : updatedUser,
+                };
+              }
+              return m;
+            });
+          });
+
+          return {
+            currentUser: updatedUser,
+            members: updatedMembers,
+          };
+        });
+
+        // 2. Persist to backend
+        try {
+          await profileService.updateProfile(currentUser.id, { vpaId });
+        } catch (err) {
+          console.warn('[Store] updateCurrentUserVpa backend sync failed:', err);
+        }
+      },
+
+      updateUserProfile: async (updates: Partial<UserProfile>) => {
+        const currentUser = get().currentUser;
+        const updatedUser: UserProfile = { ...currentUser, ...updates };
+
+        // 1. Optimistic local state update
+        set((state) => {
+          const updatedMembers: Record<string, GroupMember[]> = {};
+          Object.keys(state.members).forEach((cohortId) => {
+            updatedMembers[cohortId] = (state.members[cohortId] || []).map((m) => {
+              if (m.userId === currentUser.id) {
+                return {
+                  ...m,
+                  profile: m.profile
+                    ? { ...m.profile, ...updates }
+                    : updatedUser,
+                };
+              }
+              return m;
+            });
+          });
+
+          return {
+            currentUser: updatedUser,
+            members: updatedMembers,
+          };
+        });
+
+        // 2. Persist to backend
+        try {
+          await profileService.updateProfile(currentUser.id, updates);
+        } catch (err) {
+          console.warn('[Store] updateUserProfile backend sync failed:', err);
+        }
+      },
 
       setActiveCohort: (cohortId) => set({ activeCohortId: cohortId }),
 
@@ -425,6 +506,40 @@ export const useExpenseStore = create<ExpenseState>()(
         }
       },
 
+      // Expense Shortcut Actions
+      addShortcut: (shortcut) =>
+        set((state) => {
+          const list = state.shortcuts[shortcut.cohortId] || [];
+          return {
+            shortcuts: {
+              ...state.shortcuts,
+              [shortcut.cohortId]: [shortcut, ...list],
+            },
+          };
+        }),
+
+      updateShortcut: (shortcutId, cohortId, updates) =>
+        set((state) => {
+          const list = state.shortcuts[cohortId] || [];
+          return {
+            shortcuts: {
+              ...state.shortcuts,
+              [cohortId]: list.map((sc) => (sc.id === shortcutId ? { ...sc, ...updates } : sc)),
+            },
+          };
+        }),
+
+      deleteShortcut: (shortcutId, cohortId) =>
+        set((state) => {
+          const list = state.shortcuts[cohortId] || [];
+          return {
+            shortcuts: {
+              ...state.shortcuts,
+              [cohortId]: list.filter((sc) => sc.id !== shortcutId),
+            },
+          };
+        }),
+
       // Shared Needs List Actions
       addListItem: (item) =>
         set((state) => {
@@ -488,6 +603,7 @@ export const useExpenseStore = create<ExpenseState>()(
         members: state.members,
         expenses: state.expenses,
         comments: state.comments,
+        shortcuts: state.shortcuts,
         sharedLists: state.sharedLists,
         reminderSettings: state.reminderSettings,
         offlineQueue: state.offlineQueue,

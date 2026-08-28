@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { View, Modal, TouchableOpacity, ScrollView, useColorScheme } from 'react-native';
-import { Expense, GroupMember, UserProfile } from '@/types';
+import { View, Modal, TouchableOpacity, ScrollView, Image, useColorScheme } from 'react-native';
+import { Expense, ExpenseShortcut, GroupMember, UserProfile } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { TransactionComments } from '@/components/TransactionComments';
 import { EditExpenseModal } from '@/components/EditExpenseModal';
+import { useExpenseStore } from '@/store/useExpenseStore';
 import { useThemeStore, getActiveThemeClass } from '@/store/useThemeStore';
+import { showAlert } from '@/store/useAlertStore';
 import { Text } from '@/components/ui/Text';
 
 interface ExpenseDetailsModalProps {
@@ -26,6 +28,7 @@ export function ExpenseDetailsModal({
   const systemScheme = useColorScheme();
   const { themeBase, colorScheme } = useThemeStore();
   const activeThemeClass = getActiveThemeClass(themeBase, colorScheme, systemScheme);
+  const { addShortcut } = useExpenseStore();
 
   const [editModalVisible, setEditModalVisible] = useState(false);
 
@@ -36,6 +39,31 @@ export function ExpenseDetailsModal({
     expense.paidByUserId === currentUser.id
       ? 'You'
       : payerMember?.profile?.fullName || 'Member';
+
+  const handleSaveAsShortcut = () => {
+    const newShortcut: ExpenseShortcut = {
+      id: `sc_${Date.now()}`,
+      cohortId: expense.cohortId,
+      title: expense.title,
+      category: expense.category,
+      customIcon: expense.customIcon,
+      amount: expense.totalAmount,
+      paidByUserId: expense.paidByUserId,
+      isMultiplePayers: false,
+      splitType: expense.splitType,
+      splits: expense.splits,
+      includedMemberIds: expense.splits ? expense.splits.map((s) => s.userId) : undefined,
+      exactSplits: expense.splitType === 'exact' && expense.splits
+        ? Object.fromEntries(expense.splits.map((s) => [s.userId, String(s.amount)]))
+        : undefined,
+      percentageSplits: expense.splitType === 'percentage' && expense.splits
+        ? Object.fromEntries(expense.splits.map((s) => [s.userId, String(s.percentage || 0)]))
+        : undefined,
+      createdAt: new Date().toISOString(),
+    };
+    addShortcut(newShortcut);
+    showAlert('Shortcut Saved', `"${expense.title}" saved to group shortcuts!`);
+  };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -52,12 +80,22 @@ export function ExpenseDetailsModal({
               <Ionicons name="close" size={24} color="#94A3B8" />
             </TouchableOpacity>
             <Text className="text-base font-bold text-main">Payment Details</Text>
-            <TouchableOpacity
-              className="p-2 rounded-full bg-accent-pill border border-surface"
-              onPress={() => setEditModalVisible(true)}
-            >
-              <Ionicons name="pencil" size={16} color="#94A3B8" />
-            </TouchableOpacity>
+            <View className="flex-row items-center gap-2">
+              <TouchableOpacity
+                className="p-2 rounded-full bg-accent-pill border border-surface"
+                onPress={handleSaveAsShortcut}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="bookmark-outline" size={16} color="#38BDF8" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="p-2 rounded-full bg-accent-pill border border-surface"
+                onPress={() => setEditModalVisible(true)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="pencil" size={16} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <ScrollView contentContainerClassName="p-5 gap-5" showsVerticalScrollIndicator={false}>
@@ -90,27 +128,45 @@ export function ExpenseDetailsModal({
                 {expense.splits.map((s) => {
                   const memberObj = cohortMembers.find((m) => m.userId === s.userId);
                   const name =
-                    s.userId === currentUser.id
-                      ? 'You'
-                      : memberObj?.profile?.fullName || s.userId;
+                    memberObj?.profile?.nickname ||
+                    memberObj?.profile?.fullName ||
+                    (s.userId === currentUser.id ? 'You' : s.userId);
+                  const username = memberObj?.profile?.username;
+                  const hasVpa = !!memberObj?.profile?.vpaId;
                   const isPayer = s.userId === expense.paidByUserId;
 
                   return (
-                    <View key={s.userId} className="flex-row justify-between items-center py-1">
+                    <View key={s.userId} className="flex-row justify-between items-center py-1.5">
                       <View className="flex-row items-center gap-2.5 flex-1 pr-2">
-                        <View className="w-8 h-8 rounded-full bg-accent-pill items-center justify-center border border-surface">
-                          <Text className="text-main text-xs font-bold">
-                            {name.charAt(0).toUpperCase()}
-                          </Text>
+                        <View className="w-8 h-8 rounded-full bg-accent-pill items-center justify-center border border-surface overflow-hidden">
+                          {memberObj?.profile?.avatarUrl ? (
+                            <Image source={{ uri: memberObj.profile.avatarUrl }} className="w-8 h-8 rounded-full" />
+                          ) : (
+                            <Text className="text-main text-xs font-bold">
+                              {name.charAt(0).toUpperCase()}
+                            </Text>
+                          )}
                         </View>
-                        <Text className="text-sm font-bold text-main" numberOfLines={1}>
-                          {name}
-                        </Text>
-                        {isPayer && (
-                          <View className="bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                            <Text className="text-[10px] font-bold text-emerald-500">PAID</Text>
+                        <View className="flex-1">
+                          <View className="flex-row items-center gap-1.5 flex-wrap">
+                            <Text className="text-sm font-bold text-main" numberOfLines={1}>
+                              {s.userId === currentUser.id ? `${name} (You)` : name}
+                            </Text>
+                            {hasVpa && (
+                              <Ionicons name="checkmark-circle" size={13} color="#38BDF8" />
+                            )}
+                            {isPayer && (
+                              <View className="bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                                <Text className="text-[10px] font-bold text-emerald-500">PAID</Text>
+                              </View>
+                            )}
                           </View>
-                        )}
+                          {username && (
+                            <Text className="text-[11px] font-semibold text-cyan">
+                              @{username}
+                            </Text>
+                          )}
+                        </View>
                       </View>
                       <Text
                         className={`text-sm font-bold ${
@@ -134,7 +190,7 @@ export function ExpenseDetailsModal({
 
             {/* Comments Section */}
             <View className="card-main p-5 min-h-[160px]">
-              <TransactionComments expenseId={expense.id} />
+              <TransactionComments expenseId={expense.id} cohortId={expense.cohortId} />
             </View>
           </ScrollView>
         </View>

@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
-import { View, ScrollView } from 'react-native';
+import { View, ScrollView, useColorScheme } from 'react-native';
 import Svg, { G, Path, Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { EventCohort, Expense, GroupMember } from '@/types';
 import { Text } from '@/components/ui/Text';
 import { CHART_PALETTE } from '@/constants/theme';
+import { useThemeStore, getThemePalette } from '@/store/useThemeStore';
 
 interface MonthlySpendingsTabProps {
   cohort: EventCohort;
@@ -19,6 +20,12 @@ export function MonthlySpendingsTab({
   currentUserId,
   members = [],
 }: MonthlySpendingsTabProps) {
+  const systemScheme = useColorScheme();
+  const { themeBase, colorScheme } = useThemeStore();
+  const colors = getThemePalette(themeBase, colorScheme, systemScheme);
+  const isDark =
+    colorScheme === 'dark' ||
+    (colorScheme === 'system' && (systemScheme === 'dark' || !systemScheme));
   // 1. Calculate per-member spending (share incurred vs money paid upfront)
   const stats = useMemo(() => {
     let grandTotalGroup = 0;
@@ -240,8 +247,8 @@ export function MonthlySpendingsTab({
                           key={i}
                           d={p.d}
                           fill={p.color}
-                          stroke="rgba(15, 23, 42, 0.4)"
-                          strokeWidth={1.5}
+                          stroke={colors.surface}
+                          strokeWidth={2}
                         />
                       ))
                     )}

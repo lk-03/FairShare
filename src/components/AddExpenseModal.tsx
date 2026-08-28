@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Modal,
@@ -6,18 +6,19 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  Alert,
   StatusBar,
   useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useExpenseStore } from '@/store/useExpenseStore';
-import { useThemeStore, getActiveThemeClass } from '@/store/useThemeStore';
+import { useThemeStore, getActiveThemeClass, getThemePalette } from '@/store/useThemeStore';
+import { showAlert } from '@/store/useAlertStore';
 import { compressReceiptImage } from '@/utils/imageCompressor';
-import { SplitType, ExpenseSplit, Expense } from '@/types';
+import { SplitType, ExpenseSplit, Expense, ExpenseShortcut } from '@/types';
 import { CategoryIcon, GENERIC_CUSTOM_ICONS } from '@/components/ui/CategoryIcon';
 import { GroupAvatar } from '@/components/ui/GroupAvatar';
+import { ShortcutManagerModal } from '@/components/ShortcutManagerModal';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@/components/ui/Text';
 
@@ -33,29 +34,28 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
   const systemScheme = useColorScheme();
   const { themeBase, colorScheme } = useThemeStore();
   const activeThemeClass = getActiveThemeClass(themeBase, colorScheme, systemScheme);
+  const colors = getThemePalette(themeBase, colorScheme, systemScheme);
 
   const isDark =
     colorScheme === 'dark' ||
     (colorScheme === 'system' && (systemScheme === 'dark' || !systemScheme));
 
-  const colors = {
-    screen: isDark ? '#0D131A' : '#F8FAFC',
-    surface: isDark ? '#121A23' : '#FFFFFF',
-    border: isDark ? '#243447' : '#E2E8F0',
-    textMain: isDark ? '#FFFFFF' : '#0F172A',
-    textSecondary: isDark ? '#7E95A8' : '#64748B',
-    accentPill: isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(0, 0, 0, 0.05)',
-    cyan: '#38BDF8',
-  };
-
-  const { cohorts, members, currentUser, addExpense } = useExpenseStore();
+  const { cohorts, members, currentUser, addExpense, shortcuts, addShortcut } = useExpenseStore();
 
   const [selectedCohortId, setSelectedCohortId] = useState(cohortId || cohorts[0]?.id || '');
   const activeCohort = cohorts.find((c) => c.id === selectedCohortId) || cohorts[0];
   const cohortMembers = members[activeCohort?.id] || [];
+  const cohortShortcuts = activeCohort ? shortcuts[activeCohort.id] || [] : [];
 
   // Active Sub-screen View
   const [currentView, setCurrentView] = useState<ExpenseSubView>('main');
+
+  // Input Ref for Amount Focus
+  const amountInputRef = useRef<TextInput>(null);
+
+  // Shortcut Modals
+  const [shortcutModalVisible, setShortcutModalVisible] = useState(false);
+  const [editingShortcut, setEditingShortcut] = useState<ExpenseShortcut | null>(null);
 
   // Form Fields
   const [title, setTitle] = useState('');
@@ -142,7 +142,7 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Camera access is required to take receipt photos.');
+        showAlert('Permission Denied', 'Camera access is required to take receipt photos.');
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
@@ -157,6 +157,90 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
     } catch (e) {
       console.warn('Camera error:', e);
     }
+  };
+
+  const handleApplyShortcut = (sc: ExpenseShortcut) => {
+    setTitle(sc.title);
+    setCategory(sc.category);
+    if (sc.customIcon) setCustomIcon(sc.customIcon);
+    if (sc.amount > 0) {
+      setTotalAmountStr(String(sc.amount));
+    }
+    if (sc.isMultiplePayers) {
+      setIsMultiplePayers(true);
+      if (sc.paidAmounts) {
+        setPaidAmounts(sc.paidAmounts);
+      }
+    } else {
+      setIsMultiplePayers(false);
+      if (sc.paidByUserId) {
+        setPaidByUserId(sc.paidByUserId);
+      }
+    }
+    if (sc.splitType) {
+      setSplitType(sc.splitType);
+    }
+    if (sc.includedMemberIds && sc.includedMemberIds.length > 0) {
+      setIncludedMemberIds(sc.includedMemberIds);
+    }
+    if (sc.exactSplits) setExactSplits(sc.exactSplits);
+    if (sc.percentageSplits) setPercentSplits(sc.percentageSplits);
+    if (sc.sharesSplits) {
+      const converted: Record<string, string> = {};
+      Object.entries(sc.sharesSplits).forEach(([k, v]) => {
+        converted[k] = String(v);
+      });
+      setShareSplits(converted);
+    }
+    if (sc.adjustmentSplits) setAdjustmentSplits(sc.adjustmentSplits);
+
+    // Leave amount input focused as requested
+    setTimeout(() => {
+      amountInputRef.current?.focus();
+    }, 150);
+  };
+
+  const handleSaveCurrentAsShortcut = () => {
+    if (!title.trim()) {
+      showAlert('Description Required', 'Please enter a description before saving as a shortcut.');
+      return;
+    }
+    if (!activeCohort) return;
+
+    let shortcutAmount = totalAmount;
+    if (shortcutAmount <= 0) {
+      if (splitType === 'exact') {
+        shortcutAmount = enteredExactSum;
+      } else if (isMultiplePayers) {
+        shortcutAmount = enteredPaidSum;
+      }
+    }
+
+    const newShortcut: ExpenseShortcut = {
+      id: `sc_${Date.now()}`,
+      cohortId: activeCohort.id,
+      title: title.trim(),
+      category,
+      customIcon: category === 'Custom' ? customIcon : undefined,
+      amount: shortcutAmount,
+      paidByUserId: isMultiplePayers ? undefined : paidByUserId,
+      isMultiplePayers,
+      paidAmounts: isMultiplePayers ? paidAmounts : undefined,
+      splitType,
+      includedMemberIds,
+      exactSplits: splitType === 'exact' ? exactSplits : undefined,
+      percentageSplits: splitType === 'percentage' ? percentSplits : undefined,
+      sharesSplits: splitType === 'shares'
+        ? Object.fromEntries(
+            Object.entries(shareSplits).map(([k, v]) => [k, parseInt(v, 10) || 1])
+          )
+        : undefined,
+      adjustmentSplits: splitType === 'adjustment' ? adjustmentSplits : undefined,
+      createdAt: new Date().toISOString(),
+    };
+
+    addShortcut(newShortcut);
+    showAlert('Shortcut Saved', `"${title.trim()}" saved to ${activeCohort.name} shortcuts!`);
   };
 
   // Helper Labels
@@ -176,14 +260,57 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
     return 'equally';
   }, [splitType]);
 
-  // Multiple Payer Validation Math
-  const totalPaidByMembers = useMemo(() => {
-    return Object.values(paidAmounts).reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
-  }, [paidAmounts]);
+  // 1. Multiple Payer Dynamic Remaining Math & Auto-Balance
+  const { enteredPaidSum, unsetPaidMembers, placeholderPaidPerPerson, paidDiff } = useMemo(() => {
+    let sum = 0;
+    const unset: string[] = [];
 
-  const multiplePaidRemaining = Math.max(0, totalAmount - totalPaidByMembers);
+    cohortMembers.forEach((m) => {
+      const val = paidAmounts[m.userId];
+      if (val !== undefined && val.trim() !== '') {
+        sum += parseFloat(val) || 0;
+      } else {
+        unset.push(m.userId);
+      }
+    });
 
-  // Split Calculation Helpers
+    const diff = totalAmount - sum;
+    const rem = Math.max(0, diff);
+    const placeholder = unset.length > 0 ? (rem / unset.length).toFixed(2) : '0.00';
+
+    return {
+      enteredPaidSum: sum,
+      unsetPaidMembers: unset,
+      placeholderPaidPerPerson: placeholder,
+      paidDiff: diff,
+    };
+  }, [cohortMembers, paidAmounts, totalAmount]);
+
+  const getMemberPaidAmount = (userId: string) => {
+    const val = paidAmounts[userId];
+    if (val !== undefined && val.trim() !== '') {
+      return parseFloat(val) || 0;
+    }
+    return parseFloat(placeholderPaidPerPerson) || 0;
+  };
+
+  const autoBalancePaidAmounts = () => {
+    if (paidDiff <= 0) return;
+    const targets = unsetPaidMembers.length > 0 ? unsetPaidMembers : cohortMembers.map((m) => m.userId);
+    const count = targets.length;
+    const baseShare = Math.floor((paidDiff / count) * 100) / 100;
+    const remainder = Number((paidDiff - baseShare * count).toFixed(2));
+
+    const updated = { ...paidAmounts };
+    targets.forEach((uId, idx) => {
+      const current = parseFloat(updated[uId] || '0') || 0;
+      const add = idx === 0 ? baseShare + remainder : baseShare;
+      updated[uId] = (current + add).toFixed(2);
+    });
+    setPaidAmounts(updated);
+  };
+
+  // 2. Equal Split Calculation Helpers
   const equalPerPerson = useMemo(() => {
     const count = includedMemberIds.length;
     if (count === 0 || totalAmount <= 0) return '0.00';
@@ -208,7 +335,137 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
     }
   };
 
-  // Adjustment Calculation Helpers
+  // 3. Exact / Unequal Split Dynamic Remaining Math & Auto-Balance
+  const { enteredExactSum, unsetExactMembers, placeholderExactPerPerson, exactDiff } = useMemo(() => {
+    let sum = 0;
+    const unset: string[] = [];
+
+    cohortMembers.forEach((m) => {
+      const val = exactSplits[m.userId];
+      if (val !== undefined && val.trim() !== '') {
+        sum += parseFloat(val) || 0;
+      } else {
+        unset.push(m.userId);
+      }
+    });
+
+    const diff = totalAmount - sum;
+    const rem = Math.max(0, diff);
+    const placeholder = unset.length > 0 ? (rem / unset.length).toFixed(2) : '0.00';
+
+    return {
+      enteredExactSum: sum,
+      unsetExactMembers: unset,
+      placeholderExactPerPerson: placeholder,
+      exactDiff: diff,
+    };
+  }, [cohortMembers, exactSplits, totalAmount]);
+
+  const getMemberExactAmount = (userId: string) => {
+    const val = exactSplits[userId];
+    if (val !== undefined && val.trim() !== '') {
+      return parseFloat(val) || 0;
+    }
+    return parseFloat(placeholderExactPerPerson) || 0;
+  };
+
+  const autoBalanceExactSplits = () => {
+    if (exactDiff <= 0) return;
+    const targets = unsetExactMembers.length > 0 ? unsetExactMembers : cohortMembers.map((m) => m.userId);
+    const count = targets.length;
+    const baseShare = Math.floor((exactDiff / count) * 100) / 100;
+    const remainder = Number((exactDiff - baseShare * count).toFixed(2));
+
+    const updated = { ...exactSplits };
+    targets.forEach((uId, idx) => {
+      const current = parseFloat(updated[uId] || '0') || 0;
+      const add = idx === 0 ? baseShare + remainder : baseShare;
+      updated[uId] = (current + add).toFixed(2);
+    });
+    setExactSplits(updated);
+  };
+
+  // 4. Percentage Split Dynamic Remaining Math & Auto-Balance
+  const { enteredPercentSum, unsetPercentMembers, placeholderPercentPerPerson, percentDiff } = useMemo(() => {
+    let sum = 0;
+    const unset: string[] = [];
+
+    cohortMembers.forEach((m) => {
+      const val = percentSplits[m.userId];
+      if (val !== undefined && val.trim() !== '') {
+        sum += parseFloat(val) || 0;
+      } else {
+        unset.push(m.userId);
+      }
+    });
+
+    const diff = 100 - sum;
+    const rem = Math.max(0, diff);
+    const placeholder = unset.length > 0 ? (rem / unset.length).toFixed(1) : '0.0';
+
+    return {
+      enteredPercentSum: sum,
+      unsetPercentMembers: unset,
+      placeholderPercentPerPerson: placeholder,
+      percentDiff: diff,
+    };
+  }, [cohortMembers, percentSplits]);
+
+  const getMemberPercent = (userId: string) => {
+    const val = percentSplits[userId];
+    if (val !== undefined && val.trim() !== '') {
+      return parseFloat(val) || 0;
+    }
+    return parseFloat(placeholderPercentPerPerson) || 0;
+  };
+
+  const autoBalancePercentSplits = () => {
+    if (percentDiff <= 0) return;
+    const targets = unsetPercentMembers.length > 0 ? unsetPercentMembers : cohortMembers.map((m) => m.userId);
+    const count = targets.length;
+    const share = Number((percentDiff / count).toFixed(1));
+
+    const updated = { ...percentSplits };
+    targets.forEach((uId) => {
+      const current = parseFloat(updated[uId] || '0') || 0;
+      updated[uId] = (current + share).toFixed(1);
+    });
+    setPercentSplits(updated);
+  };
+
+  // 5. Shares Dynamic Calculation Math with 0-share Auto-Exclusion
+  const getMemberSharesCount = (userId: string) => {
+    const raw = shareSplits[userId];
+    if (raw === undefined) return 1;
+    const parsed = parseInt(raw, 10);
+    return isNaN(parsed) ? 0 : Math.max(0, parsed);
+  };
+
+  const totalSharesCount = useMemo(() => {
+    return cohortMembers.reduce((sum, m) => {
+      return sum + getMemberSharesCount(m.userId);
+    }, 0);
+  }, [cohortMembers, shareSplits]);
+
+  const getMemberShareAmount = (userId: string) => {
+    const shares = getMemberSharesCount(userId);
+    if (shares === 0 || totalSharesCount <= 0 || totalAmount <= 0) return 0;
+    return (shares / totalSharesCount) * totalAmount;
+  };
+
+  const handleShareIncrement = (userId: string) => {
+    const current = getMemberSharesCount(userId);
+    setShareSplits({ ...shareSplits, [userId]: String(current + 1) });
+  };
+
+  const handleShareDecrement = (userId: string) => {
+    const current = getMemberSharesCount(userId);
+    if (current > 0) {
+      setShareSplits({ ...shareSplits, [userId]: String(current - 1) });
+    }
+  };
+
+  // 6. Adjustment Calculation Helpers
   const totalAdjustments = useMemo(() => {
     return cohortMembers.reduce((sum, m) => {
       const adj = parseFloat(adjustmentSplits[m.userId] || '0') || 0;
@@ -227,20 +484,34 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
     return baseAdjustmentShare + adj;
   };
 
+  // Validation Checks for Sub-screens
+  const isSplitValid = useMemo(() => {
+    if (splitType === 'equal') return includedMemberIds.length > 0;
+    if (splitType === 'exact') return exactDiff >= -0.05;
+    if (splitType === 'percentage') return percentDiff >= -0.5;
+    if (splitType === 'shares') return totalSharesCount > 0;
+    if (splitType === 'adjustment') return remainingForAdjustment >= 0;
+    return true;
+  }, [splitType, includedMemberIds, exactDiff, percentDiff, totalSharesCount, remainingForAdjustment]);
+
+  const isMultiplePaidValid = useMemo(() => {
+    return paidDiff >= -0.05 && (unsetPaidMembers.length > 0 || Math.abs(paidDiff) <= 0.05);
+  }, [paidDiff, unsetPaidMembers]);
+
   // Submit Handler
   const handleSave = async () => {
     if (!title.trim()) {
-      Alert.alert('Missing Description', 'Please enter a description for this expense.');
+      showAlert('Missing Description', 'Please enter a description for this expense.');
       return;
     }
 
     if (totalAmount <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter an expense amount greater than 0.');
+      showAlert('Invalid Amount', 'Please enter an expense amount greater than 0.');
       return;
     }
 
     if (!activeCohort) {
-      Alert.alert('No Group', 'Please select an event group for this expense.');
+      showAlert('No Group', 'Please select an event group for this expense.');
       return;
     }
 
@@ -249,6 +520,10 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
     if (splitType === 'equal') {
       const activeIds = includedMemberIds.length > 0 ? includedMemberIds : cohortMembers.map((m) => m.userId);
       const count = activeIds.length;
+      if (count === 0) {
+        showAlert('No Members Selected', 'Please select at least one person to share the expense.');
+        return;
+      }
       const baseShare = Math.floor((totalAmount / count) * 100) / 100;
       let remainder = Number((totalAmount - baseShare * count).toFixed(2));
 
@@ -259,44 +534,57 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
     } else if (splitType === 'exact') {
       let sum = 0;
       calculatedSplits = cohortMembers.map((m) => {
-        const amt = parseFloat(exactSplits[m.userId] || '0') || 0;
+        const amt = getMemberExactAmount(m.userId);
         sum += amt;
-        return { userId: m.userId, amount: amt };
+        return { userId: m.userId, amount: Number(amt.toFixed(2)) };
       });
 
       if (Math.abs(sum - totalAmount) > 0.05) {
-        Alert.alert('Split Mismatch', `Exact split sum (₹${sum.toFixed(2)}) must equal total (₹${totalAmount.toFixed(2)}).`);
+        const diff = sum - totalAmount;
+        showAlert(
+          'Split Mismatch',
+          diff > 0
+            ? `Exact split sum is over by ₹${diff.toFixed(2)}.`
+            : `Exact split sum is under by ₹${Math.abs(diff).toFixed(2)}.`
+        );
         return;
       }
     } else if (splitType === 'percentage') {
       let totalPct = 0;
       calculatedSplits = cohortMembers.map((m) => {
-        const pct = parseFloat(percentSplits[m.userId] || '0') || 0;
+        const pct = getMemberPercent(m.userId);
         totalPct += pct;
         const amt = Number(((pct / 100) * totalAmount).toFixed(2));
         return { userId: m.userId, amount: amt, percentage: pct };
       });
 
       if (Math.abs(totalPct - 100) > 0.5) {
-        Alert.alert('Percentage Mismatch', `Total percentages (${totalPct}%) must equal 100%.`);
+        const diff = totalPct - 100;
+        showAlert(
+          'Percentage Mismatch',
+          diff > 0
+            ? `Total percentage is over by ${diff.toFixed(1)}%. Must equal 100%.`
+            : `Total percentage is under by ${Math.abs(diff).toFixed(1)}%. Must equal 100%.`
+        );
         return;
       }
     } else if (splitType === 'shares') {
-      let totalShares = 0;
-      cohortMembers.forEach((m) => {
-        totalShares += parseFloat(shareSplits[m.userId] || '1') || 1;
-      });
-
-      calculatedSplits = cohortMembers.map((m) => {
-        const shares = parseFloat(shareSplits[m.userId] || '1') || 1;
-        const amt = Number(((shares / totalShares) * totalAmount).toFixed(2));
-        return { userId: m.userId, amount: amt };
-      });
+      if (totalSharesCount <= 0) {
+        showAlert('No Shares Assigned', 'Please assign at least 1 share across participants.');
+        return;
+      }
+      // Exclude members with 0 shares automatically
+      calculatedSplits = cohortMembers
+        .filter((m) => getMemberSharesCount(m.userId) > 0)
+        .map((m) => {
+          const amt = Number(getMemberShareAmount(m.userId).toFixed(2));
+          return { userId: m.userId, amount: amt };
+        });
     } else if (splitType === 'adjustment') {
       if (totalAdjustments > totalAmount) {
-        Alert.alert(
+        showAlert(
           'Adjustments Exceed Total',
-          `Total adjustments (₹${totalAdjustments.toFixed(2)}) cannot exceed total expense (₹${totalAmount.toFixed(2)}).`
+          `Total adjustments (₹${totalAdjustments.toFixed(2)}) exceed total expense (₹${totalAmount.toFixed(2)}).`
         );
         return;
       }
@@ -407,17 +695,22 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
                       <CategoryIcon category={category} customIcon={customIcon} size={26} variant="solid" />
                     </TouchableOpacity>
                     <TextInput
-                      className="flex-1 text-base font-semibold py-2.5"
+                      className="flex-1 text-base font-semibold px-2"
                       style={{
                         color: colors.textMain,
                         borderBottomWidth: 1.5,
                         borderBottomColor: colors.border,
+                        minHeight: 48,
+                        height: 48,
+                        textAlignVertical: 'center',
                       }}
                       placeholder="Enter a description"
                       placeholderTextColor={colors.textSecondary}
                       value={title}
                       onChangeText={setTitle}
                       autoFocus
+                      multiline={false}
+                      scrollEnabled={false}
                     />
                   </View>
 
@@ -432,22 +725,28 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
                       </Text>
                     </View>
                     <TextInput
-                      className="flex-1 text-3xl font-extrabold py-2"
+                      ref={amountInputRef}
+                      className="flex-1 text-3xl font-extrabold px-2"
                       style={{
                         color: colors.textMain,
                         borderBottomWidth: 1.5,
                         borderBottomColor: colors.border,
+                        minHeight: 52,
+                        height: 52,
+                        textAlignVertical: 'center',
                       }}
                       placeholder="0.00"
                       placeholderTextColor={colors.textSecondary}
                       keyboardType="decimal-pad"
                       value={totalAmountStr}
                       onChangeText={setTotalAmountStr}
+                      multiline={false}
+                      scrollEnabled={false}
                     />
                   </View>
 
                   {/* Natural Language Sentence Payer & Split Controls */}
-                  <View className="flex-row items-center justify-center flex-wrap gap-2 py-4 mt-2">
+                  <View className="flex-row items-center justify-center flex-wrap gap-2 py-3 mt-1">
                     <Text className="text-sm font-medium" style={{ color: colors.textSecondary }}>
                       Paid by
                     </Text>
@@ -475,6 +774,129 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
                         {splitLabel}
                       </Text>
                     </TouchableOpacity>
+                  </View>
+
+                  {/* Quick Group Shortcuts Section */}
+                  <View className="gap-2.5 py-2">
+                    <View className="flex-row items-center justify-between px-1">
+                      <View className="flex-row items-center gap-1.5">
+                        <Ionicons name="flash" size={13} color={colors.cyan} />
+                        <Text className="text-[11px] font-bold uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                          QUICK SHORTCUTS
+                        </Text>
+                      </View>
+
+                      <View className="flex-row items-center gap-2">
+                        {/* Save Current Form as Shortcut Button */}
+                        {title.trim().length > 0 && (
+                          <TouchableOpacity
+                            className="flex-row items-center gap-1 px-2.5 py-1 rounded-xl shadow-sm"
+                            style={{
+                              backgroundColor: colors.accentPill,
+                              borderWidth: 1,
+                              borderColor: colors.cyan,
+                            }}
+                            onPress={handleSaveCurrentAsShortcut}
+                            activeOpacity={0.75}
+                          >
+                            <Ionicons name="bookmark" size={12} color={colors.cyan} />
+                            <Text className="text-[11px] font-bold" style={{ color: colors.cyan }}>
+                              Save as Shortcut
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+
+                        <TouchableOpacity
+                          onPress={() => {
+                            setEditingShortcut(null);
+                            setShortcutModalVisible(true);
+                          }}
+                          className="flex-row items-center gap-1 px-2.5 py-1 rounded-xl"
+                          style={{ backgroundColor: colors.accentPill, borderWidth: 1, borderColor: colors.border }}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="add" size={13} color={colors.cyan} />
+                          <Text className="text-[11px] font-bold" style={{ color: colors.cyan }}>
+                            New
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {cohortShortcuts.length === 0 ? (
+                      <View
+                        className="p-3.5 rounded-2xl items-center justify-center gap-1"
+                        style={{
+                          backgroundColor: colors.accentPill,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          borderStyle: 'dashed',
+                        }}
+                      >
+                        <Text className="text-xs font-semibold text-center" style={{ color: colors.textSecondary }}>
+                          No shortcuts created yet.
+                        </Text>
+                        <Text className="text-[11px] text-center" style={{ color: colors.textSecondary }}>
+                          Type a title and tap "Save as Shortcut" or tap "+ New" to add one.
+                        </Text>
+                      </View>
+                    ) : (
+                      <ScrollView
+                        nestedScrollEnabled
+                        showsVerticalScrollIndicator={cohortShortcuts.length > 2}
+                        style={{ maxHeight: 155 }}
+                        contentContainerClassName="gap-2 pb-1"
+                      >
+                        {cohortShortcuts.map((sc) => (
+                          <TouchableOpacity
+                            key={sc.id}
+                            className="flex-row items-center justify-between p-3 rounded-2xl shadow-sm"
+                            style={{
+                              backgroundColor: colors.surface,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                            }}
+                            onPress={() => handleApplyShortcut(sc)}
+                            onLongPress={() => {
+                              setEditingShortcut(sc);
+                              setShortcutModalVisible(true);
+                            }}
+                            activeOpacity={0.75}
+                          >
+                            <View className="flex-row items-center gap-3 flex-1">
+                              <CategoryIcon
+                                category={sc.category}
+                                customIcon={sc.customIcon}
+                                size={18}
+                                variant="light"
+                              />
+                              <View className="flex-1">
+                                <Text className="text-xs font-bold" style={{ color: colors.textMain }} numberOfLines={1}>
+                                  {sc.title}
+                                </Text>
+                                <Text className="text-[11px] font-semibold mt-0.5" style={{ color: colors.cyan }}>
+                                  {sc.amount > 0 ? `₹${sc.amount.toFixed(2)}` : 'Custom Amount'}
+                                  {sc.isMultiplePayers ? ' • Multiple Payers' : ''}
+                                  {sc.splitType && sc.splitType !== 'equal' ? ` • ${sc.splitType.toUpperCase()}` : ''}
+                                </Text>
+                              </View>
+                            </View>
+
+                            <TouchableOpacity
+                              onPress={() => {
+                                setEditingShortcut(sc);
+                                setShortcutModalVisible(true);
+                              }}
+                              className="p-1.5 rounded-lg"
+                              style={{ backgroundColor: colors.accentPill }}
+                              activeOpacity={0.7}
+                            >
+                              <Ionicons name="pencil" size={12} color={colors.textSecondary} />
+                            </TouchableOpacity>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    )}
                   </View>
 
                   {/* Notes preview if entered */}
@@ -508,7 +930,7 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
                         </Text>
                       </View>
                       <TouchableOpacity onPress={() => setReceiptUri(null)}>
-                        <Ionicons name="trash-outline" size={18} color="#F87171" />
+                        <Ionicons name="trash-outline" size={18} color={colors.red} />
                       </TouchableOpacity>
                     </View>
                   ) : null}
@@ -549,10 +971,10 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
                     className="w-9 h-9 rounded-xl items-center justify-center"
                     style={{ backgroundColor: colors.accentPill, borderWidth: 1, borderColor: colors.border }}
                     onPress={() => {
-                      Alert.alert('Attach Receipt', 'Choose a source for your receipt:', [
-                        { text: 'Take Photo', onPress: handleTakeReceiptPhoto },
-                        { text: 'Choose from Library', onPress: handlePickReceipt },
-                        { text: 'Cancel', style: 'cancel' },
+                      showAlert('Attach Receipt', 'Choose a source for your receipt:', [
+                        { text: 'Take Photo', style: 'default', icon: 'camera-outline', onPress: handleTakeReceiptPhoto },
+                        { text: 'Choose from Library', style: 'default', icon: 'images-outline', onPress: handlePickReceipt },
+                        { text: 'Cancel', style: 'cancel', icon: 'close-outline' },
                       ]);
                     }}
                   >
@@ -591,10 +1013,17 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
                   <View className="w-8" />
                 </View>
 
-                <ScrollView className="flex-1 pt-2">
+                <ScrollView
+                  className="flex-1 pt-2"
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="none"
+                  showsVerticalScrollIndicator={false}
+                >
                   {cohortMembers.map((m) => {
                     const isSelected = !isMultiplePayers && paidByUserId === m.userId;
-                    const name = m.profile?.fullName || (m.userId === currentUser.id ? 'You' : 'Member');
+                    const name = m.profile?.nickname || m.profile?.fullName || (m.userId === currentUser.id ? 'You' : 'Member');
+                    const username = m.profile?.username;
+                    const hasVpa = !!m.profile?.vpaId;
 
                     return (
                       <TouchableOpacity
@@ -610,16 +1039,30 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
                       >
                         <View className="flex-row items-center gap-3.5 flex-1">
                           <View
-                            className="w-10 h-10 rounded-full items-center justify-center"
+                            className="w-10 h-10 rounded-full items-center justify-center overflow-hidden"
                             style={{ backgroundColor: colors.accentPill, borderWidth: 1, borderColor: colors.border }}
                           >
-                            <Text className="text-xs font-bold" style={{ color: colors.textMain }}>
-                              {name.charAt(0).toUpperCase()}
-                            </Text>
+                            {m.profile?.avatarUrl ? (
+                              <Image source={{ uri: m.profile.avatarUrl }} className="w-10 h-10 rounded-full" />
+                            ) : (
+                              <Text className="text-xs font-bold" style={{ color: colors.textMain }}>
+                                {name.charAt(0).toUpperCase()}
+                              </Text>
+                            )}
                           </View>
-                          <Text className="text-base font-semibold" style={{ color: colors.textMain }}>
-                            {m.userId === currentUser.id ? `${name} (You)` : name}
-                          </Text>
+                          <View className="flex-1">
+                            <View className="flex-row items-center gap-1.5">
+                              <Text className="text-base font-bold" style={{ color: colors.textMain }}>
+                                {m.userId === currentUser.id ? `${name} (You)` : name}
+                              </Text>
+                              {hasVpa && <Ionicons name="checkmark-circle" size={14} color={colors.cyan} />}
+                            </View>
+                            {username ? (
+                              <Text className="text-[11px] font-semibold" style={{ color: colors.cyan }}>
+                                @{username}
+                              </Text>
+                            ) : null}
+                          </View>
                         </View>
 
                         {isSelected && <Ionicons name="checkmark" size={22} color={colors.cyan} />}
@@ -656,11 +1099,12 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
           )}
 
           {/* ====================================================================
-              VIEW 3: "ENTER PAID AMOUNTS" (MULTIPLE PEOPLE) SCREEN
+              SUB-SCREEN 2: MULTIPLE PAYERS ALLOCATION SCREEN
              ==================================================================== */}
           {currentView === 'multiple_paid' && (
-            <View className="flex-1 justify-between">
-              <View className="flex-1">
+            <View className="flex-1">
+              <SafeAreaView className="flex-1" edges={['top']}>
+                {/* Header Bar */}
                 <View
                   className="flex-row items-center justify-between px-4 py-3.5"
                   style={{ backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}
@@ -673,93 +1117,179 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
                   </Text>
                   <TouchableOpacity
                     onPress={() => {
-                      if (Math.abs(multiplePaidRemaining) > 0.05) {
-                        Alert.alert('Amount Mismatch', `Paid total must match ₹${totalAmount.toFixed(2)}.`);
+                      if (!isMultiplePaidValid) {
+                        const diff = enteredPaidSum - totalAmount;
+                        showAlert(
+                          'Paid Amount Mismatch',
+                          diff > 0
+                            ? `Paid total exceeds bill by ₹${diff.toFixed(2)}.`
+                            : `Paid total is under by ₹${Math.abs(diff).toFixed(2)}.`
+                        );
                         return;
                       }
                       setCurrentView('main');
                     }}
                     className="p-2 rounded-xl"
                   >
-                    <Ionicons name="checkmark" size={26} color={colors.cyan} />
+                    <Ionicons name="checkmark" size={26} color={isMultiplePaidValid ? colors.cyan : colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
 
-                <ScrollView className="flex-1 pt-2">
+                <ScrollView
+                  className="flex-1 px-5 pt-4"
+                  showsVerticalScrollIndicator={false}
+                  contentContainerClassName="gap-3 pb-8"
+                  keyboardShouldPersistTaps="handled"
+                >
                   {cohortMembers.map((m) => {
-                    const name = m.profile?.fullName || (m.userId === currentUser.id ? 'You' : 'Member');
+                    const isCurrent = m.userId === currentUser.id;
+                    const name = isCurrent ? 'You' : (m.profile?.nickname || m.profile?.fullName || 'Member');
+                    const hasVpa = !!m.profile?.vpaId;
                     const val = paidAmounts[m.userId] || '';
 
                     return (
                       <View
                         key={m.userId}
-                        className="flex-row items-center justify-between px-5 py-3.5"
-                        style={{ borderBottomWidth: 1, borderBottomColor: colors.border }}
+                        className="flex-row items-center justify-between p-4 rounded-3xl"
+                        style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}
                       >
-                        <View className="flex-row items-center gap-3.5 flex-1">
+                        <View className="flex-row items-center gap-3.5 flex-1 pr-3">
                           <View
-                            className="w-10 h-10 rounded-full items-center justify-center"
-                            style={{ backgroundColor: colors.accentPill, borderWidth: 1, borderColor: colors.border }}
+                            className="w-11 h-11 rounded-full items-center justify-center overflow-hidden"
+                            style={{
+                              backgroundColor: isDark ? colors.accentPill : '#F1F5F9',
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                            }}
                           >
-                            <Text className="text-xs font-bold" style={{ color: colors.textMain }}>
-                              {name.charAt(0).toUpperCase()}
-                            </Text>
+                            {m.profile?.avatarUrl ? (
+                              <Image source={{ uri: m.profile.avatarUrl }} className="w-11 h-11 rounded-full" />
+                            ) : (
+                              <Text className="font-extrabold text-sm" style={{ color: colors.textMain }}>
+                                {name.charAt(0).toUpperCase()}
+                              </Text>
+                            )}
                           </View>
-                          <Text className="text-base font-semibold" style={{ color: colors.textMain }}>
-                            {m.userId === currentUser.id ? `${name} (You)` : name}
-                          </Text>
+
+                          <View className="flex-1">
+                            <View className="flex-row items-center gap-1.5">
+                              <Text className="text-base font-bold" style={{ color: colors.textMain }}>
+                                {name}
+                              </Text>
+                              {hasVpa && (
+                                <Ionicons name="checkmark-circle" size={14} color={colors.cyan} />
+                              )}
+                            </View>
+                            {m.profile?.username ? (
+                              <Text className="text-xs font-semibold" style={{ color: colors.cyan }}>
+                                @{m.profile.username}
+                              </Text>
+                            ) : null}
+                          </View>
                         </View>
 
-                        <View className="flex-row items-center gap-2">
+                        {/* Amount Input */}
+                        <View
+                          className="flex-row items-center px-3.5 rounded-2xl h-12 gap-2"
+                          style={{
+                            backgroundColor: colors.accentPill,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            minHeight: 48,
+                          }}
+                        >
                           <Text className="text-base font-bold" style={{ color: colors.textSecondary }}>
                             ₹
                           </Text>
                           <TextInput
-                            className="w-24 h-10 text-right text-base font-bold px-2"
+                            key={`paid_${m.userId}`}
+                            className="w-24 text-base font-bold text-right"
                             style={{
                               color: colors.textMain,
-                              borderBottomWidth: 1,
-                              borderBottomColor: colors.border,
+                              minHeight: 48,
+                              height: 48,
+                              textAlignVertical: 'center',
                             }}
-                            placeholder="0.00"
+                            placeholder={placeholderPaidPerPerson}
                             placeholderTextColor={colors.textSecondary}
                             keyboardType="decimal-pad"
                             value={val}
                             onChangeText={(text) => setPaidAmounts({ ...paidAmounts, [m.userId]: text })}
+                            multiline={false}
+                            scrollEnabled={false}
                           />
                         </View>
                       </View>
                     );
                   })}
                 </ScrollView>
-              </View>
 
-              {/* Bottom Balance Summary */}
-              <View
-                className="flex-col gap-1 items-center px-5 py-4"
-                style={{ backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border }}
-              >
-                <Text className="text-sm font-bold" style={{ color: colors.textMain }}>
-                  ₹{totalPaidByMembers.toFixed(2)} of ₹{totalAmount.toFixed(2)}
-                </Text>
-                <Text
-                  className={`text-xs font-semibold ${
-                    multiplePaidRemaining === 0 ? 'text-emerald-400' : 'text-negative'
-                  }`}
+                {/* Bottom Summary Bar */}
+                <View
+                  className="px-5 py-4 flex-row items-center justify-between"
+                  style={{ backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border }}
                 >
-                  {multiplePaidRemaining === 0 ? 'Fully allocated' : `₹${multiplePaidRemaining.toFixed(2)} left`}
-                </Text>
-              </View>
+                  <View>
+                    <Text className="text-xs font-semibold" style={{ color: colors.textSecondary }}>
+                      {enteredPaidSum.toFixed(2)} of ₹{totalAmount.toFixed(2)}
+                    </Text>
+                    <Text
+                      className="text-xs font-bold mt-0.5"
+                      style={{
+                        color: Math.abs(enteredPaidSum - totalAmount) < 0.05
+                          ? colors.cyan
+                          : enteredPaidSum > totalAmount
+                          ? colors.red
+                          : colors.textSecondary,
+                      }}
+                    >
+                      {Math.abs(enteredPaidSum - totalAmount) < 0.05
+                        ? 'Total matches bill'
+                        : enteredPaidSum > totalAmount
+                        ? `₹${(enteredPaidSum - totalAmount).toFixed(2)} over`
+                        : `₹${(totalAmount - enteredPaidSum).toFixed(2)} remaining`}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    className="px-5 py-3 rounded-2xl items-center justify-center shadow-sm"
+                    style={{
+                      backgroundColor: isMultiplePaidValid ? colors.cyan : colors.accentPill,
+                    }}
+                    onPress={() => {
+                      if (!isMultiplePaidValid) {
+                        const diff = enteredPaidSum - totalAmount;
+                        showAlert(
+                          'Paid Amount Mismatch',
+                          diff > 0
+                            ? `Paid total exceeds bill by ₹${diff.toFixed(2)}.`
+                            : `Paid total is under by ₹${Math.abs(diff).toFixed(2)}.`
+                        );
+                        return;
+                      }
+                      setCurrentView('main');
+                    }}
+                    disabled={!isMultiplePaidValid}
+                  >
+                    <Text
+                      className="text-xs font-extrabold"
+                      style={{ color: isMultiplePaidValid ? '#0F172A' : colors.textSecondary }}
+                    >
+                      Done
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </SafeAreaView>
             </View>
           )}
 
           {/* ====================================================================
-              VIEW 4: "ADJUST SPLIT" SCREEN (5 TABS INCLUDING ADJUSTMENT)
+              SUB-SCREEN 3: ADJUST SPLIT SCREEN
              ==================================================================== */}
           {currentView === 'adjust_split' && (
             <View className="flex-1 justify-between">
               <View className="flex-1">
-                {/* Header */}
+                {/* Top Header */}
                 <View
                   className="flex-row items-center justify-between px-4 py-3.5"
                   style={{ backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}
@@ -770,8 +1300,31 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
                   <Text className="text-lg font-bold" style={{ color: colors.textMain }}>
                     Adjust split
                   </Text>
-                  <TouchableOpacity onPress={() => setCurrentView('main')} className="p-2 rounded-xl">
-                    <Ionicons name="checkmark" size={26} color={colors.cyan} />
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (!isSplitValid) {
+                        if (splitType === 'exact' && exactDiff < -0.05) {
+                          showAlert('Split Mismatch', `Exact splits are over by ₹${Math.abs(exactDiff).toFixed(2)}.`);
+                          return;
+                        }
+                        if (splitType === 'percentage' && percentDiff < -0.5) {
+                          showAlert('Percentage Mismatch', `Percentages are over by ${Math.abs(percentDiff).toFixed(1)}%.`);
+                          return;
+                        }
+                        if (splitType === 'shares' && totalSharesCount <= 0) {
+                          showAlert('No Shares', 'Please assign at least 1 share across members.');
+                          return;
+                        }
+                        if (splitType === 'adjustment' && remainingForAdjustment < 0) {
+                          showAlert('Adjustments Exceed Total', `Adjustments exceed total by ₹${Math.abs(remainingForAdjustment).toFixed(2)}.`);
+                          return;
+                        }
+                      }
+                      setCurrentView('main');
+                    }}
+                    className="p-2 rounded-xl"
+                  >
+                    <Ionicons name="checkmark" size={26} color={isSplitValid ? colors.cyan : colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
 
@@ -842,17 +1395,17 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
                   )}
                   {splitType === 'exact' && (
                     <Text className="text-xs font-semibold" style={{ color: colors.textMain }}>
-                      Specify exact currency amount for each person.
+                      Specify exact currency amount for each person; blank fields split the remainder equally.
                     </Text>
                   )}
                   {splitType === 'percentage' && (
                     <Text className="text-xs font-semibold" style={{ color: colors.textMain }}>
-                      Enter percentage share for each person.
+                      Enter percentage share for each person; blank fields split the remaining % equally.
                     </Text>
                   )}
                   {splitType === 'shares' && (
                     <Text className="text-xs font-semibold" style={{ color: colors.textMain }}>
-                      Assign weighted shares (e.g. 1 share, 2 shares).
+                      Assign shares using +/- buttons; members with 0 shares are automatically excluded.
                     </Text>
                   )}
                   {splitType === 'adjustment' && (
@@ -868,10 +1421,18 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
                 </View>
 
                 {/* Member Split Rows */}
-                <ScrollView className="flex-1 pt-1">
+                <ScrollView
+                  className="flex-1 pt-1"
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="none"
+                  showsVerticalScrollIndicator={false}
+                >
                   {cohortMembers.map((m) => {
-                    const name = m.profile?.fullName || (m.userId === currentUser.id ? 'You' : 'Member');
+                    const name = m.profile?.nickname || m.profile?.fullName || (m.userId === currentUser.id ? 'You' : 'Member');
+                    const username = m.profile?.username;
+                    const hasVpa = !!m.profile?.vpaId;
                     const isIncluded = includedMemberIds.includes(m.userId);
+                    const memberShares = getMemberSharesCount(m.userId);
 
                     return (
                       <View
@@ -885,17 +1446,49 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
                           onPress={() => splitType === 'equal' && toggleMemberInclusion(m.userId)}
                         >
                           <View
-                            className="w-10 h-10 rounded-full items-center justify-center"
+                            className="w-10 h-10 rounded-full items-center justify-center overflow-hidden"
                             style={{ backgroundColor: colors.accentPill, borderWidth: 1, borderColor: colors.border }}
                           >
-                            <Text className="text-xs font-bold" style={{ color: colors.textMain }}>
-                              {name.charAt(0).toUpperCase()}
-                            </Text>
+                            {m.profile?.avatarUrl ? (
+                              <Image source={{ uri: m.profile.avatarUrl }} className="w-10 h-10 rounded-full" />
+                            ) : (
+                              <Text className="text-xs font-bold" style={{ color: colors.textMain }}>
+                                {name.charAt(0).toUpperCase()}
+                              </Text>
+                            )}
                           </View>
                           <View className="flex-1">
-                            <Text className="text-base font-semibold" style={{ color: colors.textMain }}>
-                              {m.userId === currentUser.id ? `${name} (You)` : name}
-                            </Text>
+                            <View className="flex-row items-center gap-1.5">
+                              <Text className="text-base font-bold" style={{ color: colors.textMain }}>
+                                {m.userId === currentUser.id ? `${name} (You)` : name}
+                              </Text>
+                              {hasVpa && <Ionicons name="checkmark-circle" size={14} color={colors.cyan} />}
+                            </View>
+                            {username ? (
+                              <Text className="text-[11px] font-semibold" style={{ color: colors.cyan }}>
+                                @{username}
+                              </Text>
+                            ) : null}
+
+                            {/* Under Name Subtitle - Money They Owe */}
+                            {splitType === 'exact' && (
+                              <Text className="text-xs font-semibold" style={{ color: colors.textSecondary }}>
+                                ₹{getMemberExactAmount(m.userId).toFixed(2)}
+                              </Text>
+                            )}
+                            {splitType === 'percentage' && (
+                              <Text className="text-xs font-semibold" style={{ color: colors.textSecondary }}>
+                                ₹{((getMemberPercent(m.userId) / 100) * totalAmount).toFixed(2)}
+                              </Text>
+                            )}
+                            {splitType === 'shares' && (
+                              <Text
+                                className="text-xs font-semibold"
+                                style={{ color: memberShares === 0 ? colors.textSecondary : colors.emerald }}
+                              >
+                                {memberShares === 0 ? '₹0.00 (Excluded)' : `₹${getMemberShareAmount(m.userId).toFixed(2)}`}
+                              </Text>
+                            )}
                             {splitType === 'adjustment' && (
                               <Text className="text-xs font-semibold" style={{ color: colors.textSecondary }}>
                                 ₹{getMemberAdjustmentFinalShare(m.userId).toFixed(2)}
@@ -926,17 +1519,23 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
                               ₹
                             </Text>
                             <TextInput
-                              className="w-24 h-10 text-right text-base font-bold px-2"
+                              key={`exact_${m.userId}`}
+                              className="w-24 px-2 text-right text-base font-bold"
                               style={{
                                 color: colors.textMain,
-                                borderBottomWidth: 1,
+                                borderBottomWidth: 1.5,
                                 borderBottomColor: colors.border,
+                                minHeight: 48,
+                                height: 48,
+                                textAlignVertical: 'center',
                               }}
-                              placeholder="0.00"
+                              placeholder={placeholderExactPerPerson}
                               placeholderTextColor={colors.textSecondary}
                               keyboardType="decimal-pad"
                               value={exactSplits[m.userId] || ''}
                               onChangeText={(text) => setExactSplits({ ...exactSplits, [m.userId]: text })}
+                              multiline={false}
+                              scrollEnabled={false}
                             />
                           </View>
                         )}
@@ -945,17 +1544,23 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
                         {splitType === 'percentage' && (
                           <View className="flex-row items-center gap-2">
                             <TextInput
-                              className="w-16 h-10 text-right text-base font-bold px-2"
+                              key={`pct_${m.userId}`}
+                              className="w-16 px-2 text-right text-base font-bold"
                               style={{
                                 color: colors.textMain,
-                                borderBottomWidth: 1,
+                                borderBottomWidth: 1.5,
                                 borderBottomColor: colors.border,
+                                minHeight: 48,
+                                height: 48,
+                                textAlignVertical: 'center',
                               }}
-                              placeholder="0.0"
+                              placeholder={placeholderPercentPerPerson}
                               placeholderTextColor={colors.textSecondary}
                               keyboardType="decimal-pad"
                               value={percentSplits[m.userId] || ''}
                               onChangeText={(text) => setPercentSplits({ ...percentSplits, [m.userId]: text })}
+                              multiline={false}
+                              scrollEnabled={false}
                             />
                             <Text className="text-base font-bold" style={{ color: colors.textSecondary }}>
                               %
@@ -963,24 +1568,42 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
                           </View>
                         )}
 
-                        {/* Shares: Stepper/Input */}
+                        {/* Shares: Stepper with [-] and [+] Buttons */}
                         {splitType === 'shares' && (
                           <View className="flex-row items-center gap-2">
-                            <TextInput
-                              className="w-16 h-10 text-right text-base font-bold px-2"
+                            <TouchableOpacity
+                              className="w-9 h-9 rounded-xl items-center justify-center shadow-sm"
                               style={{
-                                color: colors.textMain,
-                                borderBottomWidth: 1,
-                                borderBottomColor: colors.border,
+                                backgroundColor: memberShares > 0 ? colors.accentPill : colors.surface,
+                                borderWidth: 1,
+                                borderColor: colors.border,
                               }}
-                              placeholder="1"
-                              placeholderTextColor={colors.textSecondary}
-                              keyboardType="number-pad"
-                              value={shareSplits[m.userId] || '1'}
-                              onChangeText={(text) => setShareSplits({ ...shareSplits, [m.userId]: text })}
-                            />
-                            <Text className="text-xs font-semibold" style={{ color: colors.textSecondary }}>
-                              shares
+                              onPress={() => handleShareDecrement(m.userId)}
+                              activeOpacity={0.7}
+                            >
+                              <Ionicons name="remove" size={18} color={memberShares > 0 ? colors.cyan : colors.textSecondary} />
+                            </TouchableOpacity>
+
+                            <View
+                              className="w-10 h-9 items-center justify-center rounded-xl"
+                              style={{ backgroundColor: colors.accentPill, borderWidth: 1, borderColor: colors.border }}
+                            >
+                              <Text className="text-sm font-extrabold" style={{ color: colors.textMain }}>
+                                {memberShares}
+                              </Text>
+                            </View>
+
+                            <TouchableOpacity
+                              className="w-9 h-9 rounded-xl items-center justify-center shadow-sm"
+                              style={{ backgroundColor: colors.accentPill, borderWidth: 1, borderColor: colors.border }}
+                              onPress={() => handleShareIncrement(m.userId)}
+                              activeOpacity={0.7}
+                            >
+                              <Ionicons name="add" size={18} color={colors.cyan} />
+                            </TouchableOpacity>
+
+                            <Text className="text-xs font-semibold ml-1" style={{ color: colors.textSecondary }}>
+                              {memberShares === 1 ? 'share' : 'shares'}
                             </Text>
                           </View>
                         )}
@@ -992,17 +1615,22 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
                               +
                             </Text>
                             <TextInput
-                              className="w-20 h-10 text-right text-base font-bold px-2"
+                              className="w-20 px-2 text-right text-base font-bold"
                               style={{
                                 color: colors.textMain,
                                 borderBottomWidth: 1.5,
                                 borderBottomColor: colors.cyan,
+                                minHeight: 48,
+                                height: 48,
+                                textAlignVertical: 'center',
                               }}
                               placeholder="0.00"
                               placeholderTextColor={colors.textSecondary}
                               keyboardType="decimal-pad"
                               value={adjustmentSplits[m.userId] || ''}
                               onChangeText={(text) => setAdjustmentSplits({ ...adjustmentSplits, [m.userId]: text })}
+                              multiline={false}
+                              scrollEnabled={false}
                             />
                           </View>
                         )}
@@ -1012,68 +1640,133 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
                 </ScrollView>
               </View>
 
-              {/* Bottom Summary Bar */}
+              {/* Bottom Summary Bar & Real-Time Validation Banner */}
               <View
-                className="flex-row items-center justify-between px-5 py-4"
+                className="px-5 py-4 gap-2"
                 style={{ backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border }}
               >
-                <View>
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-1 pr-2">
+                    {splitType === 'equal' && (
+                      <Text className="text-sm font-bold" style={{ color: colors.textMain }}>
+                        ~₹{equalPerPerson}/person{' '}
+                        <Text className="text-xs font-normal" style={{ color: colors.textSecondary }}>
+                          ({includedMemberIds.length} {includedMemberIds.length === 1 ? 'person' : 'people'})
+                        </Text>
+                      </Text>
+                    )}
+                    {splitType === 'exact' && (
+                      <View>
+                        <Text className="text-xs font-bold" style={{ color: colors.textMain }}>
+                          ₹{enteredExactSum.toFixed(2)} of ₹{totalAmount.toFixed(2)}
+                        </Text>
+                        <Text
+                          className="text-[11px] font-semibold mt-0.5"
+                          style={{
+                            color:
+                              exactDiff === 0 || Math.abs(exactDiff) <= 0.05
+                                ? colors.emerald
+                                : exactDiff < 0
+                                ? colors.red
+                                : colors.amber,
+                          }}
+                        >
+                          {exactDiff === 0 || Math.abs(exactDiff) <= 0.05
+                            ? 'Balanced'
+                            : exactDiff < 0
+                            ? `Over by ₹${Math.abs(exactDiff).toFixed(2)}`
+                            : `₹${exactDiff.toFixed(2)} remaining`}
+                        </Text>
+                      </View>
+                    )}
+                    {splitType === 'percentage' && (
+                      <View>
+                        <Text className="text-xs font-bold" style={{ color: colors.textMain }}>
+                          {enteredPercentSum.toFixed(1)}% of 100%
+                        </Text>
+                        <Text
+                          className="text-[11px] font-semibold mt-0.5"
+                          style={{
+                            color:
+                              percentDiff === 0 || Math.abs(percentDiff) <= 0.5
+                                ? colors.emerald
+                                : percentDiff < 0
+                                ? colors.red
+                                : colors.amber,
+                          }}
+                        >
+                          {percentDiff === 0 || Math.abs(percentDiff) <= 0.5
+                            ? 'Balanced (100%)'
+                            : percentDiff < 0
+                            ? `Over by ${Math.abs(percentDiff).toFixed(1)}%`
+                            : `${percentDiff.toFixed(1)}% remaining`}
+                        </Text>
+                      </View>
+                    )}
+                    {splitType === 'shares' && (
+                      <Text className="text-xs font-bold" style={{ color: colors.textSecondary }}>
+                        Proportional distribution ({totalSharesCount} active {totalSharesCount === 1 ? 'share' : 'shares'})
+                      </Text>
+                    )}
+                    {splitType === 'adjustment' && (
+                      <View>
+                        <Text className="text-xs font-bold" style={{ color: colors.textMain }}>
+                          {remainingForAdjustment >= 0
+                            ? `Remainder: ₹${remainingForAdjustment.toFixed(2)} (~₹${baseAdjustmentShare.toFixed(2)}/person)`
+                            : `Adjustments exceed total by ₹${Math.abs(remainingForAdjustment).toFixed(2)}`}
+                        </Text>
+                        <Text className="text-[10px] font-semibold" style={{ color: remainingForAdjustment >= 0 ? colors.cyan : colors.red }}>
+                          Total expense: ₹{totalAmount.toFixed(2)}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
                   {splitType === 'equal' && (
-                    <Text className="text-sm font-bold" style={{ color: colors.textMain }}>
-                      ~₹{equalPerPerson}/person{' '}
-                      <Text className="text-xs font-normal" style={{ color: colors.textSecondary }}>
-                        ({includedMemberIds.length} {includedMemberIds.length === 1 ? 'person' : 'people'})
-                      </Text>
-                    </Text>
-                  )}
-                  {splitType === 'exact' && (
-                    <Text className="text-xs font-bold" style={{ color: colors.textSecondary }}>
-                      Total: ₹{totalAmount.toFixed(2)}
-                    </Text>
-                  )}
-                  {splitType === 'percentage' && (
-                    <Text className="text-xs font-bold" style={{ color: colors.textSecondary }}>
-                      Total: 100%
-                    </Text>
-                  )}
-                  {splitType === 'shares' && (
-                    <Text className="text-xs font-bold" style={{ color: colors.textSecondary }}>
-                      Proportional weighted distribution
-                    </Text>
-                  )}
-                  {splitType === 'adjustment' && (
-                    <View>
+                    <TouchableOpacity
+                      className="flex-row items-center gap-2 px-3 py-1.5 rounded-xl"
+                      style={{ backgroundColor: colors.accentPill, borderWidth: 1, borderColor: colors.border }}
+                      onPress={toggleSelectAll}
+                    >
                       <Text className="text-xs font-bold" style={{ color: colors.textMain }}>
-                        {remainingForAdjustment >= 0
-                          ? `Remainder: ₹${remainingForAdjustment.toFixed(2)} (~₹${baseAdjustmentShare.toFixed(2)}/person)`
-                          : `Adjustments exceed total by ₹${Math.abs(remainingForAdjustment).toFixed(2)}`}
+                        All
                       </Text>
-                      <Text className="text-[10px] font-semibold" style={{ color: remainingForAdjustment >= 0 ? colors.cyan : '#F87171' }}>
-                        Total expense: ₹{totalAmount.toFixed(2)}
-                      </Text>
-                    </View>
+                      <View
+                        className="w-5 h-5 rounded-md items-center justify-center"
+                        style={{
+                          backgroundColor: allSelected ? colors.cyan : colors.surface,
+                          borderWidth: 1,
+                          borderColor: allSelected ? colors.cyan : colors.border,
+                        }}
+                      >
+                        {allSelected && <Ionicons name="checkmark" size={14} color="#0F172A" />}
+                      </View>
+                    </TouchableOpacity>
                   )}
                 </View>
 
-                {splitType === 'equal' && (
+                {/* 1-Tap Auto-Balance Button */}
+                {splitType === 'exact' && exactDiff > 0.05 && (
                   <TouchableOpacity
-                    className="flex-row items-center gap-2 px-3 py-1.5 rounded-xl"
+                    className="py-2 px-3 rounded-xl items-center self-center"
                     style={{ backgroundColor: colors.accentPill, borderWidth: 1, borderColor: colors.border }}
-                    onPress={toggleSelectAll}
+                    onPress={autoBalanceExactSplits}
                   >
-                    <Text className="text-xs font-bold" style={{ color: colors.textMain }}>
-                      All
+                    <Text className="text-xs font-bold" style={{ color: colors.cyan }}>
+                      Distribute remaining ₹{exactDiff.toFixed(2)} equally
                     </Text>
-                    <View
-                      className="w-5 h-5 rounded-md items-center justify-center"
-                      style={{
-                        backgroundColor: allSelected ? colors.cyan : colors.surface,
-                        borderWidth: 1,
-                        borderColor: allSelected ? colors.cyan : colors.border,
-                      }}
-                    >
-                      {allSelected && <Ionicons name="checkmark" size={14} color="#0F172A" />}
-                    </View>
+                  </TouchableOpacity>
+                )}
+
+                {splitType === 'percentage' && percentDiff > 0.5 && (
+                  <TouchableOpacity
+                    className="py-2 px-3 rounded-xl items-center self-center"
+                    style={{ backgroundColor: colors.accentPill, borderWidth: 1, borderColor: colors.border }}
+                    onPress={autoBalancePercentSplits}
+                  >
+                    <Text className="text-xs font-bold" style={{ color: colors.cyan }}>
+                      Distribute remaining {percentDiff.toFixed(1)}% equally
+                    </Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -1287,6 +1980,19 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
               </View>
             </View>
           </Modal>
+
+          {/* ====================================================================
+              AUXILIARY MODAL 4: SHORTCUT MANAGER
+             ==================================================================== */}
+          <ShortcutManagerModal
+            visible={shortcutModalVisible}
+            onClose={() => {
+              setShortcutModalVisible(false);
+              setEditingShortcut(null);
+            }}
+            shortcut={editingShortcut}
+            cohortId={activeCohort?.id || ''}
+          />
         </SafeAreaView>
       </View>
     </Modal>

@@ -6,6 +6,8 @@ export interface UserProfile {
   id: string;
   email?: string;
   fullName: string;
+  nickname?: string;
+  username?: string; // e.g. 'rahul_k' (rendered as @rahul_k)
   avatarUrl?: string;
   vpaId?: string; // UPI ID (e.g. name@okaxis)
   phoneNumber?: string;
@@ -78,6 +80,26 @@ export interface TransactionComment {
   content: string;
   createdAt: string;
   profile?: UserProfile;
+}
+
+export interface ExpenseShortcut {
+  id: string;
+  cohortId: string;
+  title: string;
+  category: string;
+  customIcon?: string;
+  amount: number;
+  paidByUserId?: string;
+  isMultiplePayers?: boolean;
+  paidAmounts?: Record<string, string>;
+  splitType: SplitType;
+  splits?: ExpenseSplit[];
+  includedMemberIds?: string[];
+  exactSplits?: Record<string, string>;
+  percentageSplits?: Record<string, string>;
+  sharesSplits?: Record<string, number>;
+  adjustmentSplits?: Record<string, string>;
+  createdAt: string;
 }
 
 export interface NetBalance {

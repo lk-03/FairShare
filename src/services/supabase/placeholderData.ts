@@ -3,6 +3,7 @@ import {
   EventCohort,
   GroupMember,
   Expense,
+  ExpenseShortcut,
   SharedListItem,
   PersonalReminderSettings,
 } from '@/types';
@@ -10,6 +11,9 @@ import {
 export const DEFAULT_CURRENT_USER: UserProfile = {
   id: 'usr_me',
   fullName: 'Kowsic L',
+  nickname: 'Kowsic',
+  username: 'kowsic_03',
+  avatarUrl: 'https://api.dicebear.com/7.x/avataaars/png?seed=Dev&backgroundColor=ffd5dc',
   email: 'kowsic@fairshare.app',
   vpaId: 'kowsic@okaxis',
   isGuest: false,
@@ -60,6 +64,9 @@ export const DEFAULT_MEMBERS: Record<string, GroupMember[]> = {
       profile: {
         id: 'usr_alex',
         fullName: 'Alex Rivera',
+        nickname: 'Alex',
+        username: 'alex_r',
+        avatarUrl: 'https://api.dicebear.com/7.x/avataaars/png?seed=Marcus&backgroundColor=c0aede',
         email: 'alex@fairshare.app',
         vpaId: 'alex@upi',
         isGuest: false,
@@ -75,6 +82,9 @@ export const DEFAULT_MEMBERS: Record<string, GroupMember[]> = {
       profile: {
         id: 'usr_priya',
         fullName: 'Priya Sharma',
+        nickname: 'Priya',
+        username: 'priya_s',
+        avatarUrl: 'https://api.dicebear.com/7.x/avataaars/png?seed=Elena&backgroundColor=d1d4f9',
         email: 'priya@fairshare.app',
         vpaId: 'priya@ybl',
         isGuest: false,
@@ -100,6 +110,9 @@ export const DEFAULT_MEMBERS: Record<string, GroupMember[]> = {
       profile: {
         id: 'usr_alex',
         fullName: 'Alex Rivera',
+        nickname: 'Alex',
+        username: 'alex_r',
+        avatarUrl: 'https://api.dicebear.com/7.x/avataaars/png?seed=Marcus&backgroundColor=c0aede',
         email: 'alex@fairshare.app',
         vpaId: 'alex@upi',
         isGuest: false,
@@ -199,3 +212,5 @@ export const DEFAULT_REMINDER_SETTINGS: Record<string, PersonalReminderSettings>
     notifyStaleItems: true,
   },
 };
+
+export const DEFAULT_SHORTCUTS: Record<string, ExpenseShortcut[]> = {};

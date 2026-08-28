@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { useExpenseStore } from '@/store/useExpenseStore';
+import { showAlert } from '@/store/useAlertStore';
 import { Text } from '@/components/ui/Text';
 
 export default function ScanScreen() {
@@ -30,15 +31,16 @@ export default function ScanScreen() {
     const cohort = await joinCohortByInviteCode(inviteCode);
 
     if (cohort) {
-      Alert.alert('Success!', `Joined ${cohort.name}`, [
+      showAlert('Success!', `Joined ${cohort.name}`, [
         {
           text: 'Open Event',
+          style: 'default',
           onPress: () => router.replace(`/event/${cohort.id}` as any),
         },
       ]);
     } else {
-      Alert.alert('Invalid QR Code', `Invite code "${inviteCode}" not found.`, [
-        { text: 'Try Again', onPress: () => setScanned(false) },
+      showAlert('Invalid QR Code', `Invite code "${inviteCode}" not found.`, [
+        { text: 'Try Again', style: 'default', onPress: () => setScanned(false) },
       ]);
     }
   };

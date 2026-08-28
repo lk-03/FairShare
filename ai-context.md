@@ -180,6 +180,10 @@ FairShare/
   - Async Actions: `fetchInitialData`, `fetchCohorts`, `fetchExpensesForCohort`, `refreshAll`, `addCohort`, `updateCohort`, `joinCohortByInviteCode`, `addExpense`, `updateExpense`, `deleteExpense`, `addComment`, `clearError`.
   - Persisted using MMKV via key `fairshare-store-v1` with `partialize` configuration.
 
+#### `src/store/useAlertStore.ts`
+- **Role:** Global alert and action sheet state manager and universal `showAlert()` trigger helper.
+- **Details:** Replaces un-themeable native OS `Alert.alert` popups with customized, theme-reactive modal dialogs and multi-button action sheets matching FairShare design tokens. Supports button styles (`default`, `cancel`, `destructive`), custom icons, auto-dismiss, and drop-in compatibility with standard `Alert.alert(title, message, buttons)` calls.
+
 ---
 
 ### Services & Data Layer (`src/services/`)
@@ -238,7 +242,8 @@ FairShare/
 ### Custom Hooks (`src/hooks/`)
 
 #### `src/hooks/use-theme.ts`
-- **Role:** Returns color token palette from `Colors` based on current color scheme.
+- **Role:** Returns safe color token palette from `Colors` based on `useThemeStore` and `useColorScheme`, preventing undefined property crashes when switching color schemes.
+
 
 #### `src/hooks/use-color-scheme.ts` & `src/hooks/use-color-scheme.web.ts`
 - **Role:** Universal color scheme hook handling hydration on Web to prevent SSR mismatched styles.
@@ -258,7 +263,8 @@ FairShare/
 
 
 #### `src/components/ui/CategoryIcon.tsx`
-- **Role:** Renders rounded category badge icons (`trip`, `house`, `dining`, `event`, `transport`, `utilities`, or custom icons). Includes `GENERIC_CUSTOM_ICONS` catalog of 30+ Ionicons for custom categories. Uses stable inline styling for solid and light variants to guarantee immunity from NativeWind v4 dynamic CSS-variable upgrades and avoid modal crashes during active category switching.
+- **Role:** Renders rounded category badge icons (`trip`, `house`, `dining`, `event`, `transport`, `utilities`, or custom icons). Includes theme-adaptive light and dark palettes with soft tinted backgrounds in Light mode and rich contrasting glyphs in Dark mode.
+
 
 
 #### `src/components/ui/GroupAvatar.tsx`
@@ -270,27 +276,61 @@ FairShare/
 #### `src/components/ui/collapsible.tsx`
 - **Role:** Animated expandable accordion widget powered by `react-native-reanimated` (`FadeIn`).
 
+#### `src/components/ui/CustomAlertModal.tsx`
+- **Role:** Root-mounted modal component rendering custom, theme-aware alert boxes and action sheets.
+- **Details:** Automatically reacts to `useAlertStore`, displaying theme-tinted icon badges, title, description, horizontal buttons for 2-button confirmations, and vertically stacked action cards with icons for multi-option sheets (such as long-pressing an expense to bookmark as a shortcut).
+
 ---
 
 ### Feature Modals & Tab Components (`src/components/`)
 
 #### `src/components/AddExpenseModal.tsx`
 - **Role:** Full-screen modal for adding expenses using the clean Splitwise-style multi-step workflow.
-- **Capabilities:** Features an uncluttered main form with group badge, category icon button, underlined description and rupee amount inputs, natural language sentence selector (`Paid by [you] and split [equally]`), bottom accessory toolbar with date/camera receipt/notes, sub-screens for **Who paid?** (single-payer selection and multiple-payer amount allocation), and **Adjust split** (5 tabs: Equally with per-person calculation and all-select toggle, Unequally, By %, By shares, and **By adjustment** with dynamic remainder distribution). Styled with `.fairshare-expense-*` classes in `global.css`.
+- **Capabilities:** Features an uncluttered main form with group badge, category icon button, underlined description and rupee amount inputs with generous height (`minHeight: 48`), natural language sentence selector (`Paid by [you] and split [equally]`), bottom accessory toolbar with date/camera receipt/notes, sub-screens for **Who paid?** (single-payer selection and multiple-payer amount allocation with dynamic remaining placeholders), and **Adjust split** (5 tabs: Equally, Unequally with dynamic auto-fill placeholders and money owed subtitles, By % with dynamic percentage placeholders, By shares with tactile `[-] / [+]` Stepper buttons and 0-share auto-exclusion, and By adjustment with dynamic remainder distribution). Styled with `.fairshare-expense-*` classes in `global.css`.
 
 #### `src/components/EditExpenseModal.tsx`
-- **Role:** Full-screen modal for editing existing expenses, pre-populating existing splits, payers, receipt attachments, and adjustment amounts in the clean Splitwise-style multi-step layout.
+- **Role:** Full-screen modal for editing existing expenses, pre-populating existing splits, payers, receipt attachments, dynamic auto-fill placeholders, Stepper share controls with 0-share auto-exclusion, and adjustment amounts in the clean Splitwise-style multi-step layout.
 
 
+#### `src/components/SettleUpModal.tsx`
+- **Role:** Modal for settling P2P debts between members via UPI Intent or recording cash/online transfers with custom amounts, dynamic overpayment adjustments (crediting future group debt), and automatic ledger History entry creation.
+
+#### `src/components/SetUpiModal.tsx`
+- **Role:** Full-screen modal for configuring and verifying the user's UPI Virtual Payment Address (VPA) with 1-tap clipboard import, auto-cleaning, quick bank handle chips (`@okaxis`, `@okhdfcbank`, `@oksbi`, `@paytm`, `@ybl`, etc.), and regex validation.
+
+
+
+
+
+
+
+
+#### `src/components/ShortcutManagerModal.tsx`
+- **Role:** Full-screen/bottom-sheet modal for creating, editing, and deleting group-scoped expense shortcuts.
+- **Features:** Preset title, default amount in ₹, category and icon picker, default single payer or multiple payers allocation (with customizable paid amount values per member), and granular split configuration across all 5 split modes (Equally, Unequally, By %, By Shares with steppers, and Adjustments) with exact participant inclusions/exclusions.
+
+#### `src/components/AvatarPickerModal.tsx`
+- **Role:** Full-screen modal for choosing user avatar from a gallery of 10 copyright-free diverse cartoon illustrated avatars (DiceBear CC0), picking from device photo library (`expo-image-picker`), taking camera photos, or removing profile photo.
+
+#### `src/components/MemberProfileModal.tsx`
+- **Role:** Interactive popup modal displaying another member's profile when their `@username` or avatar is tapped in comments, split rows, or group details. Displays diverse avatar, centered Nickname with verified checkmark, `@username`, group role, and 1-tap UPI ID copy / payment transfer button.
+
+#### `src/components/EditProfileModal.tsx`
+- **Role:** Full-screen modal for detailed profile updates (Full Legal Name, Nickname display name, and `@username` handle validation).
+
+#### `src/components/AddExpenseModal.tsx`
+- **Role:** Comprehensive multi-view modal for logging transactions, managing single and multiple payers, granular 5-way splits, and 1-tap group shortcuts.
+- **Features:** 
+  - **Quick Shortcuts List**: In-modal vertically scrollable list of group-scoped expense shortcuts with nested scroll support that 1-tap auto-fills title, category, preset amount, single or multiple payers allocation, and granular split distributions while automatically focusing the amount input for instant edits.
+  - **Save as Shortcut Button**: Placed directly in the header action bar next to "+ New" for immediate 1-tap bookmarking of custom form entries (with smart total amount inference from exact splits / multiple payers allocations).
+  - Sub-views for single/multiple payers and 5 split engines (Equal, Unequal, Percent, Shares with steppers, Adjustments with dynamic remainder) with optimized static key bindings to prevent focus loss during rapid multi-digit typing.
 
 #### `src/components/ExpenseDetailsModal.tsx`
-- **Role:** Bottom-sheet modal displaying full transaction breakdown, payer badge, split distributions, notes, and embedded comment thread.
+- **Role:** Bottom-sheet modal displaying full transaction breakdown, payer badge, split distributions with member nicknames and `@username` handles, verified UPI checkmarks, notes, embedded comment thread with group-scoped tagging, and 1-tap "Save as Shortcut" header action.
 
 #### `src/components/CreateGroupModal.tsx` & `src/components/EditGroupModal.tsx`
 - **Role:** Modals for creating and editing event cohorts, categories, currencies, and unique invite codes (`<NAME><SUFFIX>`).
 - **Details:** Wrapped in `activeThemeClass` to ensure CSS custom variables (`--bg-surface`, `--text-main`, `--accent-pill`) resolve seamlessly in detached native modal portals without triggering `cssInterop` upgrade crashes. Includes safe null checks on `cohort`, normalized category/custom category sync, and persistent custom icon selection.
-
-
 
 #### `src/components/SelectGroupModal.tsx`
 - **Role:** Bottom-sheet selector allowing users to choose which cohort an expense belongs to before launching the Add Expense modal.
@@ -304,18 +344,15 @@ FairShare/
 #### `src/components/MonthlySpendingsTab.tsx`
 - **Role:** Cohort tab component rendering an SVG Donut Pie chart breakdown of spending by participant with side color legends including both amount (₹) and percentage (%), themed summary cards, and group spend statistics (Top Spender who paid upfront vs. Highest Consumer who incurred the most share).
 
-
-
 #### `src/components/NeedsListTab.tsx`
 - **Role:** Cohort tab providing a shared "Cart of the House" grocery/supplies checklist, styled with frosted accent pill backgrounds and theme tokens, auto-clearing checked items older than 5 days, highlighting 3+ day stale items, and featuring configurable reminder intervals (every 6 hours default, or customized hours/days with time of day and notification disable toggles).
 
 #### `src/components/StaleNeedsReminderModal.tsx`
 - **Role:** Pop-up reminder modal displayed on app launch alerting users when any household needs list items have remained unchecked for 3 or more days, with direct "Mark as Bought" and dismiss actions.
 
-
-
 #### `src/components/TransactionComments.tsx`
 - **Role:** Real-time expense discussion thread and note logging component.
+- **Features:** Supports `@all` broadcast group notifications, `@username` member tagging with autocomplete suggestion chips, clickable `@username` handles that open `MemberProfileModal`, and author avatars with verified UPI badges.
 
 #### `src/components/BottomNav.tsx`
 - **Role:** Custom 4-tab bottom navigation bar (`Home`, `Groups`, `Activity`, `Profile`) matching theme tokens.
@@ -339,7 +376,8 @@ FairShare/
 
 #### `src/app/(tabs)/index.tsx`
 - **Role:** Main Dashboard screen.
-- **Details:** Renders `ThemeGradientHeader` with user avatar, search pill, settings shortcut, prominent Net Balance display ($\pm ₹X$), quick action buttons (*Add*, *Scan Receipt*, *Scan QR*, *New Group*), pull-to-refresh (`RefreshControl`), horizontal group card carousel with empty state fallback, and recent activity feed with empty state fallback.
+- **Details:** Renders `ThemeGradientHeader` with bold "FairShare" brand title in top-left, user profile avatar in top-right, prominent Net Balance display ($\pm ₹X$), clean frosted quick action buttons (*Add*, *Scan Receipt*, *Scan QR*, *New Group*), pull-to-refresh (`RefreshControl`), horizontal group card carousel with empty state fallback, and recent activity feed with empty state fallback.
+
 
 #### `src/app/(tabs)/groups.tsx`
 - **Role:** Groups & Event Cohorts directory screen.

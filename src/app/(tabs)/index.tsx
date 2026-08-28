@@ -6,11 +6,12 @@ import {
   RefreshControl,
   useColorScheme,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useExpenseStore } from '@/store/useExpenseStore';
-import { useThemeStore, getThemeGradientColors } from '@/store/useThemeStore';
+import { useThemeStore, getThemeGradientColors, getThemePalette } from '@/store/useThemeStore';
 import { calculateSimplifiedDebts } from '@/utils/debtSimplifier';
 import { BottomTabInset } from '@/constants/theme';
 import { AddExpenseModal } from '@/components/AddExpenseModal';
@@ -29,6 +30,10 @@ export default function HomeScreen() {
   const router = useRouter();
   const systemScheme = useColorScheme();
   const { themeBase, colorScheme } = useThemeStore();
+  const colors = getThemePalette(themeBase, colorScheme, systemScheme);
+  const isDark =
+    colorScheme === 'dark' ||
+    (colorScheme === 'system' && (systemScheme === 'dark' || !systemScheme));
 
   const [selectGroupVisible, setSelectGroupVisible] = useState(false);
   const [selectedCohortId, setSelectedCohortId] = useState<string | undefined>(undefined);
@@ -124,36 +129,35 @@ export default function HomeScreen() {
           colors={gradientColors}
           className="px-5 pb-8 rounded-b-[40px] shadow-sm"
         >
-          {/* Top Bar Controls */}
+          {/* Top Bar Header */}
           <View className="flex-row items-center justify-between py-3 mb-4">
+            <Text className="text-2xl font-extrabold text-main tracking-tight">
+              FairShare
+            </Text>
+
             {/* User Profile Avatar */}
             <TouchableOpacity
               activeOpacity={0.8}
-              className="w-10 h-10 rounded-full bg-accent-pill border border-surface items-center justify-center"
+              className="w-10 h-10 rounded-full items-center justify-center overflow-hidden"
+              style={{
+                backgroundColor: isDark ? colors.accentPill : '#FFFFFF',
+                borderWidth: 1,
+                borderColor: colors.border,
+                elevation: 0,
+                shadowOpacity: 0,
+              }}
               onPress={() => router.push('/profile' as any)}
             >
-              <Text className="text-main font-bold text-sm">
-                {currentUser.fullName ? currentUser.fullName.charAt(0).toUpperCase() : 'U'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Quick Search Bar Pill */}
-            <TouchableOpacity
-              activeOpacity={0.8}
-              className="flex-1 mx-3 px-4 py-2 rounded-full bg-accent-pill border border-surface flex-row items-center gap-2"
-              onPress={() => router.push('/activity' as any)}
-            >
-              <Ionicons name="search" size={16} color="#94A3B8" />
-              <Text className="text-xs text-secondary font-normal">Search expenses, groups...</Text>
-            </TouchableOpacity>
-
-            {/* Profile & Settings Icon */}
-            <TouchableOpacity
-              activeOpacity={0.8}
-              className="w-10 h-10 rounded-full bg-accent-pill border border-surface items-center justify-center"
-              onPress={() => router.push('/profile' as any)}
-            >
-              <Ionicons name="settings-outline" size={19} color="#94A3B8" />
+              {currentUser.avatarUrl ? (
+                <Image
+                  source={{ uri: currentUser.avatarUrl }}
+                  className="w-10 h-10 rounded-full"
+                />
+              ) : (
+                <Text className="text-main font-bold text-sm">
+                  {currentUser.fullName ? currentUser.fullName.charAt(0).toUpperCase() : 'U'}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -189,10 +193,19 @@ export default function HomeScreen() {
               className="items-center gap-2"
               onPress={handleOpenAddExpense}
             >
-              <View className="w-14 h-14 rounded-full bg-accent-pill border border-surface items-center justify-center shadow-sm">
-                <Ionicons name="add" size={26} color="#E2E8F0" />
+              <View
+                className="w-14 h-14 rounded-full items-center justify-center"
+                style={{
+                  backgroundColor: isDark ? colors.accentPill : '#FFFFFF',
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  elevation: 0,
+                  shadowOpacity: 0,
+                }}
+              >
+                <Ionicons name="add" size={26} color={colors.cyan} />
               </View>
-              <Text className="text-xs font-medium text-main">Add</Text>
+              <Text className="text-xs font-semibold text-main">Add</Text>
             </TouchableOpacity>
 
             {/* Scan Receipt */}
@@ -201,10 +214,19 @@ export default function HomeScreen() {
               className="items-center gap-2"
               onPress={handleOpenAddExpense}
             >
-              <View className="w-14 h-14 rounded-full bg-accent-pill border border-surface items-center justify-center shadow-sm">
-                <Ionicons name="receipt-outline" size={22} color="#E2E8F0" />
+              <View
+                className="w-14 h-14 rounded-full items-center justify-center"
+                style={{
+                  backgroundColor: isDark ? colors.accentPill : '#FFFFFF',
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  elevation: 0,
+                  shadowOpacity: 0,
+                }}
+              >
+                <Ionicons name="receipt-outline" size={22} color={colors.cyan} />
               </View>
-              <Text className="text-xs font-medium text-main">Scan Receipt</Text>
+              <Text className="text-xs font-semibold text-main">Scan Receipt</Text>
             </TouchableOpacity>
 
             {/* Scan QR */}
@@ -213,10 +235,19 @@ export default function HomeScreen() {
               className="items-center gap-2"
               onPress={() => router.push('/scan' as any)}
             >
-              <View className="w-14 h-14 rounded-full bg-accent-pill border border-surface items-center justify-center shadow-sm">
-                <Ionicons name="qr-code-outline" size={22} color="#E2E8F0" />
+              <View
+                className="w-14 h-14 rounded-full items-center justify-center"
+                style={{
+                  backgroundColor: isDark ? colors.accentPill : '#FFFFFF',
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  elevation: 0,
+                  shadowOpacity: 0,
+                }}
+              >
+                <Ionicons name="qr-code-outline" size={22} color={colors.cyan} />
               </View>
-              <Text className="text-xs font-medium text-main">Scan QR</Text>
+              <Text className="text-xs font-semibold text-main">Scan QR</Text>
             </TouchableOpacity>
 
             {/* New Group */}
@@ -225,10 +256,19 @@ export default function HomeScreen() {
               className="items-center gap-2"
               onPress={() => setCreateGroupVisible(true)}
             >
-              <View className="w-14 h-14 rounded-full bg-accent-pill border border-surface items-center justify-center shadow-sm">
-                <Ionicons name="people-outline" size={22} color="#E2E8F0" />
+              <View
+                className="w-14 h-14 rounded-full items-center justify-center"
+                style={{
+                  backgroundColor: isDark ? colors.accentPill : '#FFFFFF',
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  elevation: 0,
+                  shadowOpacity: 0,
+                }}
+              >
+                <Ionicons name="people-outline" size={22} color={colors.cyan} />
               </View>
-              <Text className="text-xs font-medium text-main">New Group</Text>
+              <Text className="text-xs font-semibold text-main">New Group</Text>
             </TouchableOpacity>
           </View>
         </ThemeGradientHeader>

@@ -5,12 +5,13 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
+  Image,
   useColorScheme,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useExpenseStore } from '@/store/useExpenseStore';
-import { useThemeStore, getActiveThemeClass } from '@/store/useThemeStore';
+import { useThemeStore, getActiveThemeClass, getThemePalette } from '@/store/useThemeStore';
+import { showAlert } from '@/store/useAlertStore';
 import { EventCategory, EventCohort } from '@/types';
 import { CategoryIcon, GENERIC_CUSTOM_ICONS } from '@/components/ui/CategoryIcon';
 import { GroupAvatar } from '@/components/ui/GroupAvatar';
@@ -29,8 +30,10 @@ export function EditGroupModal({ visible, onClose, cohort }: EditGroupModalProps
   const systemScheme = useColorScheme();
   const { themeBase, colorScheme } = useThemeStore();
   const activeThemeClass = getActiveThemeClass(themeBase, colorScheme, systemScheme);
+  const colors = getThemePalette(themeBase, colorScheme, systemScheme);
 
-  const { updateCohort } = useExpenseStore();
+  const { updateCohort, members, currentUser } = useExpenseStore();
+  const cohortMembers = cohort ? members[cohort.id] || [] : [];
 
   const [name, setName] = useState(cohort?.name || '');
   const [description, setDescription] = useState(cohort?.description || '');
@@ -72,7 +75,7 @@ export function EditGroupModal({ visible, onClose, cohort }: EditGroupModalProps
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(
+        showAlert(
           'Permission Denied',
           'Camera roll access is needed to select a group profile picture.'
         );
@@ -96,7 +99,7 @@ export function EditGroupModal({ visible, onClose, cohort }: EditGroupModalProps
 
   const handleSave = () => {
     if (!name.trim()) {
-      Alert.alert('Name Required', 'Please enter a group or event name.');
+      showAlert('Name Required', 'Please enter a group or event name.');
       return;
     }
 

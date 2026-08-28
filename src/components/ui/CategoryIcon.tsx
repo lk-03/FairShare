@@ -1,6 +1,7 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useThemeStore } from '@/store/useThemeStore';
 
 export type CategoryIconType =
   | 'trip'
@@ -9,6 +10,7 @@ export type CategoryIconType =
   | 'event'
   | 'transport'
   | 'utilities'
+  | 'settlement'
   | 'custom';
 
 export const GENERIC_CUSTOM_ICONS: { name: keyof typeof Ionicons.glyphMap; label: string }[] = [
@@ -52,38 +54,110 @@ interface CategoryIconProps {
   variant?: 'solid' | 'light';
 }
 
+interface CategoryStyleConfig {
+  iconName: keyof typeof Ionicons.glyphMap;
+  label: string;
+  darkBg: string;
+  darkBorder: string;
+  darkIcon: string;
+  lightBg: string;
+  lightBorder: string;
+  lightIcon: string;
+}
+
+const CATEGORY_STYLES: Record<string, CategoryStyleConfig> = {
+  trip: {
+    iconName: 'airplane',
+    label: 'Trip',
+    darkBg: '#1E293B',
+    darkBorder: '#334155',
+    darkIcon: '#38BDF8',
+    lightBg: '#E0F2FE',
+    lightBorder: '#BAE6FD',
+    lightIcon: '#0284C7',
+  },
+  house: {
+    iconName: 'home',
+    label: 'House',
+    darkBg: '#1E2B26',
+    darkBorder: '#2D3F36',
+    darkIcon: '#34D399',
+    lightBg: '#DCFCE7',
+    lightBorder: '#BBF7D0',
+    lightIcon: '#16A34A',
+  },
+  dining: {
+    iconName: 'restaurant',
+    label: 'Dining',
+    darkBg: '#2E241E',
+    darkBorder: '#42342A',
+    darkIcon: '#FBBF24',
+    lightBg: '#FEF3C7',
+    lightBorder: '#FDE68A',
+    lightIcon: '#D97706',
+  },
+  event: {
+    iconName: 'calendar',
+    label: 'Event',
+    darkBg: '#2E1E28',
+    darkBorder: '#422A39',
+    darkIcon: '#F472B6',
+    lightBg: '#FCE7F3',
+    lightBorder: '#FBCFE8',
+    lightIcon: '#DB2777',
+  },
+  transport: {
+    iconName: 'car',
+    label: 'Transport',
+    darkBg: '#1E293B',
+    darkBorder: '#334155',
+    darkIcon: '#94A3B8',
+    lightBg: '#F1F5F9',
+    lightBorder: '#CBD5E1',
+    lightIcon: '#475569',
+  },
+  utilities: {
+    iconName: 'flash',
+    label: 'Utilities',
+    darkBg: '#251E38',
+    darkBorder: '#362B4E',
+    darkIcon: '#A78BFA',
+    lightBg: '#EDE9FE',
+    lightBorder: '#DDD6FE',
+    lightIcon: '#7C3AED',
+  },
+  settlement: {
+    iconName: 'cash',
+    label: 'Settlement',
+    darkBg: '#1E3A2B',
+    darkBorder: '#284E3A',
+    darkIcon: '#34D399',
+    lightBg: '#D1FAE5',
+    lightBorder: '#A7F3D0',
+    lightIcon: '#059669',
+  },
+};
+
 export function getCategoryMetadata(category?: string, customIcon?: string): {
   iconName: keyof typeof Ionicons.glyphMap;
   label: string;
   bgColor: string;
 } {
   const cat = (category || 'custom').toLowerCase();
-  switch (cat) {
-    case 'trip':
-      return { iconName: 'airplane', label: 'Trip', bgColor: '#334454' };
-    case 'house':
-      return { iconName: 'home', label: 'House', bgColor: '#2E4036' };
-    case 'dining':
-      return { iconName: 'restaurant', label: 'Dining', bgColor: '#42372E' };
-    case 'event':
-      return { iconName: 'calendar', label: 'Event', bgColor: '#44323B' };
-    case 'transport':
-      return { iconName: 'car', label: 'Transport', bgColor: '#303E48' };
-    case 'utilities':
-      return { iconName: 'flash', label: 'Utilities', bgColor: '#383344' };
-    case 'custom':
-    default: {
-      let icon: keyof typeof Ionicons.glyphMap = 'apps';
-      if (customIcon && (Ionicons.glyphMap as any)[customIcon]) {
-        icon = customIcon as keyof typeof Ionicons.glyphMap;
-      }
-      const label =
-        !category || cat === 'custom'
-          ? (customIcon ? customIcon.charAt(0).toUpperCase() + customIcon.slice(1) : 'Custom')
-          : category.charAt(0).toUpperCase() + category.slice(1);
-      return { iconName: icon, label, bgColor: '#3A3E45' };
-    }
+  const cfg = CATEGORY_STYLES[cat];
+  if (cfg) {
+    return { iconName: cfg.iconName, label: cfg.label, bgColor: cfg.darkBg };
   }
+
+  let icon: keyof typeof Ionicons.glyphMap = 'apps';
+  if (customIcon && (Ionicons.glyphMap as any)[customIcon]) {
+    icon = customIcon as keyof typeof Ionicons.glyphMap;
+  }
+  const label =
+    !category || cat === 'custom'
+      ? (customIcon ? customIcon.charAt(0).toUpperCase() + customIcon.slice(1) : 'Custom')
+      : category.charAt(0).toUpperCase() + category.slice(1);
+  return { iconName: icon, label, bgColor: '#1E293B' };
 }
 
 export function CategoryIcon({
@@ -93,56 +167,31 @@ export function CategoryIcon({
   color,
   variant = 'solid',
 }: CategoryIconProps) {
+  const systemScheme = useColorScheme();
+  const { colorScheme } = useThemeStore();
+  const isDark =
+    colorScheme === 'dark' ||
+    (colorScheme === 'system' && (systemScheme === 'dark' || !systemScheme));
+
   const cat = (category || 'custom').toLowerCase();
+  const cfg = CATEGORY_STYLES[cat];
 
   let iconName: keyof typeof Ionicons.glyphMap = 'apps';
-  let bgColor = '#3A3E45';
-  let iconColor = '#E2E8F0';
+  let bgColor = isDark ? '#1E293B' : '#F1F5F9';
+  let borderColor = isDark ? '#334155' : '#E2E8F0';
+  let iconColor = isDark ? '#38BDF8' : '#0284C7';
 
-  switch (cat) {
-    case 'trip':
-      iconName = 'airplane';
-      bgColor = '#334454';
-      break;
-
-    case 'house':
-      iconName = 'home';
-      bgColor = '#2E4036';
-      break;
-
-    case 'dining':
-      iconName = 'restaurant';
-      bgColor = '#42372E';
-      break;
-
-    case 'event':
-      iconName = 'calendar';
-      bgColor = '#44323B';
-      break;
-
-    case 'transport':
-      iconName = 'car';
-      bgColor = '#303E48';
-      break;
-
-    case 'utilities':
-      iconName = 'flash';
-      bgColor = '#383344';
-      break;
-
-    case 'custom':
-    default:
-      if (customIcon && (Ionicons.glyphMap as any)[customIcon]) {
-        iconName = customIcon as keyof typeof Ionicons.glyphMap;
-      } else {
-        iconName = 'apps';
-      }
-      bgColor = '#3A3E45';
-      break;
+  if (cfg) {
+    iconName = cfg.iconName;
+    bgColor = isDark ? cfg.darkBg : cfg.lightBg;
+    borderColor = isDark ? cfg.darkBorder : cfg.lightBorder;
+    iconColor = isDark ? cfg.darkIcon : cfg.lightIcon;
+  } else if (customIcon && (Ionicons.glyphMap as any)[customIcon]) {
+    iconName = customIcon as keyof typeof Ionicons.glyphMap;
   }
 
-  const activeColor = color || bgColor;
-  const iconSize = Math.round(size * 0.52);
+  const activeBg = color || bgColor;
+  const iconSize = Math.round(size * 0.50);
 
   if (variant === 'light') {
     return (
@@ -151,14 +200,16 @@ export function CategoryIcon({
           width: size,
           height: size,
           borderRadius: size / 2,
-          backgroundColor: 'rgba(148, 163, 184, 0.15)',
+          backgroundColor: isDark ? 'rgba(148, 163, 184, 0.15)' : 'rgba(100, 116, 139, 0.08)',
           borderWidth: 1,
-          borderColor: 'rgba(148, 163, 184, 0.25)',
+          borderColor: isDark ? 'rgba(148, 163, 184, 0.25)' : 'rgba(100, 116, 139, 0.15)',
           alignItems: 'center',
           justifyContent: 'center',
+          elevation: 0,
+          shadowOpacity: 0,
         }}
       >
-        <Ionicons name={iconName} size={iconSize} color="#94A3B8" />
+        <Ionicons name={iconName} size={iconSize} color={isDark ? '#94A3B8' : '#64748B'} />
       </View>
     );
   }
@@ -169,11 +220,13 @@ export function CategoryIcon({
         width: size,
         height: size,
         borderRadius: size / 2,
-        backgroundColor: activeColor,
+        backgroundColor: activeBg,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.15)',
+        borderColor: borderColor,
         alignItems: 'center',
         justifyContent: 'center',
+        elevation: 0,
+        shadowOpacity: 0,
       }}
     >
       <Ionicons name={iconName} size={iconSize} color={iconColor} />

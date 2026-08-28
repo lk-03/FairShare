@@ -19,12 +19,14 @@ import { CategoryIcon, getCategoryMetadata } from '@/components/ui/CategoryIcon'
 import { GroupAvatar } from '@/components/ui/GroupAvatar';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabInset } from '@/constants/theme';
-import { DirectDebt } from '@/types';
+import { DirectDebt, Expense, ExpenseShortcut } from '@/types';
 import { ExpenseDetailsModal } from '@/components/ExpenseDetailsModal';
+import { SettleUpModal } from '@/components/SettleUpModal';
 import { StaleNeedsReminderModal } from '@/components/StaleNeedsReminderModal';
 import { Text } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
 import { useThemeStore, getActiveThemeClass } from '@/store/useThemeStore';
+import { showAlert } from '@/store/useAlertStore';
 import { useColorScheme } from 'react-native';
 
 export default function EventDetailScreen() {
@@ -36,7 +38,7 @@ export default function EventDetailScreen() {
   const router = useRouter();
   const cohortId = Array.isArray(id) ? id[0] : (id || '');
 
-  const { cohorts, members, expenses, currentUser } = useExpenseStore();
+  const { cohorts, members, expenses, currentUser, addShortcut } = useExpenseStore();
 
   const [activeTab, setActiveTab] = useState<'general' | 'monthly' | 'needs'>('general');
   const [qrVisible, setQrVisible] = useState(false);
@@ -44,6 +46,7 @@ export default function EventDetailScreen() {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
+  const [settleDebt, setSettleDebt] = useState<DirectDebt | null>(null);
 
   const cohort = cohorts.find((c) => c.id === cohortId);
   const cohortMembers = members[cohortId] || [];
@@ -63,13 +66,14 @@ export default function EventDetailScreen() {
     const payeeName = debt.toProfile?.fullName || 'Payee';
     const payeeVpa = debt.toProfile?.vpaId || `${payeeName.toLowerCase().replace(/\s+/g, '')}@upi`;
 
-    Alert.alert(
+    showAlert(
       'Direct UPI P2P Settlement',
       `Launch GPay / PhonePe to pay ₹${debt.amount} directly to ${payeeName} (${payeeVpa}) with 0 fees?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Open UPI App',
+          style: 'default',
           onPress: async () => {
             const success = await launchUPIIntent({
               vpaId: payeeVpa,
@@ -79,7 +83,7 @@ export default function EventDetailScreen() {
               note: `FairShare Settlement - ${cohort?.name || 'Group'}`,
             });
             if (!success) {
-              Alert.alert(
+              showAlert(
                 'UPI Apps Not Found',
                 `Could not open UPI app. You can manually pay ₹${debt.amount} to VPA: ${payeeVpa}`
               );
@@ -262,8 +266,9 @@ export default function EventDetailScreen() {
                 {simplificationResult.simplifiedDebts.map((debt, index) => {
                   const isDebtor = debt.fromUserId === currentUser.id;
                   const isCreditor = debt.toUserId === currentUser.id;
-                  const fromName = isDebtor ? 'You' : (debt.fromProfile?.fullName || debt.fromUserId);
-                  const toName = isCreditor ? 'you' : (debt.toProfile?.fullName || debt.toUserId);
+                  const fromName = isDebtor ? 'You' : (debt.fromProfile?.nickname || debt.fromProfile?.fullName || debt.fromUserId);
+                  const toName = isCreditor ? 'you' : (debt.toProfile?.nickname || debt.toProfile?.fullName || debt.toUserId);
+                  const hasPayeeVpa = !!debt.toProfile?.vpaId;
 
                   let headline = '';
                   let subtitle = '';
@@ -272,12 +277,12 @@ export default function EventDetailScreen() {
 
                   if (isCreditor) {
                     headline = `${fromName} owes you`;
-                    subtitle = 'Pending settlement to you';
+                    subtitle = debt.fromProfile?.username ? `@${debt.fromProfile.username}` : 'Pending settlement to you';
                     amountClass = 'text-emerald-400';
                     amountPrefix = '+';
                   } else if (isDebtor) {
                     headline = `You owe ${toName}`;
-                    subtitle = 'Direct P2P Settlement';
+                    subtitle = debt.toProfile?.username ? `@${debt.toProfile.username}` : 'Direct P2P Settlement';
                     amountClass = 'text-negative';
                     amountPrefix = '-';
                   } else {
@@ -290,22 +295,28 @@ export default function EventDetailScreen() {
                   return (
                     <View key={index} className="card-item">
                       <View className="flex-1 pr-3">
-                        <Text className="text-base font-bold text-main">{headline}</Text>
-                        <Text className="text-xs text-secondary mt-0.5">{subtitle}</Text>
+                        <View className="flex-row items-center gap-1.5">
+                          <Text className="text-base font-bold text-main">{headline}</Text>
+                          {hasPayeeVpa && isDebtor && (
+                            <Ionicons name="checkmark-circle" size={14} color="#38BDF8" />
+                          )}
+                        </View>
+                        <Text className="text-xs text-secondary mt-0.5 font-semibold">{subtitle}</Text>
                       </View>
 
                       <View className="items-end gap-1.5">
                         <Text className={`text-base font-extrabold ${amountClass}`}>
                           {amountPrefix}₹{debt.amount.toFixed(2)}
                         </Text>
-                        {isDebtor && (
-                          <TouchableOpacity
-                            className="bg-emerald-500 px-3 py-1.5 rounded-xl items-center mt-1"
-                            onPress={() => handleSettleUpUPI(debt)}
-                          >
-                            <Text className="text-white text-xs font-bold">Pay UPI</Text>
-                          </TouchableOpacity>
-                        )}
+                        <TouchableOpacity
+                          className="bg-emerald-500 px-3 py-1.5 rounded-xl items-center mt-1 flex-row gap-1"
+                          onPress={() => setSettleDebt(debt)}
+                        >
+                          <Ionicons name="cash-outline" size={13} color="#FFFFFF" />
+                          <Text className="text-white text-xs font-bold">
+                            {isDebtor ? 'Settle / Pay' : 'Record Settle'}
+                          </Text>
+                        </TouchableOpacity>
                       </View>
                     </View>
                   );
@@ -357,12 +368,58 @@ export default function EventDetailScreen() {
                     }
                   }
 
+                  const handleExpenseLongPress = () => {
+                    showAlert(
+                      exp.title,
+                      `Amount: ₹${exp.totalAmount.toFixed(2)} • ${exp.category}`,
+                      [
+                        {
+                          text: 'Save as Shortcut',
+                          style: 'default',
+                          icon: 'bookmark-outline',
+                          onPress: () => {
+                            const newShortcut: ExpenseShortcut = {
+                              id: `sc_${Date.now()}`,
+                              cohortId: exp.cohortId,
+                              title: exp.title,
+                              category: exp.category,
+                              customIcon: exp.customIcon,
+                              amount: exp.totalAmount,
+                              paidByUserId: exp.paidByUserId,
+                              isMultiplePayers: false,
+                              splitType: exp.splitType,
+                              splits: exp.splits,
+                              includedMemberIds: exp.splits ? exp.splits.map((s) => s.userId) : undefined,
+                              exactSplits: exp.splitType === 'exact' && exp.splits
+                                ? Object.fromEntries(exp.splits.map((s) => [s.userId, String(s.amount)]))
+                                : undefined,
+                              percentageSplits: exp.splitType === 'percentage' && exp.splits
+                                ? Object.fromEntries(exp.splits.map((s) => [s.userId, String(s.percentage || 0)]))
+                                : undefined,
+                              createdAt: new Date().toISOString(),
+                            };
+                            addShortcut(newShortcut);
+                            showAlert('Shortcut Saved', `"${exp.title}" was saved as a quick shortcut!`);
+                          },
+                        },
+                        {
+                          text: 'View Details',
+                          style: 'default',
+                          icon: 'eye-outline',
+                          onPress: () => setSelectedExpenseId(exp.id),
+                        },
+                        { text: 'Cancel', style: 'cancel', icon: 'close-outline' },
+                      ]
+                    );
+                  };
+
                   return (
                     <TouchableOpacity
                       key={exp.id}
                       activeOpacity={0.8}
                       className="card-item"
                       onPress={() => setSelectedExpenseId(exp.id)}
+                      onLongPress={handleExpenseLongPress}
                     >
                       <View className="flex-row items-center gap-4 flex-1 pr-3">
                         <CategoryIcon category={exp.category} customIcon={exp.customIcon} size={44} variant="solid" />
@@ -442,6 +499,13 @@ export default function EventDetailScreen() {
         expense={selectedExpense}
         cohortMembers={cohortMembers}
         currentUser={currentUser}
+      />
+
+      <SettleUpModal
+        visible={!!settleDebt}
+        onClose={() => setSettleDebt(null)}
+        cohortId={cohort.id}
+        debt={settleDebt}
       />
 
       {/* Three Dot Options Menu Modal */}
