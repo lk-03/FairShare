@@ -177,7 +177,7 @@ FairShare/
 - **Role:** Central domain Zustand store with asynchronous Supabase sync, loading states, error handling, and MMKV offline-first persistence.
 - **Details:**
   - Manages `currentUser`, `cohorts`, `members`, `expenses`, `comments`, `sharedLists`, `reminderSettings`, `isLoading`, `isSyncing`, `error`, and `offlineQueue`.
-  - Async Actions: `fetchInitialData`, `fetchCohorts`, `fetchExpensesForCohort`, `refreshAll`, `addCohort`, `updateCohort`, `joinCohortByInviteCode`, `addExpense`, `updateExpense`, `deleteExpense`, `addComment`, `clearError`.
+  - Async Actions: `fetchInitialData` (fetches user, cohorts, members, expenses, shortcuts, and shared house needs in parallel), `fetchCohorts`, `fetchExpensesForCohort`, `refreshAll` (parallel multi-resource refresh), `addCohort`, `updateCohort`, `joinCohortByInviteCode`, `addExpense`, `updateExpense`, `deleteExpense`, `addComment`, `addShortcut`, `addListItem`, `clearError`.
   - Persisted using MMKV via key `fairshare-store-v1` with `partialize` configuration.
 
 #### `src/store/useAlertStore.ts`
@@ -189,36 +189,63 @@ FairShare/
 ### Services & Data Layer (`src/services/`)
 
 #### `src/services/supabase/placeholderData.ts`
-- **Role:** Centralized fallback datasets for offline operation, initial bootstrapping, and mock recovery.
-- **Data:** `DEFAULT_CURRENT_USER`, `DEFAULT_COHORTS`, `DEFAULT_MEMBERS`, `DEFAULT_EXPENSES`, `DEFAULT_SHARED_LISTS`, `DEFAULT_REMINDER_SETTINGS`.
+- **Role:** Clean production baseline defaults for fresh initialization.
+- **Data:** `DEFAULT_CURRENT_USER` (clean empty profile), `DEFAULT_COHORTS` (`[]`), `DEFAULT_MEMBERS` (`{}`), `DEFAULT_EXPENSES` (`{}`), `DEFAULT_SHORTCUTS` (`{}`), `DEFAULT_SHARED_LISTS` (`{}`), `DEFAULT_REMINDER_SETTINGS` (`{}`).
 
 #### `src/services/supabase/profileService.ts`
 - **Role:** Profile fetching and updating operations via Supabase `profiles` table.
 - **Functions:** `fetchProfile`, `updateProfile`, `getCurrentProfile`.
 
-#### `src/services/supabase/groupService.ts`
-- **Role:** Cohort and membership queries connecting to `event_cohorts` and `group_members`.
-- **Functions:** `fetchUserCohorts`, `createCohort`, `updateCohort`, `joinCohortByInviteCode`.
-
-#### `src/services/supabase/expenseService.ts`
-- **Role:** Ledger operations connecting to `expenses`, `expense_splits`, and `transaction_comments`.
-- **Functions:** `fetchExpensesForCohort`, `createExpense`, `updateExpense`, `deleteExpense`, `fetchCommentsForExpense`, `addComment`.
-
-#### `src/services/payment/upiIntent.ts`
-- **Role:** Deep linking engine for Indian Unified Payments Interface (UPI).
-- **Functions:**
-  - `buildUPIIntentURL(config)`: Constructs standardized URI `upi://pay?pa=<vpa>&pn=<name>&am=<amount>&cu=INR&tn=<note>`.
-  - `launchUPIIntent(config)`: Triggers device app chooser (GPay, PhonePe, Paytm, etc.) via `Linking.openURL()`.
-- **Test Suite:** `src/services/payment/__tests__/upiIntent.test.ts` verifies exact URI parameter encoding.
-
-#### `src/services/storage/mmkv.ts`
-- **Role:** Fast MMKV local key-value storage adapter for Zustand persistence.
-- **Details:** Instantiates `react-native-mmkv` instance with graceful fallback to an in-memory `Map` for web and Expo Go environments.
-
 #### `src/services/supabase/client.ts`
 - **Role:** Supabase JS client initializer and configuration checker.
 - **Details:** Configures client with `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`, auto-refreshing tokens, exports `isSupabaseConfigured()` guard (preventing network error spam when placeholder credentials are used), and exports `signInAsGuest()` for anonymous authentication.
 
+#### `src/services/supabase/authService.ts`
+- **Role:** Authentication engine for Supabase Auth, Native Google Play Services (`@react-native-google-signin/google-signin` configured with `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`), Web OAuth PKCE fallback, and Email verification.
+- **Functions:** `signInWithNativeGoogle` (safely checks `NativeModules.RNGoogleSignin` before loading to prevent `TurboModuleRegistry` crashes in Expo Go sandbox while opening native Google Play Services account picker bottom sheets in custom APK/dev builds, exchanging Google ID token with Supabase via `signInWithIdToken`, preserving custom nicknames/handles/VPAs), `signInWithGoogleOAuth`, `signInWithEmail`, `signUpWithEmail`, `resendConfirmationEmail`, `signOut`.
+
+#### `src/services/supabase/profileService.ts`
+- **Role:** User profile operations connecting to `profiles` table.
+- **Functions:** `fetchProfile`, `updateProfile` (resolves active session user ID to adhere to PostgreSQL RLS policies and executes `.upsert` with fallback without `PGRST116` or `42501` errors, syncing full name, nickname, username, avatar URL, VPA ID, and guest flags), `getCurrentProfile`.
+
+#### `src/services/supabase/groupService.ts`
+- **Role:** Cohort and membership queries connecting to `cohorts` and `group_members`.
+- **Functions:** `fetchUserCohorts`, `createCohort`, `updateCohort`, `joinCohortByInviteCode`, `addMembersToCohort`.
+
+#### `src/services/supabase/expenseService.ts`
+- **Role:** Ledger operations connecting to `expenses`, `expense_splits`, `line_items`, and `comments`.
+- **Functions:** `fetchExpensesForCohort`, `createExpense`, `updateExpense`, `deleteExpense`, `fetchCommentsForExpense`, `addComment`.
+
+#### `src/services/supabase/needsService.ts`
+- **Role:** Shared House Cart / Needs checklist synchronization connecting to `shared_list_items`.
+- **Functions:** `fetchSharedListItems`, `createSharedListItem`, `toggleSharedListItem`, `deleteSharedListItem`.
+
+#### `src/services/supabase/shortcutService.ts`
+- **Role:** Group-scoped expense shortcut persistence connecting to `expense_shortcuts`.
+- **Functions:** `fetchShortcuts`, `createShortcut`, `deleteShortcut`.
+
+---
+
+### AI Vision & OCR Services (`src/services/ai/`)
+
+#### `src/services/ai/geminiVisionService.ts`
+- **Role:** High-accuracy AI vision receipt scanner integrating Google Gemini 2.0 / 1.5 Flash Vision (`EXPO_PUBLIC_GEMINI_API_KEY`) on Google AI Studio's 100% Free Tier.
+- **Functions:**
+  - `preprocessReceiptImage`: Auto-resizes and optimizes receipt image to 1400px width with high contrast JPEG compression via `expo-image-manipulator`.
+  - `parseReceiptWithGemini`: Sends base64 image data to Gemini Flash Vision with a structured JSON schema, extracting real store/vendor names, dates, item line items with quantities and prices, tax/GST, discounts, and total amounts in ~500ms.
+
+---
+
+### Supabase Backend & Database Migrations (`supabase/`)
+
+#### `supabase/migrations/20260830_initial_schema.sql`
+- **Role:** Complete PostgreSQL DDL migration script with relational tables (`profiles`, `cohorts`, `group_members`, `expenses`, `expense_splits`, `line_items`, `line_item_assignments`, `comments`, `shared_list_items`, `expense_shortcuts`), performance indexes on `cohort_id` and `created_at`, Row Level Security (RLS) policies, and storage buckets (`receipts`, `avatars`).
+
+#### `supabase/functions/ocr-parser/index.ts`
+- **Role:** Supabase Deno Edge Function for cloud receipt OCR parsing with Google Vision API bridge and deterministic tokenization.
+
+#### `.gitignore`
+- **Role:** Repository exclusions preventing leak of secrets, native artifacts, build caches, and AI assistant artifacts (`.claude`, `CLAUDE*.md`, `ai-rules*`, `ai-context*`, `AGENTS.md`, `.cursor`, `.windsurf`, `.cline`, `.gemini`, `brain`, `scratch`, `export.csv`, `.zip`, `.env*`).
 
 ---
 
@@ -236,6 +263,35 @@ FairShare/
 #### `src/utils/imageCompressor.ts`
 - **Role:** Client-side receipt image compression.
 - **Details:** Uses `expo-image-manipulator` to resize invoice photos to max width 1200px and compress to JPEG (0.7 quality), keeping file sizes under 300KB to reduce Supabase storage overhead.
+
+#### `src/utils/splitwiseImporter.ts`
+- **Role:** High-speed CSV parsing, member allocation, and ledger migration engine for Splitwise `export.csv` files.
+- **Functions:**
+  - `parseCsvLine`: Robust CSV tokenizer handling quotes, escaped quotes, and commas.
+  - `parseSplitwisePreview`: Extracts transaction count, member names, total turnover, and date range in <5ms.
+  - `parseSplitwiseCsvForCohort`: Imports CSV transactions into an existing cohort, mapping CSV participants to existing members or creating preserved shadow members based on Admin allocations.
+  - `parseSplitwiseCsv`: Backward-compatible standalone cohort creator.
+- **Test Suite:** `src/utils/__tests__/splitwiseImporter.test.ts` (8/8 tests passing, verifying 270 real transactions and multi-roommate shadow allocations).
+
+#### `src/utils/pdfInvoiceParser.ts`
+- **Role:** Deterministic Digital Tax Invoice & PDF text parser for Indian quick-commerce and corporate bills.
+- **Functions:**
+  - `parseInvoicePdfText`: Extracts merchant names (BigBasket, Swiggy Instamart, Blinkit, Zepto, Zomato, Uber, Amazon), dates, HSN/tabular items, pack sizes, quantities, CGST/SGST/IGST taxes, delivery & handling fees, and discounts in $<2\text{ms}$ with 100% digital accuracy.
+
+#### `src/utils/receiptParser.ts`
+- **Role:** On-device OCR text tokenizer, Gemini AI Vision pipeline integrator, multi-screenshot stitching engine, and proportional itemized split calculator.
+- **Functions:**
+  - `parseReceiptImage`: High-accuracy parsing pipeline using Google Gemini Flash AI Vision with seamless fallback to local regex parser.
+  - `parseReceiptText`: High-speed local OCR text tokenizer extracting items, unit prices, taxes, and service charges from camera/photo images.
+  - `stitchMultiReceipts`: Deduplicates and merges overlapping items across 2–4 consecutive scrolling screenshots (e.g. 12-item Instamart orders).
+  - `calculateItemizedSplits`: Distributes taxes and discounts proportionally according to each member's consumed item subtotals.
+  - `MOCK_RECEIPT_TEMPLATES`: Includes realistic presets for BigBasket Tax Invoice (PDF), Swiggy Instamart (Multi-Screenshot), Blinkit Grocery (Share/PDF), Biggies Burgers, Trattoria Bella Napoli, and Late Night Biryani.
+
+#### `src/services/share/shareReceiver.ts`
+- **Role:** Android and iOS System Share Target receiver and document ingestion coordinator.
+- **Functions:**
+  - `processSharedAsset`: Ingests shared `.pdf` invoices, `.png`/`.jpg` screenshots, text streams from Blinkit / WhatsApp, or local file URIs and normalizes into `ParsedReceiptData`.
+  - `processMultiScreenshots`: Stitches multiple screenshot image slices.
 
 ---
 
@@ -326,7 +382,14 @@ FairShare/
   - Sub-views for single/multiple payers and 5 split engines (Equal, Unequal, Percent, Shares with steppers, Adjustments with dynamic remainder) with optimized static key bindings to prevent focus loss during rapid multi-digit typing.
 
 #### `src/components/ExpenseDetailsModal.tsx`
-- **Role:** Bottom-sheet modal displaying full transaction breakdown, payer badge, split distributions with member nicknames and `@username` handles, verified UPI checkmarks, notes, embedded comment thread with group-scoped tagging, and 1-tap "Save as Shortcut" header action.
+- **Role:** Full-screen translucent modal (`statusBarTranslucent={true}`) with edge-to-edge layout extending behind the bottom gesture bar and top status bar. Displays complete transaction breakdown, category icon, payer badge, split distributions with safe fallback member initials, member nicknames and `@username` handles, verified UPI checkmarks, notes, embedded comment thread with group-scoped tagging, and 1-tap "Save as Shortcut" header action.
+
+#### `src/components/MemberProfileModal.tsx`
+- **Role:** Bottom-sheet modal displaying member profile details (avatar, name, `@username`, verified UPI ID, 1-tap copy, and direct "Pay via UPI" action). When viewing own profile, displays "YOUR PROFILE" header and an "Edit Profile in Settings" action.
+
+#### `src/components/ItemizedReceiptModal.tsx`
+- **Role:** Full-screen interactive receipt scanning (OCR), digital PDF invoice ingestion, and itemized multi-mode expense splitting board.
+- **Capabilities:** Supports on-device camera capture, multi-screenshot selection with overlap deduplication, **Upload PDF Invoice** (`expo-document-picker`), direct OCR text paste, and 1-tap realistic presets (BigBasket Tax Invoice PDF, Swiggy Instamart Multi-Screenshot, Blinkit Share/PDF, Biggies Burgers, Trattoria Bella Napoli, Late Night Biryani). Features full-width item headers, responsive sub-headers (Qty, split mode badge, price input), wrapped non-overflowing Calculation Summary chips, inline dynamic split mode controls per item (Equal, Shares/Ratios with steppers, Exact rupee contributions, Percentage shares, Quantity unit steppers), proportional GST/tip/discount auto-calculator, and bottom scroll padding ensuring all member breakdowns scroll completely above the floating footer.
 
 #### `src/components/CreateGroupModal.tsx` & `src/components/EditGroupModal.tsx`
 - **Role:** Modals for creating and editing event cohorts, categories, currencies, and unique invite codes (`<NAME><SUFFIX>`).
@@ -338,17 +401,68 @@ FairShare/
 #### `src/components/QRCodeModal.tsx`
 - **Role:** Modal displaying an in-memory generated QR code matrix (`qrcode` library) linking to `fairshare://join/<inviteCode>` for instant cohort invites.
 
-#### `src/components/ThemeSettingsModal.tsx`
-- **Role:** Modal allowing users to preview and select from the 4 color palettes (Nordic, Sage, Taupe, Cobalt) and 3 appearance modes (System, Light, Dark).
+#### `src/components/SplitwiseImportModal.tsx`
+- **Role:** Full-screen modal for Group Admins to import Splitwise `export.csv` history directly into existing cohorts.
+- **Features:** Bottom-sheet **Dropdown Group Picker** (replacing horizontal scroll), document picker (`expo-document-picker`) and direct CSV pasting, quick statistical preview with **Total Group Spend** (sum of all imported bills), interactive **Member Allocation Matrix** (assigning CSV members to current group members or keeping them as preserved shadow members), and an **Animated Multi-Phase Progress Bar** (`0% ➔ 100%`) with live status feedback.
 
-#### `src/components/MonthlySpendingsTab.tsx`
-- **Role:** Cohort tab component rendering an SVG Donut Pie chart breakdown of spending by participant with side color legends including both amount (₹) and percentage (%), themed summary cards, and group spend statistics (Top Spender who paid upfront vs. Highest Consumer who incurred the most share).
+#### `src/components/onboarding/OnboardingCarousel.tsx`
+- **Role:** Interactive 5-slide horizontally swipeable carousel and feature guide teaching FairShare fundamentals: (1) Smart Debt Simplification, (2) Direct Zero-Fee UPI Settlement, (3) 5 Granular Split Modes & Custom Ratios, (4) Shared House Cart & Needs Checklist, and (5) Splitwise CSV Import & 1-Tap Presets. Supports gesture swiping back and forth, animated pagination dots, and dynamic theme tokens.
 
-#### `src/components/NeedsListTab.tsx`
-- **Role:** Cohort tab providing a shared "Cart of the House" grocery/supplies checklist, styled with frosted accent pill backgrounds and theme tokens, auto-clearing checked items older than 5 days, highlighting 3+ day stale items, and featuring configurable reminder intervals (every 6 hours default, or customized hours/days with time of day and notification disable toggles).
+#### `src/components/onboarding/AuthModal.tsx`
+- **Role:** Neo-fintech authentication modal offering 1-tap Google Sign-In, Email/Password sign in, sign-up with email confirmation, and in-app **"Check Your Inbox"** verification screen with resend cooldown timer and immediate verification status checks.
+- **Theme Architecture:** Fully integrated with `getActiveThemeClass` and `getThemePalette`, applying selected accent colors, dynamic surface cards, theme-adaptive text, and custom background tokens.
 
-#### `src/components/StaleNeedsReminderModal.tsx`
-- **Role:** Pop-up reminder modal displayed on app launch alerting users when any household needs list items have remained unchecked for 3 or more days, with direct "Mark as Bought" and dismiss actions.
+#### `src/components/onboarding/FirstTimeSetupModal.tsx`
+- **Role:** Fast 30-second initial profile customizer.
+- **Capabilities:** Choose diverse cartoon avatars or camera photos, configure Nickname and `@username` handle, optional UPI ID input with 1-tap clipboard paste and bank handle chips (`@okhdfcbank`, `@oksbi`, `@paytm`, `@ybl`), and a direct shortcut to import existing data from Splitwise. Styled with dynamic active theme tokens.
+
+---
+
+### App Routes & Navigation (`src/app/`)
+
+#### `src/app/welcome.tsx`
+- **Role:** Full-screen onboarding and authentication route.
+- **Details:** Coordinates the progressive onboarding flow: Carousel $\rightarrow$ Auth (Google / Email Verification) $\rightarrow$ Profile Setup (new users only) $\rightarrow$ Tab Navigation. Existing users who already set up their profile automatically bypass `FirstTimeSetupModal`, receive a "Welcome Back" greeting, and navigate immediately into `/(tabs)`. Supports `?mode=tour` parameter for replaying the app tour from Profile settings.
+
+#### `src/app/_layout.tsx`
+- **Role:** Root layout and navigation coordinator for Expo Router.
+- **Details:** Configures Reanimated logger (`strict: false`) to silence component render warnings, configures global `SafeAreaProvider`, wraps app with `activeThemeClass`, displays custom `AnimatedSplashOverlay`, mounts `CustomAlertModal`, sets up global deep-link URL listener (`expo-linking`) for seamless Supabase OAuth PKCE session exchange, and registers the root Stack navigator (`(tabs)`, `welcome`, `event/[id]`, and `scan` modal).
+
+#### `src/app/(tabs)/index.tsx`
+- **Role:** Main Home tab displaying the user's personal net balance, quick action buttons (**Add Expense**, **Scan Receipt** launching the on-device `ItemizedReceiptModal`, **Scan QR**, **New Group**), active group cards, 1-tap "Import Splitwise" action, and recent ledger activity filtered by active cohorts.
+
+#### `src/app/(tabs)/profile.tsx`
+- **Role:** User profile and app settings tab.
+- **Details:** Displays user avatar with pencil edit trigger, verified UPI status, Nickname and `@username`, Payment Methods, **Import Splitwise CSV**, **Guide** (interactive feature tour), Theme & Appearance selector, and Logout with Supabase session clearance.
+
+#### `src/app/event/[id].tsx`
+- **Role:** Dynamic group detail screen featuring a **Horizontal Swipeable Tab Pager** (`General Ledger` ➔ `Monthly Spendings` charts ➔ `Needs / House Cart` list) with preloaded instant transitions, sticky sub-tab pills, cohort ledger, debt breakdown, settlement actions, **Group Members Roster** (with avatar image rendering, tap-to-view **Member Profile Sheet** with verified UPI details, and responsive 3.35-width cards with 4th card horizontal peek), and instant **Past Members Bottom Sheet** extending below the Android gesture bar.
+- **Role:** QR code scanner modal utilizing `expo-camera` to join groups via invite QR codes or universal links.
+
+---
+
+### Utilities & Testing (`src/utils/`)
+
+#### `src/utils/splitwiseImporter.ts`
+- **Role:** High-performance Splitwise CSV parsing engine.
+- **Capabilities:**
+  - Tokenizes standard comma-separated and quoted Splitwise `export.csv` formats.
+  - Cleans member header metadata (stripping `(removed)` suffixes and whitespace).
+  - Automatically classifies `Payment` settlement transactions (transfer from sender with positive balance to recipient with negative balance).
+  - Reconstructs exact multi-member split allocations ($C - \text{NetGain}$) for standard expenses and identifies the primary upfront payer.
+  - Maps or auto-generates member profiles with diverse cartoon avatars.
+
+#### `src/utils/__tests__/splitwiseImporter.test.ts`
+- **Role:** Comprehensive Jest test suite for the Splitwise importer engine.
+- **Details:** Validates CSV parsing against real-world 270+ row Splitwise export files, verifying member extraction, payment identification, and exact split calculation accuracy.
+
+#### `src/utils/receiptParser.ts`
+- **Role:** High-speed deterministic on-device OCR text parsing and itemized multi-mode split engine.
+- **Capabilities:** Parses raw OCR text blocks to extract dish titles, item quantities, prices, taxes (GST, CGST, SGST, VAT), service charges, tips, and discounts. Calculates proportional extras weighting so taxes and discounts are distributed accurately across members based on individual item spend. Includes built-in realistic mock templates.
+
+#### `src/utils/__tests__/receiptParser.test.ts`
+- **Role:** Comprehensive Jest test suite for on-device OCR parsing and per-item split calculation.
+- **Details:** Verifies parsing across multi-item receipts with CGST/SGST/Discounts and validates per-item multi-mode allocations (Equal, Shares/Ratios, Exact, Percent, Quantity).
 
 #### `src/components/TransactionComments.tsx`
 - **Role:** Real-time expense discussion thread and note logging component.

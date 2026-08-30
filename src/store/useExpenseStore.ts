@@ -23,6 +23,8 @@ import {
 import * as profileService from '@/services/supabase/profileService';
 import * as groupService from '@/services/supabase/groupService';
 import * as expenseService from '@/services/supabase/expenseService';
+import * as needsService from '@/services/supabase/needsService';
+import * as shortcutService from '@/services/supabase/shortcutService';
 
 interface ExpenseState {
   // Current Active User
@@ -47,6 +49,17 @@ interface ExpenseState {
 
   // Local Offline Queue
   offlineQueue: any[];
+
+  // Onboarding & Auth State
+  hasCompletedOnboarding: boolean;
+  hasSeenAppTour: boolean;
+  setHasCompletedOnboarding: (completed: boolean) => void;
+  setHasSeenAppTour: (seen: boolean) => void;
+  setGuestMode: (isGuest: boolean) => void;
+  linkAccount: (authData: { email: string; fullName: string; avatarUrl?: string; provider: 'google' | 'email' }) => void;
+  importSplitwiseGroup: (cohort: EventCohort, members: GroupMember[], expenses: Expense[]) => void;
+  importCsvIntoCohort: (cohortId: string, newShadowMembers: GroupMember[], newExpenses: Expense[]) => void;
+  reassignShadowMember: (cohortId: string, shadowUserId: string, targetUserId: string) => void;
 
   // Async Fetchers & Data Synchronization
   fetchInitialData: () => Promise<void>;
@@ -89,7 +102,7 @@ export const useExpenseStore = create<ExpenseState>()(
     (set, get) => ({
       currentUser: DEFAULT_CURRENT_USER,
       cohorts: DEFAULT_COHORTS,
-      activeCohortId: 'cohort_goa',
+      activeCohortId: null,
       members: DEFAULT_MEMBERS,
       expenses: DEFAULT_EXPENSES,
       comments: {},
@@ -98,9 +111,147 @@ export const useExpenseStore = create<ExpenseState>()(
       reminderSettings: DEFAULT_REMINDER_SETTINGS,
       offlineQueue: [],
 
+      hasCompletedOnboarding: false,
+      hasSeenAppTour: false,
       isLoading: false,
       isSyncing: false,
       error: null,
+
+      setHasCompletedOnboarding: (completed: boolean) =>
+        set({ hasCompletedOnboarding: completed }),
+
+      setHasSeenAppTour: (seen: boolean) =>
+        set({ hasSeenAppTour: seen }),
+
+      setGuestMode: (isGuest: boolean) =>
+        set((state) => ({
+          currentUser: {
+            ...state.currentUser,
+            isGuest,
+            authProvider: isGuest ? 'guest' : state.currentUser.authProvider || 'google',
+          },
+        })),
+
+      linkAccount: ({ email, fullName, avatarUrl, provider }) =>
+        set((state) => {
+          const updatedUser: UserProfile = {
+            ...state.currentUser,
+            email,
+            fullName,
+            avatarUrl: avatarUrl || state.currentUser.avatarUrl,
+            isGuest: false,
+            authProvider: provider,
+          };
+
+          const updatedMembers: Record<string, GroupMember[]> = {};
+          Object.keys(state.members).forEach((cohortId) => {
+            updatedMembers[cohortId] = (state.members[cohortId] || []).map((m) => {
+              if (m.userId === state.currentUser.id) {
+                return {
+                  ...m,
+                  profile: {
+                    ...(m.profile || updatedUser),
+                    email,
+                    fullName,
+                    avatarUrl: avatarUrl || m.profile?.avatarUrl,
+                    isGuest: false,
+                    authProvider: provider,
+                  },
+                };
+              }
+              return m;
+            });
+          });
+
+          return {
+            currentUser: updatedUser,
+            members: updatedMembers,
+          };
+        }),
+
+      importSplitwiseGroup: (cohort, cohortMembers, cohortExpenses) =>
+        set((state) => ({
+          cohorts: [cohort, ...state.cohorts.filter((c) => c.id !== cohort.id)],
+          activeCohortId: cohort.id,
+          members: {
+            ...state.members,
+            [cohort.id]: cohortMembers,
+          },
+          expenses: {
+            ...state.expenses,
+            [cohort.id]: cohortExpenses,
+          },
+        })),
+
+      importCsvIntoCohort: (cohortId, newShadowMembers, newExpenses) =>
+        set((state) => {
+          const existingM = state.members[cohortId] || [];
+          const existingE = state.expenses[cohortId] || [];
+
+          const existingUserIds = new Set(existingM.map((m) => m.userId));
+          const mergedMembers = [
+            ...existingM,
+            ...newShadowMembers.filter((sm) => !existingUserIds.has(sm.userId)),
+          ];
+
+          return {
+            members: {
+              ...state.members,
+              [cohortId]: mergedMembers,
+            },
+            expenses: {
+              ...state.expenses,
+              [cohortId]: [...newExpenses, ...existingE],
+            },
+          };
+        }),
+
+      reassignShadowMember: (cohortId, shadowUserId, targetUserId) =>
+        set((state) => {
+          const existingM = state.members[cohortId] || [];
+          const existingE = state.expenses[cohortId] || [];
+
+          // 1. Update expenses: replace shadowUserId with targetUserId in paidByUserId and splits
+          const updatedExpenses = existingE.map((exp) => {
+            let isChanged = false;
+            let newPaidBy = exp.paidByUserId;
+            if (exp.paidByUserId === shadowUserId) {
+              newPaidBy = targetUserId;
+              isChanged = true;
+            }
+
+            const newSplits = exp.splits.map((sp) => {
+              if (sp.userId === shadowUserId) {
+                isChanged = true;
+                return { ...sp, userId: targetUserId };
+              }
+              return sp;
+            });
+
+            if (isChanged) {
+              return {
+                ...exp,
+                paidByUserId: newPaidBy,
+                splits: newSplits,
+              };
+            }
+            return exp;
+          });
+
+          // 2. Remove shadow member from roster (since they are now represented by targetUserId)
+          const updatedMembers = existingM.filter((m) => m.userId !== shadowUserId);
+
+          return {
+            members: {
+              ...state.members,
+              [cohortId]: updatedMembers,
+            },
+            expenses: {
+              ...state.expenses,
+              [cohortId]: updatedExpenses,
+            },
+          };
+        }),
 
       clearError: () => set({ error: null }),
 
@@ -190,12 +341,21 @@ export const useExpenseStore = create<ExpenseState>()(
           // 2. Fetch cohorts and membership
           const { cohorts, members } = await groupService.fetchUserCohorts(user.id);
 
-          // 3. Fetch expenses for all cohorts in parallel
+          // 3. Fetch expenses, shortcuts & house needs for all cohorts in parallel
           const expensesMap: Record<string, Expense[]> = {};
+          const shortcutsMap: Record<string, ExpenseShortcut[]> = {};
+          const sharedListsMap: Record<string, SharedListItem[]> = {};
+
           await Promise.all(
             cohorts.map(async (c) => {
-              const exps = await expenseService.fetchExpensesForCohort(c.id);
+              const [exps, scs, needs] = await Promise.all([
+                expenseService.fetchExpensesForCohort(c.id),
+                shortcutService.fetchShortcuts(c.id),
+                needsService.fetchSharedListItems(c.id),
+              ]);
               expensesMap[c.id] = exps;
+              shortcutsMap[c.id] = scs;
+              sharedListsMap[c.id] = needs;
             })
           );
 
@@ -203,10 +363,9 @@ export const useExpenseStore = create<ExpenseState>()(
             currentUser: user,
             cohorts,
             members,
-            expenses: {
-              ...get().expenses,
-              ...expensesMap,
-            },
+            expenses: expensesMap,
+            shortcuts: shortcutsMap,
+            sharedLists: sharedListsMap,
             activeCohortId: cohorts[0]?.id || null,
             isLoading: false,
           });
@@ -229,20 +388,28 @@ export const useExpenseStore = create<ExpenseState>()(
           const { cohorts, members } = await groupService.fetchUserCohorts(user.id);
 
           const expensesMap: Record<string, Expense[]> = {};
+          const shortcutsMap: Record<string, ExpenseShortcut[]> = {};
+          const sharedListsMap: Record<string, SharedListItem[]> = {};
+
           await Promise.all(
             cohorts.map(async (c) => {
-              const exps = await expenseService.fetchExpensesForCohort(c.id);
+              const [exps, scs, needs] = await Promise.all([
+                expenseService.fetchExpensesForCohort(c.id),
+                shortcutService.fetchShortcuts(c.id),
+                needsService.fetchSharedListItems(c.id),
+              ]);
               expensesMap[c.id] = exps;
+              shortcutsMap[c.id] = scs;
+              sharedListsMap[c.id] = needs;
             })
           );
 
           set({
             cohorts,
             members,
-            expenses: {
-              ...get().expenses,
-              ...expensesMap,
-            },
+            expenses: expensesMap,
+            shortcuts: shortcutsMap,
+            sharedLists: sharedListsMap,
             isSyncing: false,
           });
         } catch (err: any) {
@@ -507,16 +674,33 @@ export const useExpenseStore = create<ExpenseState>()(
       },
 
       // Expense Shortcut Actions
-      addShortcut: (shortcut) =>
+      addShortcut: async (shortcut) => {
         set((state) => {
           const list = state.shortcuts[shortcut.cohortId] || [];
           return {
             shortcuts: {
               ...state.shortcuts,
-              [shortcut.cohortId]: [shortcut, ...list],
+              [shortcut.cohortId]: [shortcut, ...list.filter((s) => s.id !== shortcut.id)],
             },
           };
-        }),
+        });
+        try {
+          const saved = await shortcutService.createShortcut(shortcut);
+          if (saved && saved.id !== shortcut.id) {
+            set((state) => {
+              const list = state.shortcuts[shortcut.cohortId] || [];
+              return {
+                shortcuts: {
+                  ...state.shortcuts,
+                  [shortcut.cohortId]: list.map((sc) => (sc.id === shortcut.id ? saved : sc)),
+                },
+              };
+            });
+          }
+        } catch (err) {
+          console.warn('[Store] createShortcut backend error:', err);
+        }
+      },
 
       updateShortcut: (shortcutId, cohortId, updates) =>
         set((state) => {
@@ -529,7 +713,7 @@ export const useExpenseStore = create<ExpenseState>()(
           };
         }),
 
-      deleteShortcut: (shortcutId, cohortId) =>
+      deleteShortcut: (shortcutId, cohortId) => {
         set((state) => {
           const list = state.shortcuts[cohortId] || [];
           return {
@@ -538,10 +722,14 @@ export const useExpenseStore = create<ExpenseState>()(
               [cohortId]: list.filter((sc) => sc.id !== shortcutId),
             },
           };
-        }),
+        });
+        shortcutService.deleteShortcut(shortcutId).catch((err) => {
+          console.warn('[Store] deleteShortcut backend error:', err);
+        });
+      },
 
       // Shared Needs List Actions
-      addListItem: (item) =>
+      addListItem: (item) => {
         set((state) => {
           const list = state.sharedLists[item.cohortId] || [];
           return {
@@ -550,14 +738,20 @@ export const useExpenseStore = create<ExpenseState>()(
               [item.cohortId]: [item, ...list],
             },
           };
-        }),
+        });
+        needsService.createSharedListItem(item).catch((err) => {
+          console.warn('[Store] createSharedListItem backend error:', err);
+        });
+      },
 
-      toggleListItem: (itemId, cohortId) =>
+      toggleListItem: (itemId, cohortId) => {
+        let isCompleted = false;
         set((state) => {
           const list = state.sharedLists[cohortId] || [];
           const updated = list.map((it) => {
             if (it.id === itemId) {
               const nextVal = !it.isCompleted;
+              isCompleted = nextVal;
               return {
                 ...it,
                 isCompleted: nextVal,
@@ -572,9 +766,13 @@ export const useExpenseStore = create<ExpenseState>()(
               [cohortId]: updated,
             },
           };
-        }),
+        });
+        needsService.toggleSharedListItem(itemId, isCompleted).catch((err) => {
+          console.warn('[Store] toggleSharedListItem backend error:', err);
+        });
+      },
 
-      deleteListItem: (itemId, cohortId) =>
+      deleteListItem: (itemId, cohortId) => {
         set((state) => {
           const list = state.sharedLists[cohortId] || [];
           return {
@@ -583,7 +781,11 @@ export const useExpenseStore = create<ExpenseState>()(
               [cohortId]: list.filter((it) => it.id !== itemId),
             },
           };
-        }),
+        });
+        needsService.deleteSharedListItem(itemId).catch((err) => {
+          console.warn('[Store] deleteSharedListItem backend error:', err);
+        });
+      },
 
       updateReminderSettings: (cohortId, settings) =>
         set((state) => ({
@@ -606,6 +808,7 @@ export const useExpenseStore = create<ExpenseState>()(
         shortcuts: state.shortcuts,
         sharedLists: state.sharedLists,
         reminderSettings: state.reminderSettings,
+        hasCompletedOnboarding: state.hasCompletedOnboarding,
         offlineQueue: state.offlineQueue,
       }),
     }

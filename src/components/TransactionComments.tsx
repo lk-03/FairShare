@@ -200,7 +200,7 @@ export function TransactionComments({ expenseId, cohortId }: TransactionComments
                     <Image source={{ uri: item.profile.avatarUrl }} className="w-8 h-8 rounded-full" />
                   ) : (
                     <Text className="font-bold text-xs" style={{ color: colors.textMain }}>
-                      {authorName.charAt(0).toUpperCase()}
+                      {(authorName || 'U').charAt(0).toUpperCase()}
                     </Text>
                   )}
                 </TouchableOpacity>

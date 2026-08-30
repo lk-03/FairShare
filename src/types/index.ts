@@ -1,4 +1,4 @@
-export type SplitType = 'equal' | 'exact' | 'percentage' | 'shares' | 'adjustment';
+export type SplitType = 'equal' | 'exact' | 'percentage' | 'shares' | 'adjustment' | 'itemized';
 
 export type EventCategory = 'trip' | 'house' | 'event' | 'dining' | 'transport' | 'utilities' | 'custom';
 
@@ -12,6 +12,7 @@ export interface UserProfile {
   vpaId?: string; // UPI ID (e.g. name@okaxis)
   phoneNumber?: string;
   isGuest: boolean;
+  authProvider?: 'google' | 'email' | 'guest';
   createdAt: string;
 }
 
@@ -37,6 +38,17 @@ export interface GroupMember {
   role: 'admin' | 'member';
   joinedAt: string;
   profile?: UserProfile;
+  isPlaceholder?: boolean; // True if created as shadow member from CSV import or manual placeholder
+  originalCsvName?: string; // Original name in Splitwise CSV if imported
+}
+
+export type ItemSplitType = 'equal' | 'exact' | 'shares' | 'percentage' | 'quantity';
+
+export interface LineItemAssignment {
+  userId: string;
+  splitType?: ItemSplitType; // Default 'equal'
+  value?: number; // Exact amount, share weight, percentage, or quantity
+  calculatedAmount: number;
 }
 
 export interface LineItem {
@@ -44,7 +56,26 @@ export interface LineItem {
   title: string;
   price: number;
   quantity: number;
-  assignedUserIds: string[]; // User IDs sharing this line item
+  splitType?: ItemSplitType; // Default 'equal'
+  assignments?: LineItemAssignment[];
+  assignedUserIds: string[]; // For fast multi-member lookups and backward compatibility
+}
+
+export interface ParsedReceiptData {
+  merchantName?: string;
+  date?: string;
+  currency?: string;
+  lineItems: Array<{
+    title: string;
+    quantity: number;
+    price: number;
+  }>;
+  subtotal: number;
+  taxAmount: number;
+  serviceCharge: number;
+  discountAmount: number;
+  totalAmount: number;
+  rawText?: string;
 }
 
 export interface ExpenseSplit {
@@ -66,6 +97,10 @@ export interface Expense {
   splitType: SplitType;
   splits: ExpenseSplit[];
   lineItems?: LineItem[];
+  subtotal?: number;
+  taxAmount?: number;
+  serviceCharge?: number;
+  discountAmount?: number;
   receiptUrl?: string;
   ocrParsed?: boolean;
   notes?: string;

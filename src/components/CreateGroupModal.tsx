@@ -17,6 +17,7 @@ import { CategoryIcon, GENERIC_CUSTOM_ICONS } from '@/components/ui/CategoryIcon
 import { GroupAvatar } from '@/components/ui/GroupAvatar';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@/components/ui/Text';
+import { SplitwiseImportModal } from '@/components/SplitwiseImportModal';
 
 interface CreateGroupModalProps {
   visible: boolean;
@@ -38,6 +39,7 @@ export function CreateGroupModal({ visible, onClose }: CreateGroupModalProps) {
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>();
   const [customCategoryName, setCustomCategoryName] = useState('');
   const [customIcon, setCustomIcon] = useState('shapes-outline');
+  const [splitwiseModalVisible, setSplitwiseModalVisible] = useState(false);
 
   const categories: { label: string; value: EventCategory }[] = [
     { label: 'House / Roommates', value: 'house' },
@@ -306,6 +308,28 @@ export function CreateGroupModal({ visible, onClose }: CreateGroupModalProps) {
               ))}
             </View>
 
+            {/* Splitwise CSV Migration Button */}
+            <TouchableOpacity
+              onPress={() => setSplitwiseModalVisible(true)}
+              className="p-3.5 rounded-2xl flex-row items-center justify-between border border-emerald-500/30 bg-emerald-500/10 mt-1"
+              activeOpacity={0.75}
+            >
+              <View className="flex-row items-center gap-2.5 flex-1 pr-2">
+                <View className="w-8 h-8 rounded-xl bg-emerald-500/20 items-center justify-center">
+                  <Ionicons name="swap-horizontal" size={16} color="#10B981" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-xs font-bold text-main">
+                    Or Import from Splitwise
+                  </Text>
+                  <Text className="text-[11px] font-semibold text-emerald-500">
+                    Import export.csv with members & history
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#10B981" />
+            </TouchableOpacity>
+
             {/* Submit Button */}
             <TouchableOpacity
               className="bg-main py-4 rounded-2xl items-center mt-3 shadow-sm"
@@ -316,6 +340,16 @@ export function CreateGroupModal({ visible, onClose }: CreateGroupModalProps) {
           </ScrollView>
         </View>
       </View>
+
+      <SplitwiseImportModal
+        visible={splitwiseModalVisible}
+        onClose={() => setSplitwiseModalVisible(false)}
+        onSuccess={(cohortId) => {
+          setSplitwiseModalVisible(false);
+          onClose();
+          router.push(`/event/${cohortId}` as any);
+        }}
+      />
     </Modal>
   );
 }

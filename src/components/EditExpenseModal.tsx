@@ -43,7 +43,13 @@ export function EditExpenseModal({ visible, onClose, expenseToEdit }: EditExpens
 
   const selectedCohortId = expenseToEdit?.cohortId || cohorts[0]?.id || '';
   const currentCohort = cohorts.find((c) => c.id === selectedCohortId) || cohorts[0];
-  const cohortMembers = members[selectedCohortId] || [];
+  const rawCohortMembers = members[selectedCohortId] || [];
+  const cohortMembers = rawCohortMembers.filter(
+    (m) =>
+      !m.isPlaceholder ||
+      expenseToEdit?.splits.some((s) => s.userId === m.userId) ||
+      expenseToEdit?.paidByUserId === m.userId
+  );
 
   // Active Sub-screen View
   const [currentView, setCurrentView] = useState<ExpenseSubView>('main');

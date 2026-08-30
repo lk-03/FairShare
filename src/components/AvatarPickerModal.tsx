@@ -19,6 +19,7 @@ import { Text } from '@/components/ui/Text';
 interface AvatarPickerModalProps {
   visible: boolean;
   onClose: () => void;
+  onSelectAvatar?: (url: string) => void;
 }
 
 // 10 Curated copyright-free (CC0/MIT) diverse cartoon illustrated avatars via DiceBear
@@ -35,7 +36,7 @@ export const DIVERSE_CARTOON_AVATARS = [
   'https://api.dicebear.com/7.x/bottts-neutral/png?seed=Cleo&backgroundColor=c0aede',
 ];
 
-export function AvatarPickerModal({ visible, onClose }: AvatarPickerModalProps) {
+export function AvatarPickerModal({ visible, onClose, onSelectAvatar }: AvatarPickerModalProps) {
   const systemScheme = useColorScheme();
   const { themeBase, colorScheme } = useThemeStore();
   const activeThemeClass = getActiveThemeClass(themeBase, colorScheme, systemScheme);
@@ -67,7 +68,11 @@ export function AvatarPickerModal({ visible, onClose }: AvatarPickerModalProps) 
       if (!result.canceled && result.assets && result.assets[0]?.uri) {
         const uri = result.assets[0].uri;
         setSelectedAvatar(uri);
-        await updateUserProfile({ avatarUrl: uri });
+        if (onSelectAvatar) {
+          onSelectAvatar(uri);
+        } else {
+          await updateUserProfile({ avatarUrl: uri });
+        }
         onClose();
       }
     } catch (e) {
@@ -92,7 +97,11 @@ export function AvatarPickerModal({ visible, onClose }: AvatarPickerModalProps) 
       if (!result.canceled && result.assets && result.assets[0]?.uri) {
         const uri = result.assets[0].uri;
         setSelectedAvatar(uri);
-        await updateUserProfile({ avatarUrl: uri });
+        if (onSelectAvatar) {
+          onSelectAvatar(uri);
+        } else {
+          await updateUserProfile({ avatarUrl: uri });
+        }
         onClose();
       }
     } catch (e) {
@@ -102,6 +111,11 @@ export function AvatarPickerModal({ visible, onClose }: AvatarPickerModalProps) 
 
   const handleSelectPreset = async (avatarUrl: string) => {
     setSelectedAvatar(avatarUrl);
+    if (onSelectAvatar) {
+      onSelectAvatar(avatarUrl);
+      onClose();
+      return;
+    }
     setIsSaving(true);
     try {
       await updateUserProfile({ avatarUrl });
@@ -115,7 +129,11 @@ export function AvatarPickerModal({ visible, onClose }: AvatarPickerModalProps) 
 
   const handleRemovePhoto = async () => {
     setSelectedAvatar(undefined);
-    await updateUserProfile({ avatarUrl: undefined });
+    if (onSelectAvatar) {
+      onSelectAvatar('');
+    } else {
+      await updateUserProfile({ avatarUrl: undefined });
+    }
     onClose();
   };
 

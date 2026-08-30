@@ -8,12 +8,15 @@ import {
   useColorScheme,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useExpenseStore } from '@/store/useExpenseStore';
 import { useThemeStore, getActiveThemeClass, getThemePalette } from '@/store/useThemeStore';
 import { showAlert } from '@/store/useAlertStore';
 import { GroupMember, UserProfile } from '@/types';
 import { launchUPIIntent } from '@/services/payment/upiIntent';
 import { Text } from '@/components/ui/Text';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface MemberProfileModalProps {
   visible: boolean;
@@ -28,7 +31,10 @@ export function MemberProfileModal({
   member,
   profile: directProfile,
 }: MemberProfileModalProps) {
+  const router = useRouter();
   const systemScheme = useColorScheme();
+  const insets = useSafeAreaInsets();
+  const { currentUser } = useExpenseStore();
   const { themeBase, colorScheme } = useThemeStore();
   const activeThemeClass = getActiveThemeClass(themeBase, colorScheme, systemScheme);
   const colors = getThemePalette(themeBase, colorScheme, systemScheme);
@@ -39,10 +45,11 @@ export function MemberProfileModal({
 
   const [copied, setCopied] = useState(false);
 
-  const user = member?.profile || directProfile;
+  const user = member?.profile || directProfile || (member?.userId === currentUser.id ? currentUser : null);
   if (!user) return null;
 
-  const displayName = user.nickname || user.fullName || 'Member';
+  const isSelf = user.id === currentUser.id || member?.userId === currentUser.id;
+  const displayName = isSelf ? (user.nickname || user.fullName || 'You') : (user.nickname || user.fullName || 'Member');
   const username = user.username;
   const hasVpa = !!user.vpaId;
 
@@ -72,7 +79,13 @@ export function MemberProfileModal({
   };
 
   return (
-    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="fade"
+      transparent
+      statusBarTranslucent={true}
+      onRequestClose={onClose}
+    >
       <View className={`flex-1 ${activeThemeClass} bg-black/60 justify-end sm:justify-center p-0 sm:p-6`}>
         <TouchableOpacity className="flex-1" activeOpacity={1} onPress={onClose} />
 
@@ -83,12 +96,13 @@ export function MemberProfileModal({
             borderWidth: 1,
             borderColor: colors.border,
             maxHeight: '85%',
+            paddingBottom: Math.max(insets.bottom + 12, 28),
           }}
         >
           {/* Header Close Button */}
           <View className="flex-row items-center justify-between">
             <Text className="text-xs font-bold uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-              MEMBER PROFILE
+              {isSelf ? 'YOUR PROFILE' : 'MEMBER PROFILE'}
             </Text>
             <TouchableOpacity onPress={onClose} className="p-1 rounded-xl" activeOpacity={0.7}>
               <Ionicons name="close" size={22} color={colors.textSecondary} />
@@ -199,15 +213,52 @@ export function MemberProfileModal({
                     </TouchableOpacity>
                   </View>
 
+                  {isSelf ? (
+                    <TouchableOpacity
+                      className="py-3 rounded-xl items-center justify-center flex-row gap-2 shadow-sm"
+                      style={{ backgroundColor: colors.cyan }}
+                      onPress={() => {
+                        onClose();
+                        router.push('/(tabs)/profile');
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="pencil" size={16} color="#0F172A" />
+                      <Text className="text-sm font-extrabold" style={{ color: '#0F172A' }}>
+                        Edit Your Profile in Settings
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      className="py-3 rounded-xl items-center justify-center flex-row gap-2 shadow-sm"
+                      style={{ backgroundColor: colors.cyan }}
+                      onPress={handlePayViaUPI}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="card-outline" size={16} color="#0F172A" />
+                      <Text className="text-sm font-extrabold" style={{ color: '#0F172A' }}>
+                        Pay {displayName} via UPI
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ) : isSelf ? (
+                <View className="py-2 items-center gap-2">
+                  <Text className="text-xs italic text-center" style={{ color: colors.textSecondary }}>
+                    You haven't added a UPI ID yet.
+                  </Text>
                   <TouchableOpacity
-                    className="py-3 rounded-xl items-center justify-center flex-row gap-2 shadow-sm"
+                    className="px-4 py-2.5 rounded-xl flex-row items-center gap-1.5"
                     style={{ backgroundColor: colors.cyan }}
-                    onPress={handlePayViaUPI}
+                    onPress={() => {
+                      onClose();
+                      router.push('/(tabs)/profile');
+                    }}
                     activeOpacity={0.85}
                   >
-                    <Ionicons name="card-outline" size={16} color="#0F172A" />
-                    <Text className="text-sm font-extrabold" style={{ color: '#0F172A' }}>
-                      Pay {displayName} via UPI
+                    <Ionicons name="add-circle-outline" size={16} color="#0F172A" />
+                    <Text className="text-xs font-bold" style={{ color: '#0F172A' }}>
+                      Add UPI ID in Profile
                     </Text>
                   </TouchableOpacity>
                 </View>

@@ -1,43 +1,75 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
-# dependencies
+# Dependencies
 node_modules/
+.pnp
+.pnp.js
 
-# Expo
+# Expo & Metro
 .expo/
 dist/
 web-build/
 expo-env.d.ts
+.metro-health-check*
 
-# Native
-.kotlin/
-*.orig.*
+# Environment Variables & Secrets
+.env
+.env*.local
+.env.production
+*.pem
+*.key
 *.jks
 *.p8
 *.p12
-*.key
 *.mobileprovision
 
-# Metro
-.metro-health-check*
+# Native Build Outputs
+/android/
+/ios/
+.kotlin/
+*.orig.*
 
-# debug
+# Logs & Debug
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.log
 
-# macOS
-.DS_Store
-*.pem
+# Testing & Coverage
+coverage/
+.nyc_output/
 
-# local env files
-.env*.local
-
-# typescript
+# TypeScript & Cache
 *.tsbuildinfo
+.eslintcache
 
-example
+# OS & IDE Files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*.zip
+export.csv
 
-# generated native folders
-/ios
-/android
+# AI Assistants, Rules & Agent Artifacts
+.claude/
+.claude*
+CLAUDE.md
+CLAUDE*.md
+ai-rules*
+ai-context*
+AGENTS.md
+.cursor/
+.cursorrules
+.cursorignore
+.windsurf/
+.windsurfrules
+.cline/
+.roo/
+.copilot/
+.github/copilot-instructions.md
+.gemini/
+brain/
+scratch/
+ai-temp/
+*.prompt
+*.prompt.md

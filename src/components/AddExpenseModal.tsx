@@ -19,6 +19,7 @@ import { SplitType, ExpenseSplit, Expense, ExpenseShortcut } from '@/types';
 import { CategoryIcon, GENERIC_CUSTOM_ICONS } from '@/components/ui/CategoryIcon';
 import { GroupAvatar } from '@/components/ui/GroupAvatar';
 import { ShortcutManagerModal } from '@/components/ShortcutManagerModal';
+import { ItemizedReceiptModal } from '@/components/ItemizedReceiptModal';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@/components/ui/Text';
 
@@ -44,7 +45,7 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
 
   const [selectedCohortId, setSelectedCohortId] = useState(cohortId || cohorts[0]?.id || '');
   const activeCohort = cohorts.find((c) => c.id === selectedCohortId) || cohorts[0];
-  const cohortMembers = members[activeCohort?.id] || [];
+  const cohortMembers = (members[activeCohort?.id] || []).filter((m) => !m.isPlaceholder);
   const cohortShortcuts = activeCohort ? shortcuts[activeCohort.id] || [] : [];
 
   // Active Sub-screen View
@@ -71,6 +72,7 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [notesModalVisible, setNotesModalVisible] = useState(false);
   const [groupPickerVisible, setGroupPickerVisible] = useState(false);
+  const [itemizedModalVisible, setItemizedModalVisible] = useState(false);
 
   // Payer State
   const [isMultiplePayers, setIsMultiplePayers] = useState(false);
@@ -92,7 +94,7 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
     if (visible) {
       const initialCohortId = cohortId || cohorts[0]?.id || '';
       setSelectedCohortId(initialCohortId);
-      const mList = members[initialCohortId] || [];
+      const mList = (members[initialCohortId] || []).filter((m) => !m.isPlaceholder);
       setIncludedMemberIds(mList.map((m) => m.userId));
       setPaidByUserId(currentUser.id);
       setIsMultiplePayers(false);
@@ -971,7 +973,13 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
                     className="w-9 h-9 rounded-xl items-center justify-center"
                     style={{ backgroundColor: colors.accentPill, borderWidth: 1, borderColor: colors.border }}
                     onPress={() => {
-                      showAlert('Attach Receipt', 'Choose a source for your receipt:', [
+                      showAlert('Process Receipt', 'Choose how to process your receipt:', [
+                        {
+                          text: 'Scan & Itemize (OCR)',
+                          style: 'default',
+                          icon: 'sparkles',
+                          onPress: () => setItemizedModalVisible(true),
+                        },
                         { text: 'Take Photo', style: 'default', icon: 'camera-outline', onPress: handleTakeReceiptPhoto },
                         { text: 'Choose from Library', style: 'default', icon: 'images-outline', onPress: handlePickReceipt },
                         { text: 'Cancel', style: 'cancel', icon: 'close-outline' },
@@ -1993,6 +2001,21 @@ export function AddExpenseModal({ visible, onClose, cohortId }: AddExpenseModalP
             shortcut={editingShortcut}
             cohortId={activeCohort?.id || ''}
           />
+
+          {/* ====================================================================
+              AUXILIARY MODAL 5: ITEMIZED RECEIPT SCANNER (OCR)
+             ==================================================================== */}
+          {itemizedModalVisible && (
+            <ItemizedReceiptModal
+              visible={itemizedModalVisible}
+              onClose={() => setItemizedModalVisible(false)}
+              cohortId={activeCohort?.id || ''}
+              onSaveExpense={() => {
+                setItemizedModalVisible(false);
+                onClose();
+              }}
+            />
+          )}
         </SafeAreaView>
       </View>
     </Modal>

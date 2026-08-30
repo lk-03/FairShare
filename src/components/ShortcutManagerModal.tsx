@@ -347,7 +347,7 @@ export function ShortcutManagerModal({
                         <Image source={{ uri: m.profile.avatarUrl }} className="w-5 h-5 rounded-full" />
                       ) : (
                         <View className="w-5 h-5 rounded-full bg-main items-center justify-center">
-                          <Text className="text-[10px] font-bold text-screen">{name.charAt(0)}</Text>
+                          <Text className="text-[10px] font-bold text-screen">{(name || 'M').charAt(0)}</Text>
                         </View>
                       )}
                       <Text
@@ -404,7 +404,7 @@ export function ShortcutManagerModal({
                               <Image source={{ uri: m.profile.avatarUrl }} className="w-6 h-6 rounded-full" />
                             ) : (
                               <View className="w-6 h-6 rounded-full bg-main items-center justify-center">
-                                <Text className="text-[10px] font-bold text-screen">{name.charAt(0)}</Text>
+                                <Text className="text-[10px] font-bold text-screen">{(name || 'M').charAt(0)}</Text>
                               </View>
                             )}
                             <Text className="text-xs font-bold" style={{ color: colors.textMain }} numberOfLines={1}>

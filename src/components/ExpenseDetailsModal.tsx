@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Modal, TouchableOpacity, ScrollView, Image, useColorScheme } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Expense, ExpenseShortcut, GroupMember, UserProfile } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { TransactionComments } from '@/components/TransactionComments';
 import { EditExpenseModal } from '@/components/EditExpenseModal';
 import { useExpenseStore } from '@/store/useExpenseStore';
-import { useThemeStore, getActiveThemeClass } from '@/store/useThemeStore';
+import { useThemeStore, getActiveThemeClass, getThemePalette } from '@/store/useThemeStore';
 import { showAlert } from '@/store/useAlertStore';
 import { Text } from '@/components/ui/Text';
 
@@ -25,20 +26,31 @@ export function ExpenseDetailsModal({
   cohortMembers,
   currentUser,
 }: ExpenseDetailsModalProps) {
+  const insets = useSafeAreaInsets();
   const systemScheme = useColorScheme();
   const { themeBase, colorScheme } = useThemeStore();
   const activeThemeClass = getActiveThemeClass(themeBase, colorScheme, systemScheme);
-  const { addShortcut } = useExpenseStore();
+  const colors = getThemePalette(themeBase, colorScheme, systemScheme);
+  const isDark =
+    colorScheme === 'dark' ||
+    (colorScheme === 'system' && (systemScheme === 'dark' || !systemScheme));
 
+  const { addShortcut } = useExpenseStore();
   const [editModalVisible, setEditModalVisible] = useState(false);
+
+  const memberMap = useMemo(() => {
+    const map = new Map<string, GroupMember>();
+    cohortMembers.forEach((m) => map.set(m.userId, m));
+    return map;
+  }, [cohortMembers]);
 
   if (!expense) return null;
 
-  const payerMember = cohortMembers.find((m) => m.userId === expense.paidByUserId);
+  const payerMember = memberMap.get(expense.paidByUserId);
   const payerName =
     expense.paidByUserId === currentUser.id
       ? 'You'
-      : payerMember?.profile?.fullName || 'Member';
+      : payerMember?.profile?.fullName || payerMember?.profile?.nickname || payerMember?.originalCsvName || 'Member';
 
   const handleSaveAsShortcut = () => {
     const newShortcut: ExpenseShortcut = {
@@ -66,134 +78,212 @@ export function ExpenseDetailsModal({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View className={`flex-1 ${activeThemeClass} bg-black/50 justify-end`}>
-        <TouchableOpacity
-          className="flex-1"
-          activeOpacity={1}
-          onPress={onClose}
-        />
-        <View className="bg-surface rounded-t-3xl h-[88%] overflow-hidden border-t border-surface">
-          {/* Header */}
-          <View className="flex-row items-center justify-between px-5 py-4 border-b border-surface bg-surface">
-            <TouchableOpacity className="p-1" onPress={onClose}>
-              <Ionicons name="close" size={24} color="#94A3B8" />
+    <Modal
+      visible={visible}
+      animationType="slide"
+      statusBarTranslucent={true}
+      onRequestClose={onClose}
+    >
+      <View
+        className={`flex-1 ${activeThemeClass}`}
+        style={{ backgroundColor: colors.surface }}
+      >
+        {/* Top Header */}
+        <View
+          className="px-5 pb-4 border-b flex-row items-center justify-between"
+          style={{
+            paddingTop: Math.max(insets.top + 8, 16),
+            borderColor: colors.border,
+            backgroundColor: colors.surface,
+          }}
+        >
+          <TouchableOpacity
+            onPress={onClose}
+            className="flex-row items-center gap-1 py-1 px-2 -ml-2 rounded-full"
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-back" size={22} color={colors.textSecondary} />
+            <Text className="text-base font-bold" style={{ color: colors.textMain }}>
+              Back
+            </Text>
+          </TouchableOpacity>
+
+          <Text className="text-base font-extrabold" style={{ color: colors.textMain }}>
+            Payment Details
+          </Text>
+
+          <View className="flex-row items-center gap-2">
+            <TouchableOpacity
+              className="p-2 rounded-full border"
+              style={{ backgroundColor: colors.accentPill, borderColor: colors.border }}
+              onPress={handleSaveAsShortcut}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="bookmark-outline" size={16} color={colors.cyan} />
             </TouchableOpacity>
-            <Text className="text-base font-bold text-main">Payment Details</Text>
-            <View className="flex-row items-center gap-2">
-              <TouchableOpacity
-                className="p-2 rounded-full bg-accent-pill border border-surface"
-                onPress={handleSaveAsShortcut}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="bookmark-outline" size={16} color="#38BDF8" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                className="p-2 rounded-full bg-accent-pill border border-surface"
-                onPress={() => setEditModalVisible(true)}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="pencil" size={16} color="#94A3B8" />
-              </TouchableOpacity>
+            <TouchableOpacity
+              className="p-2 rounded-full border"
+              style={{ backgroundColor: colors.accentPill, borderColor: colors.border }}
+              onPress={() => setEditModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="pencil" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={{
+            padding: 20,
+            gap: 20,
+            paddingBottom: Math.max(insets.bottom + 28, 44),
+          }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Top Info Card */}
+          <View
+            className="items-center gap-2 py-5 px-4 rounded-3xl border shadow-sm"
+            style={{
+              backgroundColor: isDark ? colors.accentPill : '#FFFFFF',
+              borderColor: colors.border,
+            }}
+          >
+            <View className="mb-2">
+              <CategoryIcon
+                category={expense.category}
+                customIcon={expense.customIcon}
+                size={64}
+                variant="solid"
+              />
             </View>
+            <Text className="text-xl font-extrabold text-center" style={{ color: colors.textMain }}>
+              {expense.title}
+            </Text>
+            <Text className="text-3xl font-black" style={{ color: colors.textMain }}>
+              {expense.currency || '₹'}{Number(expense.totalAmount || 0).toFixed(2)}
+            </Text>
+            <Text className="text-xs font-semibold" style={{ color: colors.textSecondary }}>
+              Paid by {payerName} • {new Date(expense.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </Text>
           </View>
 
-          <ScrollView contentContainerClassName="p-5 gap-5" showsVerticalScrollIndicator={false}>
-            {/* Top Info */}
-            <View className="items-center gap-2 py-4 card-main">
-              <View className="mb-2">
-                <CategoryIcon
-                  category={expense.category}
-                  customIcon={expense.customIcon}
-                  size={64}
-                  variant="solid"
-                />
+          {/* Split Breakdown */}
+          <View
+            className="p-5 rounded-3xl gap-4 border shadow-sm"
+            style={{
+              backgroundColor: isDark ? colors.accentPill : '#FFFFFF',
+              borderColor: colors.border,
+            }}
+          >
+            <View className="flex-row items-center justify-between">
+              <Text className="text-xs font-bold uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                SPLIT BREAKDOWN ({(expense.splitType || 'equal').toUpperCase()})
+              </Text>
+              <View
+                className="px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: `${colors.cyan}20` }}
+              >
+                <Text className="text-[10px] font-bold" style={{ color: colors.cyan }}>
+                  {(expense.splits || []).length} Members
+                </Text>
               </View>
-              <Text className="text-xl font-extrabold text-main text-center">
-                {expense.title}
-              </Text>
-              <Text className="text-3xl font-extrabold text-main">₹{expense.totalAmount}</Text>
-              <Text className="text-xs font-medium text-secondary">
-                Paid by {payerName} • {new Date(expense.createdAt).toLocaleDateString()}
-              </Text>
             </View>
 
-            {/* Split Breakdown */}
-            <View className="card-main gap-4">
-              <Text className="section-label">
-                SPLIT BREAKDOWN ({expense.splitType.toUpperCase()})
-              </Text>
+            <View className="gap-3">
+              {(expense.splits || []).map((s, idx) => {
+                const memberObj = memberMap.get(s.userId);
+                const isShadow = !!memberObj?.isPlaceholder;
+                const isCurrentUser = s.userId === currentUser.id;
+                const name =
+                  (isCurrentUser
+                    ? 'You'
+                    : memberObj?.profile?.fullName ||
+                      memberObj?.profile?.nickname ||
+                      memberObj?.originalCsvName ||
+                      s.userId ||
+                      'Member') || 'Member';
+                const username = memberObj?.profile?.username;
+                const hasVpa = !!memberObj?.profile?.vpaId;
+                const isPayer = s.userId === expense.paidByUserId;
 
-              <View className="gap-3">
-                {expense.splits.map((s) => {
-                  const memberObj = cohortMembers.find((m) => m.userId === s.userId);
-                  const name =
-                    memberObj?.profile?.nickname ||
-                    memberObj?.profile?.fullName ||
-                    (s.userId === currentUser.id ? 'You' : s.userId);
-                  const username = memberObj?.profile?.username;
-                  const hasVpa = !!memberObj?.profile?.vpaId;
-                  const isPayer = s.userId === expense.paidByUserId;
-
-                  return (
-                    <View key={s.userId} className="flex-row justify-between items-center py-1.5">
-                      <View className="flex-row items-center gap-2.5 flex-1 pr-2">
-                        <View className="w-8 h-8 rounded-full bg-accent-pill items-center justify-center border border-surface overflow-hidden">
-                          {memberObj?.profile?.avatarUrl ? (
-                            <Image source={{ uri: memberObj.profile.avatarUrl }} className="w-8 h-8 rounded-full" />
-                          ) : (
-                            <Text className="text-main text-xs font-bold">
-                              {name.charAt(0).toUpperCase()}
-                            </Text>
-                          )}
-                        </View>
-                        <View className="flex-1">
-                          <View className="flex-row items-center gap-1.5 flex-wrap">
-                            <Text className="text-sm font-bold text-main" numberOfLines={1}>
-                              {s.userId === currentUser.id ? `${name} (You)` : name}
-                            </Text>
-                            {hasVpa && (
-                              <Ionicons name="checkmark-circle" size={13} color="#38BDF8" />
-                            )}
-                            {isPayer && (
-                              <View className="bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                                <Text className="text-[10px] font-bold text-emerald-500">PAID</Text>
-                              </View>
-                            )}
-                          </View>
-                          {username && (
-                            <Text className="text-[11px] font-semibold text-cyan">
-                              @{username}
-                            </Text>
-                          )}
-                        </View>
-                      </View>
-                      <Text
-                        className={`text-sm font-bold ${
-                          isPayer ? 'text-emerald-500' : 'text-main'
-                        }`}
+                return (
+                  <View key={`split_${s.userId || idx}_${idx}`} className="flex-row justify-between items-center py-1.5">
+                    <View className="flex-row items-center gap-2.5 flex-1 pr-2">
+                      <View
+                        className="w-9 h-9 rounded-full items-center justify-center border overflow-hidden"
+                        style={{ backgroundColor: colors.surface, borderColor: colors.border }}
                       >
-                        ₹{s.amount.toFixed(2)} {s.percentage ? `(${s.percentage}%)` : ''}
-                      </Text>
+                        {memberObj?.profile?.avatarUrl ? (
+                          <Image source={{ uri: memberObj.profile.avatarUrl }} className="w-9 h-9 rounded-full" />
+                        ) : (
+                          <Text className="text-xs font-bold" style={{ color: colors.textMain }}>
+                            {(name || 'M').charAt(0).toUpperCase()}
+                          </Text>
+                        )}
+                      </View>
+                      <View className="flex-1">
+                        <View className="flex-row items-center gap-1.5 flex-wrap">
+                          <Text className="text-sm font-bold" style={{ color: colors.textMain }} numberOfLines={1}>
+                            {name}
+                          </Text>
+                          {hasVpa && (
+                            <Ionicons name="checkmark-circle" size={13} color={colors.cyan} />
+                          )}
+                          {isShadow && (
+                            <View className="bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30">
+                              <Text className="text-[9px] font-bold text-amber-500">SHADOW</Text>
+                            </View>
+                          )}
+                          {isPayer && (
+                            <View className="bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                              <Text className="text-[10px] font-bold text-emerald-500">PAID</Text>
+                            </View>
+                          )}
+                        </View>
+                        {username && (
+                          <Text className="text-[11px] font-semibold" style={{ color: colors.cyan }}>
+                            @{username}
+                          </Text>
+                        )}
+                      </View>
                     </View>
-                  );
-                })}
+                    <Text
+                      className="text-sm font-bold"
+                      style={{ color: isPayer ? '#10B981' : colors.textMain }}
+                    >
+                      {expense.currency || '₹'}{Number(s.amount || 0).toFixed(2)} {s.percentage ? `(${s.percentage}%)` : ''}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+
+            {expense.notes ? (
+              <View
+                className="mt-2 pt-3 border-t gap-1"
+                style={{ borderColor: colors.border }}
+              >
+                <Text className="text-[10px] font-bold uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                  NOTES
+                </Text>
+                <Text className="text-xs font-medium italic" style={{ color: colors.textSecondary }}>
+                  {expense.notes}
+                </Text>
               </View>
+            ) : null}
+          </View>
 
-              {expense.notes && (
-                <View className="mt-2 pt-3 border-t border-surface gap-1">
-                  <Text className="section-label">NOTES</Text>
-                  <Text className="text-sm text-secondary italic">{expense.notes}</Text>
-                </View>
-              )}
-            </View>
-
-            {/* Comments Section */}
-            <View className="card-main p-5 min-h-[160px]">
-              <TransactionComments expenseId={expense.id} cohortId={expense.cohortId} />
-            </View>
-          </ScrollView>
-        </View>
+          {/* Comments Section */}
+          <View
+            className="p-5 rounded-3xl border shadow-sm min-h-[160px]"
+            style={{
+              backgroundColor: isDark ? colors.accentPill : '#FFFFFF',
+              borderColor: colors.border,
+            }}
+          >
+            <TransactionComments expenseId={expense.id} cohortId={expense.cohortId} />
+          </View>
+        </ScrollView>
       </View>
 
       {/* Edit Expense Modal */}

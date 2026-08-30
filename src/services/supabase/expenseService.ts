@@ -1,15 +1,26 @@
 import { supabase, isSupabaseConfigured } from './client';
-import { Expense, ExpenseSplit, TransactionComment } from '@/types';
+import { Expense, ExpenseSplit, TransactionComment, LineItem } from '@/types';
 import { DEFAULT_EXPENSES } from './placeholderData';
+import { isUuid, getCurrentProfile } from './profileService';
 
 /**
  * Maps Supabase raw expense record and splits into Expense domain model
  */
-function mapExpenseRow(row: any, splits: any[] = []): Expense {
+function mapExpenseRow(row: any, splits: any[] = [], lineItems: any[] = []): Expense {
   const mappedSplits: ExpenseSplit[] = (splits || []).map((s: any) => ({
     userId: s.user_id,
     amount: Number(s.amount),
     percentage: s.percentage !== null && s.percentage !== undefined ? Number(s.percentage) : undefined,
+    lineItemIds: s.line_item_ids,
+  }));
+
+  const mappedLineItems: LineItem[] = (lineItems || []).map((li: any) => ({
+    id: li.id,
+    title: li.title,
+    price: Number(li.price),
+    quantity: Number(li.quantity || 1),
+    splitType: li.split_type || 'equal',
+    assignedUserIds: li.assigned_user_ids || [],
   }));
 
   return {
@@ -23,6 +34,11 @@ function mapExpenseRow(row: any, splits: any[] = []): Expense {
     paidByUserId: row.paid_by_user_id,
     splitType: row.split_type || 'equal',
     splits: mappedSplits,
+    lineItems: mappedLineItems.length > 0 ? mappedLineItems : undefined,
+    subtotal: row.subtotal !== null && row.subtotal !== undefined ? Number(row.subtotal) : undefined,
+    taxAmount: row.tax_amount !== null && row.tax_amount !== undefined ? Number(row.tax_amount) : undefined,
+    serviceCharge: row.service_charge !== null && row.service_charge !== undefined ? Number(row.service_charge) : undefined,
+    discountAmount: row.discount_amount !== null && row.discount_amount !== undefined ? Number(row.discount_amount) : undefined,
     receiptUrl: row.receipt_url,
     ocrParsed: row.ocr_parsed ?? false,
     notes: row.notes,
@@ -35,7 +51,7 @@ function mapExpenseRow(row: any, splits: any[] = []): Expense {
  * Fetches all expenses and their associated splits for a specific cohort
  */
 export async function fetchExpensesForCohort(cohortId: string): Promise<Expense[]> {
-  if (!isSupabaseConfigured()) {
+  if (!isSupabaseConfigured() || !isUuid(cohortId)) {
     return DEFAULT_EXPENSES[cohortId] || [];
   }
 
@@ -53,7 +69,7 @@ export async function fetchExpensesForCohort(cohortId: string): Promise<Expense[
 
     const expenseIds = expenseRows.map((e: any) => e.id);
 
-    // Fetch splits for these expenses
+    // 1. Fetch splits for these expenses
     const { data: splitRows, error: splitErr } = await supabase
       .from('expense_splits')
       .select('*')
@@ -69,7 +85,27 @@ export async function fetchExpensesForCohort(cohortId: string): Promise<Expense[
       splitsByExpense[s.expense_id].push(s);
     });
 
-    return expenseRows.map((e: any) => mapExpenseRow(e, splitsByExpense[e.id] || []));
+    // 2. Fetch line items for itemized expenses
+    const { data: lineItemRows } = await supabase
+      .from('line_items')
+      .select('*')
+      .in('expense_id', expenseIds);
+
+    const lineItemsByExpense: Record<string, any[]> = {};
+    (lineItemRows || []).forEach((li: any) => {
+      if (!lineItemsByExpense[li.expense_id]) {
+        lineItemsByExpense[li.expense_id] = [];
+      }
+      lineItemsByExpense[li.expense_id].push(li);
+    });
+
+    return expenseRows.map((e: any) =>
+      mapExpenseRow(
+        e,
+        splitsByExpense[e.id] || [],
+        lineItemsByExpense[e.id] || []
+      )
+    );
   } catch (err) {
     console.warn(`[ExpenseService] fetchExpensesForCohort fallback for ${cohortId}:`, err);
     return DEFAULT_EXPENSES[cohortId] || [];
@@ -80,23 +116,35 @@ export async function fetchExpensesForCohort(cohortId: string): Promise<Expense[
  * Creates a new expense and its split allocations in Supabase
  */
 export async function createExpense(expense: Expense): Promise<Expense> {
-  if (!isSupabaseConfigured()) {
+  if (!isSupabaseConfigured() || !isUuid(expense.cohortId)) {
     return expense;
+  }
+
+  let paidByUserId = expense.paidByUserId;
+  if (!isUuid(paidByUserId)) {
+    const profile = await getCurrentProfile();
+    paidByUserId = profile.id;
   }
 
   try {
     const { data: expRow, error: expErr } = await supabase
       .from('expenses')
       .insert({
-        id: expense.id.startsWith('exp_') ? undefined : expense.id,
+        id: isUuid(expense.id) ? expense.id : undefined,
         cohort_id: expense.cohortId,
         title: expense.title,
         category: expense.category,
+        custom_icon: expense.customIcon,
         total_amount: expense.totalAmount,
         currency: expense.currency || 'INR',
-        paid_by_user_id: expense.paidByUserId,
+        paid_by_user_id: paidByUserId,
         split_type: expense.splitType,
+        subtotal: expense.subtotal,
+        tax_amount: expense.taxAmount,
+        service_charge: expense.serviceCharge,
+        discount_amount: expense.discountAmount,
         receipt_url: expense.receiptUrl,
+        ocr_parsed: expense.ocrParsed ?? false,
         notes: expense.notes,
       })
       .select()
@@ -106,23 +154,43 @@ export async function createExpense(expense: Expense): Promise<Expense> {
 
     const savedExpenseId = expRow.id;
 
-    // Insert splits
+    // 1. Insert splits
     if (expense.splits && expense.splits.length > 0) {
-      const splitPayloads = expense.splits.map((s) => ({
-        expense_id: savedExpenseId,
-        user_id: s.userId,
-        amount: s.amount,
-        percentage: s.percentage ?? null,
-      }));
+      const splitPayloads = expense.splits
+        .filter((s) => isUuid(s.userId))
+        .map((s) => ({
+          expense_id: savedExpenseId,
+          user_id: s.userId,
+          amount: s.amount,
+          percentage: s.percentage ?? null,
+          line_item_ids: s.lineItemIds,
+        }));
 
-      const { error: splitErr } = await supabase
-        .from('expense_splits')
-        .insert(splitPayloads);
+      if (splitPayloads.length > 0) {
+        const { error: splitErr } = await supabase
+          .from('expense_splits')
+          .insert(splitPayloads);
 
-      if (splitErr) console.warn('[ExpenseService] Insert splits warning:', splitErr);
+        if (splitErr) console.warn('[ExpenseService] Insert splits warning:', splitErr);
+      }
     }
 
-    return mapExpenseRow(expRow, expense.splits.map(s => ({ user_id: s.userId, amount: s.amount, percentage: s.percentage })));
+    // 2. Insert line items if itemized
+    if (expense.lineItems && expense.lineItems.length > 0) {
+      const lineItemPayloads = expense.lineItems.map((li, index) => ({
+        expense_id: savedExpenseId,
+        title: li.title,
+        price: li.price,
+        quantity: li.quantity || 1,
+        split_type: li.splitType || 'equal',
+        assigned_user_ids: li.assignedUserIds.filter(isUuid),
+        sort_order: index,
+      }));
+
+      await supabase.from('line_items').insert(lineItemPayloads);
+    }
+
+    return mapExpenseRow(expRow, expense.splits || [], expense.lineItems || []);
   } catch (err) {
     console.warn('[ExpenseService] createExpense fallback:', err);
     return expense;
@@ -133,8 +201,14 @@ export async function createExpense(expense: Expense): Promise<Expense> {
  * Updates an existing expense and updates split allocations
  */
 export async function updateExpense(expense: Expense): Promise<Expense> {
-  if (!isSupabaseConfigured()) {
+  if (!isSupabaseConfigured() || !isUuid(expense.id)) {
     return expense;
+  }
+
+  let paidByUserId = expense.paidByUserId;
+  if (!isUuid(paidByUserId)) {
+    const profile = await getCurrentProfile();
+    paidByUserId = profile.id;
   }
 
   try {
@@ -143,9 +217,14 @@ export async function updateExpense(expense: Expense): Promise<Expense> {
       .update({
         title: expense.title,
         category: expense.category,
+        custom_icon: expense.customIcon,
         total_amount: expense.totalAmount,
-        paid_by_user_id: expense.paidByUserId,
+        paid_by_user_id: paidByUserId,
         split_type: expense.splitType,
+        subtotal: expense.subtotal,
+        tax_amount: expense.taxAmount,
+        service_charge: expense.serviceCharge,
+        discount_amount: expense.discountAmount,
         receipt_url: expense.receiptUrl,
         notes: expense.notes,
         updated_at: new Date().toISOString(),
@@ -160,17 +239,37 @@ export async function updateExpense(expense: Expense): Promise<Expense> {
     await supabase.from('expense_splits').delete().eq('expense_id', expense.id);
 
     if (expense.splits && expense.splits.length > 0) {
-      const splitPayloads = expense.splits.map((s) => ({
-        expense_id: expense.id,
-        user_id: s.userId,
-        amount: s.amount,
-        percentage: s.percentage ?? null,
-      }));
+      const splitPayloads = expense.splits
+        .filter((s) => isUuid(s.userId))
+        .map((s) => ({
+          expense_id: expense.id,
+          user_id: s.userId,
+          amount: s.amount,
+          percentage: s.percentage ?? null,
+          line_item_ids: s.lineItemIds,
+        }));
 
-      await supabase.from('expense_splits').insert(splitPayloads);
+      if (splitPayloads.length > 0) {
+        await supabase.from('expense_splits').insert(splitPayloads);
+      }
     }
 
-    return mapExpenseRow(expRow, expense.splits.map(s => ({ user_id: s.userId, amount: s.amount, percentage: s.percentage })));
+    // Refresh line items
+    if (expense.lineItems && expense.lineItems.length > 0) {
+      await supabase.from('line_items').delete().eq('expense_id', expense.id);
+      const lineItemPayloads = expense.lineItems.map((li, index) => ({
+        expense_id: expense.id,
+        title: li.title,
+        price: li.price,
+        quantity: li.quantity || 1,
+        split_type: li.splitType || 'equal',
+        assigned_user_ids: li.assignedUserIds.filter(isUuid),
+        sort_order: index,
+      }));
+      await supabase.from('line_items').insert(lineItemPayloads);
+    }
+
+    return mapExpenseRow(expRow, expense.splits || [], expense.lineItems || []);
   } catch (err) {
     console.warn(`[ExpenseService] updateExpense fallback for ${expense.id}:`, err);
     return expense;
@@ -181,7 +280,7 @@ export async function updateExpense(expense: Expense): Promise<Expense> {
  * Deletes an expense from Supabase
  */
 export async function deleteExpense(expenseId: string): Promise<void> {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured() || !isUuid(expenseId)) return;
 
   try {
     const { error } = await supabase
@@ -199,11 +298,11 @@ export async function deleteExpense(expenseId: string): Promise<void> {
  * Fetches transaction comments for an expense
  */
 export async function fetchCommentsForExpense(expenseId: string): Promise<TransactionComment[]> {
-  if (!isSupabaseConfigured()) return [];
+  if (!isSupabaseConfigured() || !isUuid(expenseId)) return [];
 
   try {
     const { data, error } = await supabase
-      .from('transaction_comments')
+      .from('comments')
       .select('*, profiles:user_id(*)')
       .eq('expense_id', expenseId)
       .order('created_at', { ascending: true });
@@ -220,6 +319,8 @@ export async function fetchCommentsForExpense(expenseId: string): Promise<Transa
         ? {
             id: row.profiles.id,
             fullName: row.profiles.full_name,
+            nickname: row.profiles.nickname,
+            username: row.profiles.username,
             avatarUrl: row.profiles.avatar_url,
             email: row.profiles.email,
             vpaId: row.profiles.vpa_id,
@@ -238,17 +339,23 @@ export async function fetchCommentsForExpense(expenseId: string): Promise<Transa
  * Adds a new comment to an expense
  */
 export async function addComment(comment: TransactionComment): Promise<TransactionComment> {
-  if (!isSupabaseConfigured()) {
+  if (!isSupabaseConfigured() || !isUuid(comment.expenseId)) {
     return comment;
+  }
+
+  let userId = comment.userId;
+  if (!isUuid(userId)) {
+    const profile = await getCurrentProfile();
+    userId = profile.id;
   }
 
   try {
     const { data, error } = await supabase
-      .from('transaction_comments')
+      .from('comments')
       .insert({
-        id: comment.id.startsWith('cmt_') ? undefined : comment.id,
+        id: isUuid(comment.id) ? comment.id : undefined,
         expense_id: comment.expenseId,
-        user_id: comment.userId,
+        user_id: userId,
         content: comment.content,
       })
       .select('*, profiles:user_id(*)')
@@ -266,6 +373,8 @@ export async function addComment(comment: TransactionComment): Promise<Transacti
         ? {
             id: data.profiles.id,
             fullName: data.profiles.full_name,
+            nickname: data.profiles.nickname,
+            username: data.profiles.username,
             avatarUrl: data.profiles.avatar_url,
             email: data.profiles.email,
             vpaId: data.profiles.vpa_id,

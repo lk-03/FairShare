@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from './client';
 import { EventCohort, GroupMember, UserProfile } from '@/types';
 import { DEFAULT_COHORTS, DEFAULT_MEMBERS } from './placeholderData';
+import { isUuid, getCurrentProfile } from './profileService';
 
 /**
  * Maps Supabase raw cohort record to EventCohort domain model
@@ -32,10 +33,13 @@ function mapMemberRow(row: any): GroupMember {
       id: row.profiles.id,
       fullName: row.profiles.full_name,
       email: row.profiles.email,
+      nickname: row.profiles.nickname,
+      username: row.profiles.username,
       avatarUrl: row.profiles.avatar_url,
       vpaId: row.profiles.vpa_id,
       phoneNumber: row.profiles.phone_number,
       isGuest: row.profiles.is_guest ?? false,
+      authProvider: row.profiles.auth_provider || 'email',
       createdAt: row.profiles.created_at || row.joined_at,
     };
   }
@@ -45,6 +49,8 @@ function mapMemberRow(row: any): GroupMember {
     cohortId: row.cohort_id,
     userId: row.user_id,
     role: row.role || 'member',
+    isPlaceholder: row.is_placeholder ?? false,
+    originalCsvName: row.original_csv_name,
     joinedAt: row.joined_at || new Date().toISOString(),
     profile,
   };
@@ -52,13 +58,12 @@ function mapMemberRow(row: any): GroupMember {
 
 /**
  * Fetches all cohorts that the user belongs to, including their active members.
- * Returns default placeholder cohorts if Supabase is offline or unconfigured.
  */
 export async function fetchUserCohorts(userId: string): Promise<{
   cohorts: EventCohort[];
   members: Record<string, GroupMember[]>;
 }> {
-  if (!isSupabaseConfigured()) {
+  if (!isSupabaseConfigured() || !isUuid(userId)) {
     return {
       cohorts: DEFAULT_COHORTS,
       members: DEFAULT_MEMBERS,
@@ -81,7 +86,7 @@ export async function fetchUserCohorts(userId: string): Promise<{
 
     // 2. Fetch cohort details
     const { data: cohortData, error: cohortErr } = await supabase
-      .from('event_cohorts')
+      .from('cohorts')
       .select('*')
       .in('id', cohortIds)
       .order('created_at', { ascending: false });
@@ -127,32 +132,38 @@ export async function createCohort(
   cohort: EventCohort,
   creator: UserProfile
 ): Promise<{ cohort: EventCohort; member: GroupMember }> {
+  let effectiveCreator = creator;
+  if (!isUuid(effectiveCreator.id)) {
+    effectiveCreator = await getCurrentProfile();
+  }
+
   const fallbackMember: GroupMember = {
     id: `m_${Date.now()}`,
     cohortId: cohort.id,
-    userId: creator.id,
+    userId: effectiveCreator.id,
     role: 'admin',
     joinedAt: new Date().toISOString(),
-    profile: creator,
+    profile: effectiveCreator,
   };
 
-  if (!isSupabaseConfigured()) {
+  if (!isSupabaseConfigured() || !isUuid(effectiveCreator.id)) {
     return { cohort, member: fallbackMember };
   }
 
   try {
     const { data: cohortRow, error: cohortErr } = await supabase
-      .from('event_cohorts')
+      .from('cohorts')
       .insert({
-        id: cohort.id.startsWith('cohort_') ? undefined : cohort.id,
+        id: isUuid(cohort.id) ? cohort.id : undefined,
         name: cohort.name,
         description: cohort.description,
         category: cohort.category,
         custom_icon: cohort.customIcon,
+        avatar_url: cohort.avatarUrl || cohort.bannerUrl,
         banner_url: cohort.bannerUrl || cohort.avatarUrl,
         currency: cohort.currency || 'INR',
         invite_code: cohort.inviteCode,
-        created_by: creator.id,
+        created_by: effectiveCreator.id,
       })
       .select()
       .single();
@@ -166,7 +177,7 @@ export async function createCohort(
       .from('group_members')
       .insert({
         cohort_id: savedCohort.id,
-        user_id: creator.id,
+        user_id: effectiveCreator.id,
         role: 'admin',
       })
       .select('*, profiles:user_id(*)')
@@ -190,7 +201,7 @@ export async function updateCohort(
   cohortId: string,
   updates: Partial<EventCohort>
 ): Promise<void> {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured() || !isUuid(cohortId)) return;
 
   try {
     const dbPayload: any = {};
@@ -198,14 +209,15 @@ export async function updateCohort(
     if (updates.description !== undefined) dbPayload.description = updates.description;
     if (updates.category !== undefined) dbPayload.category = updates.category;
     if (updates.customIcon !== undefined) dbPayload.custom_icon = updates.customIcon;
-    if (updates.bannerUrl !== undefined || updates.avatarUrl !== undefined) {
+    if (updates.avatarUrl !== undefined || updates.bannerUrl !== undefined) {
+      dbPayload.avatar_url = updates.avatarUrl || updates.bannerUrl;
       dbPayload.banner_url = updates.bannerUrl || updates.avatarUrl;
     }
     if (updates.currency !== undefined) dbPayload.currency = updates.currency;
     dbPayload.updated_at = new Date().toISOString();
 
     const { error } = await supabase
-      .from('event_cohorts')
+      .from('cohorts')
       .update(dbPayload)
       .eq('id', cohortId);
 
@@ -222,7 +234,12 @@ export async function joinCohortByInviteCode(
   inviteCode: string,
   user: UserProfile
 ): Promise<{ cohort: EventCohort; member: GroupMember } | null> {
-  if (!isSupabaseConfigured()) {
+  let effectiveUser = user;
+  if (!isUuid(effectiveUser.id)) {
+    effectiveUser = await getCurrentProfile();
+  }
+
+  if (!isSupabaseConfigured() || !isUuid(effectiveUser.id)) {
     const found = DEFAULT_COHORTS.find(
       (c) => c.inviteCode.toUpperCase() === inviteCode.trim().toUpperCase()
     );
@@ -230,10 +247,10 @@ export async function joinCohortByInviteCode(
       const fallbackMember: GroupMember = {
         id: `m_${Date.now()}`,
         cohortId: found.id,
-        userId: user.id,
+        userId: effectiveUser.id,
         role: 'member',
         joinedAt: new Date().toISOString(),
-        profile: user,
+        profile: effectiveUser,
       };
       return { cohort: found, member: fallbackMember };
     }
@@ -245,7 +262,7 @@ export async function joinCohortByInviteCode(
 
     // Find cohort
     const { data: cohortRow, error: cohortErr } = await supabase
-      .from('event_cohorts')
+      .from('cohorts')
       .select('*')
       .ilike('invite_code', cleanCode)
       .maybeSingle();
@@ -261,7 +278,7 @@ export async function joinCohortByInviteCode(
       .upsert(
         {
           cohort_id: cohort.id,
-          user_id: user.id,
+          user_id: effectiveUser.id,
           role: 'member',
         },
         { onConflict: 'cohort_id,user_id' }
@@ -275,20 +292,43 @@ export async function joinCohortByInviteCode(
     return { cohort, member };
   } catch (err) {
     console.warn(`[GroupService] joinCohortByInviteCode fallback for ${inviteCode}:`, err);
-    const found = DEFAULT_COHORTS.find(
-      (c) => c.inviteCode.toUpperCase() === inviteCode.trim().toUpperCase()
-    );
-    if (found) {
-      const fallbackMember: GroupMember = {
-        id: `m_${Date.now()}`,
-        cohortId: found.id,
-        userId: user.id,
-        role: 'member',
-        joinedAt: new Date().toISOString(),
-        profile: user,
-      };
-      return { cohort: found, member: fallbackMember };
-    }
     return null;
+  }
+}
+
+/**
+ * Inserts or syncs multiple members into a cohort (for CSV imports or invitations)
+ */
+export async function addMembersToCohort(
+  cohortId: string,
+  newMembers: GroupMember[]
+): Promise<GroupMember[]> {
+  if (!isSupabaseConfigured() || !isUuid(cohortId) || newMembers.length === 0) {
+    return newMembers;
+  }
+
+  try {
+    const payload = newMembers
+      .filter((m) => isUuid(m.userId))
+      .map((m) => ({
+        cohort_id: cohortId,
+        user_id: m.userId,
+        role: m.role || 'member',
+        is_placeholder: m.isPlaceholder ?? false,
+        original_csv_name: m.originalCsvName,
+      }));
+
+    if (payload.length === 0) return newMembers;
+
+    const { data, error } = await supabase
+      .from('group_members')
+      .upsert(payload, { onConflict: 'cohort_id,user_id' })
+      .select('*, profiles:user_id(*)');
+
+    if (error) throw error;
+    return (data || []).map(mapMemberRow);
+  } catch (err) {
+    console.warn('[GroupService] addMembersToCohort fallback:', err);
+    return newMembers;
   }
 }

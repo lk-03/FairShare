@@ -7,14 +7,16 @@ import {
   useColorScheme,
   ActivityIndicator,
   Image,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useExpenseStore } from '@/store/useExpenseStore';
-import { useThemeStore, getThemeGradientColors, getThemePalette } from '@/store/useThemeStore';
+import { useThemeStore, getThemeGradientColors, getThemePalette, getActiveThemeClass } from '@/store/useThemeStore';
 import { calculateSimplifiedDebts } from '@/utils/debtSimplifier';
 import { BottomTabInset } from '@/constants/theme';
 import { AddExpenseModal } from '@/components/AddExpenseModal';
+import { ItemizedReceiptModal } from '@/components/ItemizedReceiptModal';
 import { SelectGroupModal } from '@/components/SelectGroupModal';
 import { CreateGroupModal } from '@/components/CreateGroupModal';
 import { ThemeSettingsModal } from '@/components/ThemeSettingsModal';
@@ -25,11 +27,13 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { EventCohort, Expense } from '@/types';
 import { Text } from '@/components/ui/Text';
 import { StaleNeedsReminderModal } from '@/components/StaleNeedsReminderModal';
+import { SplitwiseImportModal } from '@/components/SplitwiseImportModal';
 
 export default function HomeScreen() {
   const router = useRouter();
   const systemScheme = useColorScheme();
   const { themeBase, colorScheme } = useThemeStore();
+  const activeThemeClass = getActiveThemeClass(themeBase, colorScheme, systemScheme);
   const colors = getThemePalette(themeBase, colorScheme, systemScheme);
   const isDark =
     colorScheme === 'dark' ||
@@ -38,8 +42,11 @@ export default function HomeScreen() {
   const [selectGroupVisible, setSelectGroupVisible] = useState(false);
   const [selectedCohortId, setSelectedCohortId] = useState<string | undefined>(undefined);
   const [addExpenseVisible, setAddExpenseVisible] = useState(false);
+  const [itemizedReceiptVisible, setItemizedReceiptVisible] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'add_expense' | 'scan_receipt'>('add_expense');
   const [createGroupVisible, setCreateGroupVisible] = useState(false);
   const [themeSettingsVisible, setThemeSettingsVisible] = useState(false);
+  const [splitwiseImportVisible, setSplitwiseImportVisible] = useState(false);
 
   const {
     cohorts,
@@ -84,13 +91,16 @@ export default function HomeScreen() {
     };
   }, [cohorts, members, expenses, currentUser.id]);
 
-  // Flattened recent expenses across all cohorts
+  // Flattened recent expenses across all active cohorts
   const recentExpenses = useMemo(() => {
-    const allExps: Expense[] = Object.values(expenses).flat();
+    const activeCohortIds = new Set(cohorts.map((c) => c.id));
+    const allExps: Expense[] = Object.entries(expenses)
+      .filter(([cohortId]) => activeCohortIds.has(cohortId))
+      .flatMap(([_, exps]) => exps);
     return allExps
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 4);
-  }, [expenses]);
+  }, [cohorts, expenses]);
 
   const handleOpenAddExpense = () => {
     if (cohorts.length === 0) {
@@ -99,6 +109,19 @@ export default function HomeScreen() {
       setSelectedCohortId(cohorts[0].id);
       setAddExpenseVisible(true);
     } else {
+      setPendingAction('add_expense');
+      setSelectGroupVisible(true);
+    }
+  };
+
+  const handleOpenScanReceipt = () => {
+    if (cohorts.length === 0) {
+      setCreateGroupVisible(true);
+    } else if (cohorts.length === 1) {
+      setSelectedCohortId(cohorts[0].id);
+      setItemizedReceiptVisible(true);
+    } else {
+      setPendingAction('scan_receipt');
       setSelectGroupVisible(true);
     }
   };
@@ -106,7 +129,11 @@ export default function HomeScreen() {
   const handleGroupSelected = (cohort: EventCohort) => {
     setSelectGroupVisible(false);
     setSelectedCohortId(cohort.id);
-    setAddExpenseVisible(true);
+    if (pendingAction === 'scan_receipt') {
+      setItemizedReceiptVisible(true);
+    } else {
+      setAddExpenseVisible(true);
+    }
   };
 
   return (
@@ -212,7 +239,7 @@ export default function HomeScreen() {
             <TouchableOpacity
               activeOpacity={0.75}
               className="items-center gap-2"
-              onPress={handleOpenAddExpense}
+              onPress={handleOpenScanReceipt}
             >
               <View
                 className="w-14 h-14 rounded-full items-center justify-center"
@@ -292,11 +319,22 @@ export default function HomeScreen() {
           <View>
             <View className="flex-row justify-between items-center mb-3">
               <Text className="text-xl font-bold text-main">Groups</Text>
-              {cohorts.length > 0 && (
-                <TouchableOpacity onPress={() => router.push('/groups' as any)}>
-                  <Text className="text-xs font-semibold text-sky-400">View All ({cohorts.length})</Text>
+              <View className="flex-row items-center gap-3">
+                <TouchableOpacity
+                  onPress={() => setSplitwiseImportVisible(true)}
+                  className="flex-row items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/30"
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="swap-horizontal" size={13} color="#10B981" />
+                  <Text className="text-[11px] font-bold text-emerald-500">Import Splitwise</Text>
                 </TouchableOpacity>
-              )}
+
+                {cohorts.length > 0 && (
+                  <TouchableOpacity onPress={() => router.push('/groups' as any)}>
+                    <Text className="text-xs font-semibold text-sky-400">View All ({cohorts.length})</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
 
             {isLoading && cohorts.length === 0 ? (
@@ -318,47 +356,66 @@ export default function HomeScreen() {
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                className="mt-1"
-                contentContainerStyle={{ paddingRight: 20 }}
+                contentContainerClassName="gap-3.5 pr-5 py-1"
               >
                 {cohorts.map((cohort) => {
-                  const cohortM = members[cohort.id] || [];
-                  const cohortE = expenses[cohort.id] || [];
-                  const res = calculateSimplifiedDebts(cohort.id, cohortM, cohortE);
+                  const res = calculateSimplifiedDebts(
+                    cohort.id,
+                    members[cohort.id] || [],
+                    expenses[cohort.id] || []
+                  );
                   const userBal = res.netBalances[currentUser.id] || 0;
 
                   return (
                     <TouchableOpacity
                       key={cohort.id}
-                      activeOpacity={0.8}
-                      style={{ width: 175 }}
-                      className="rounded-3xl p-5 border border-surface bg-surface shadow-sm mr-4 flex-col items-start"
+                      activeOpacity={0.75}
+                      className="card-main p-4 w-44 justify-between gap-3"
                       onPress={() => router.push(`/event/${cohort.id}` as any)}
                     >
-                      <View className="mb-4">
+                      <View className="flex-row items-center justify-between">
                         <GroupAvatar
                           avatarUrl={cohort.avatarUrl || cohort.bannerUrl}
                           category={cohort.category}
                           customIcon={cohort.customIcon}
-                          size={48}
-                          variant="solid"
+                          size={40}
                         />
+                        <View
+                          className="px-2 py-0.5 rounded-full"
+                          style={{
+                            backgroundColor:
+                              userBal > 0
+                                ? 'rgba(52, 211, 153, 0.15)'
+                                : userBal < 0
+                                ? 'rgba(251, 113, 133, 0.15)'
+                                : isDark
+                                ? colors.accentPill
+                                : '#F1F5F9',
+                          }}
+                        >
+                          <Text
+                            className={`text-[10px] font-bold ${
+                              userBal > 0
+                                ? 'text-positive'
+                                : userBal < 0
+                                ? 'text-negative'
+                                : 'text-secondary'
+                            }`}
+                          >
+                            {userBal > 0 ? '+₹' : userBal < 0 ? '-₹' : '₹'}
+                            {Math.abs(userBal).toFixed(0)}
+                          </Text>
+                        </View>
                       </View>
-                      <Text className="font-bold text-main mb-1 text-base w-full" numberOfLines={1}>
-                        {cohort.name}
-                      </Text>
-                      <Text className="text-xs font-normal text-secondary mb-3">
-                        {cohortM.length} {cohortM.length === 1 ? 'member' : 'members'}
-                      </Text>
-                      <Text
-                        className={`font-semibold text-base ${
-                          userBal >= 0 ? 'text-positive' : 'text-negative'
-                        }`}
-                      >
-                        {userBal >= 0
-                          ? `+₹${userBal.toFixed(2)}`
-                          : `-₹${Math.abs(userBal).toFixed(2)}`}
-                      </Text>
+
+                      <View>
+                        <Text className="text-sm font-bold text-main" numberOfLines={1}>
+                          {cohort.name}
+                        </Text>
+                        <Text className="text-xs text-secondary mt-0.5" numberOfLines={1}>
+                          {(members[cohort.id] || []).length} members
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
@@ -452,10 +509,31 @@ export default function HomeScreen() {
         cohortId={selectedCohortId}
       />
 
+      {/* Itemized Receipt Scanner (OCR) Modal */}
+      {itemizedReceiptVisible && (
+        <ItemizedReceiptModal
+          visible={itemizedReceiptVisible}
+          onClose={() => {
+            setItemizedReceiptVisible(false);
+            setSelectedCohortId(undefined);
+          }}
+          cohortId={selectedCohortId || cohorts[0]?.id || ''}
+        />
+      )}
+
       {/* Create Group Modal */}
       <CreateGroupModal
         visible={createGroupVisible}
         onClose={() => setCreateGroupVisible(false)}
+      />
+
+      {/* Splitwise CSV Importer Modal */}
+      <SplitwiseImportModal
+        visible={splitwiseImportVisible}
+        onClose={() => setSplitwiseImportVisible(false)}
+        onSuccess={(cohortId) => {
+          router.push(`/event/${cohortId}` as any);
+        }}
       />
 
       {/* Stale Unbought Items Popup Reminder on App Open */}
