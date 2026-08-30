@@ -247,6 +247,9 @@ FairShare/
 #### `.gitignore`
 - **Role:** Repository exclusions preventing leak of secrets, native artifacts, build caches, and AI assistant artifacts (`.claude`, `CLAUDE*.md`, `ai-rules*`, `ai-context*`, `AGENTS.md`, `.cursor`, `.windsurf`, `.cline`, `.gemini`, `brain`, `scratch`, `export.csv`, `.zip`, `.env*`).
 
+#### `README.md`
+- **Role:** Comprehensive open-source repository documentation featuring live Shields.io star/fork counters configured for `lk-03/FairShare`, tech stack badges, deep feature breakdowns, Mermaid architecture diagrams, installation and Supabase setup steps, test runners, Star History chart, and zero-emoji compliance.
+
 ---
 
 ### Core Algorithms & Utilities (`src/utils/`)
