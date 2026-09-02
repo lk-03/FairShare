@@ -104,6 +104,10 @@ FairShare/
 #### `README.md` & `LICENSE`
 - **Role:** Standard repository documentation and MIT License.
 
+#### `.github/workflows/build-apk.yml` & `.github/workflows/ci.yml`
+- **Role:** Automated CI and Android APK build pipelines.
+- **Features:** Builds release and debug APKs via `npx expo prebuild` and `./gradlew assembleRelease` on Ubuntu runners with Node 18, JDK 17, and Android SDK. Uploads APKs to GitHub Artifacts and automatically publishes to **GitHub Releases** (supports manual workflow dispatch with tag input or git tag push).
+
 #### Type Declaration Files: `env.d.ts`, `expo-env.d.ts`, `nativewind-env.d.ts`, `src/global.d.ts`
 - **Role:** TypeScript declaration headers providing ambient type references for Expo types, NativeWind className props, and CSS module imports (`*.module.css`).
 
