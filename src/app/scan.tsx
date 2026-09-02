@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { useExpenseStore } from '@/store/useExpenseStore';
+import { showAlert } from '@/store/useAlertStore';
+import { Text } from '@/components/ui/Text';
 
 export default function ScanScreen() {
   const router = useRouter();
@@ -17,7 +19,7 @@ export default function ScanScreen() {
     }
   }, [permission]);
 
-  const handleBarcodeScanned = ({ data }: { data: string }) => {
+  const handleBarcodeScanned = async ({ data }: { data: string }) => {
     if (scanned) return;
     setScanned(true);
 
@@ -26,35 +28,41 @@ export default function ScanScreen() {
       inviteCode = data.split('fairshare://join/')[1];
     }
 
-    const cohort = joinCohortByInviteCode(inviteCode);
+    const cohort = await joinCohortByInviteCode(inviteCode);
 
     if (cohort) {
-      Alert.alert('Success!', `Joined ${cohort.name}`, [
+      showAlert('Success!', `Joined ${cohort.name}`, [
         {
           text: 'Open Event',
+          style: 'default',
           onPress: () => router.replace(`/event/${cohort.id}` as any),
         },
       ]);
     } else {
-      Alert.alert('Invalid QR Code', `Invite code "${inviteCode}" not found.`, [
-        { text: 'Try Again', onPress: () => setScanned(false) },
+      showAlert('Invalid QR Code', `Invite code "${inviteCode}" not found.`, [
+        { text: 'Try Again', style: 'default', onPress: () => setScanned(false) },
       ]);
     }
   };
 
   if (!permission?.granted) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.text}>Camera permission required to scan QR code.</Text>
-        <TouchableOpacity style={styles.button} onPress={requestPermission}>
-          <Text style={styles.buttonText}>Grant Permission</Text>
+      <View className="flex-1 bg-black justify-center items-center p-6 gap-5">
+        <Text className="text-white text-center text-base">
+          Camera permission required to scan QR code.
+        </Text>
+        <TouchableOpacity
+          className="bg-white py-3.5 px-6 rounded-2xl"
+          onPress={requestPermission}
+        >
+          <Text className="text-slate-900 font-bold text-sm">Grant Permission</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-black">
       <CameraView
         style={StyleSheet.absoluteFill}
         onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
@@ -63,95 +71,29 @@ export default function ScanScreen() {
         }}
       />
 
-      <View style={styles.overlay}>
-        <Text style={styles.headerTitle}>Scan FairShare QR Code</Text>
-        <View style={styles.scanBox} />
+      <View className="flex-1 justify-between items-center py-16 px-6">
+        <Text className="text-white text-lg font-bold">Scan FairShare QR Code</Text>
+        <View className="w-64 h-64 border-4 border-white/80 rounded-3xl bg-transparent" />
         
-        <View style={styles.manualBox}>
+        <View className="gap-4 items-center">
           <TouchableOpacity
-            style={styles.manualBtn}
+            className="bg-white/20 px-4 py-2 rounded-xl"
             onPress={() => {
               const code = 'GOA2026';
               handleBarcodeScanned({ data: code });
             }}
           >
-            <Text style={styles.manualText}>Simulate Scan (GOA2026)</Text>
+            <Text className="text-white text-xs font-semibold">Simulate Scan (GOA2026)</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            className="bg-white/10 px-6 py-2.5 rounded-full"
+            onPress={() => router.back()}
+          >
+            <Text className="text-white font-bold text-sm">Cancel</Text>
           </TouchableOpacity>
         </View>
-
-        <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()}>
-          <Text style={styles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  text: {
-    color: '#FFF',
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 20,
-    paddingHorizontal: 20,
-  },
-  button: {
-    backgroundColor: '#6366F1',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  buttonText: {
-    color: '#FFF',
-    fontWeight: '700',
-  },
-  overlay: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 60,
-  },
-  headerTitle: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  scanBox: {
-    width: 250,
-    height: 250,
-    borderWidth: 3,
-    borderColor: '#6366F1',
-    borderRadius: 20,
-    backgroundColor: 'transparent',
-  },
-  cancelBtn: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  cancelText: {
-    color: '#FFF',
-    fontWeight: '700',
-  },
-  manualBox: {
-    alignItems: 'center',
-  },
-  manualBtn: {
-    backgroundColor: '#6366F1',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  manualText: {
-    color: '#FFF',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-});

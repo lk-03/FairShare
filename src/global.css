@@ -6,4 +6,323 @@
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
   --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
   --font-serif: Georgia, 'Times New Roman', serif;
+
+  /* Chart & Analytics Palette Tokens */
+  --chart-1: #38bdf8;
+  --chart-2: #34d399;
+  --chart-3: #a78bfa;
+  --chart-4: #fb923c;
+  --chart-5: #f472b6;
+  --chart-6: #fbbf24;
+  --chart-7: #2dd4bf;
+  --chart-8: #818cf8;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   THEME DEFINITIONS: 4 Palettes x 2 Modes (Light & Dark)
+   ========================================================================== */
+
+/* NORDIC (Default - Clean Scandinavian Steel Blue) */
+.theme-nordic-dark {
+  --bg-screen: #0d131a;
+  --bg-surface: #121a23;
+  --border-surface: #243447;
+  --grad-start: #2b3e50;
+  --grad-mid: #182533;
+  --grad-end: #0d131a;
+  --text-main: #ffffff;
+  --text-secondary: #7e95a8;
+  --text-positive: #34d399;
+  --text-negative: #f87171;
+  --accent-pill: rgba(255, 255, 255, 0.12);
+  --accent-pill-text: #ffffff;
+}
+
+.theme-nordic-light {
+  --bg-screen: #f8fafc;
+  --bg-surface: #ffffff;
+  --border-surface: #e2e8f0;
+  --grad-start: #dce7f0;
+  --grad-mid: #edf2f7;
+  --grad-end: #f8fafc;
+  --text-main: #0f172a;
+  --text-secondary: #64748b;
+  --text-positive: #059669;
+  --text-negative: #e11d48;
+  --accent-pill: rgba(0, 0, 0, 0.05);
+  --accent-pill-text: #1e293b;
+}
+
+/* SAGE (Organic Muted Eucalyptus & Pine) */
+.theme-sage-dark {
+  --bg-screen: #0e1412;
+  --bg-surface: #141c19;
+  --border-surface: #24332d;
+  --grad-start: #33453e;
+  --grad-mid: #1e2b26;
+  --grad-end: #0e1412;
+  --text-main: #ffffff;
+  --text-secondary: #8ba398;
+  --text-positive: #34d399;
+  --text-negative: #f87171;
+  --accent-pill: rgba(255, 255, 255, 0.12);
+  --accent-pill-text: #ffffff;
+}
+
+.theme-sage-light {
+  --bg-screen: #f7faf8;
+  --bg-surface: #ffffff;
+  --border-surface: #dce6e0;
+  --grad-start: #dfe8e2;
+  --grad-mid: #eff4f1;
+  --grad-end: #f7faf8;
+  --text-main: #14201a;
+  --text-secondary: #586b62;
+  --text-positive: #059669;
+  --text-negative: #e11d48;
+  --accent-pill: rgba(0, 0, 0, 0.05);
+  --accent-pill-text: #14201a;
+}
+
+/* TAUPE (Warm Sand & Mocha Clay) */
+.theme-taupe-dark {
+  --bg-screen: #110e0e;
+  --bg-surface: #181414;
+  --border-surface: #2e2626;
+  --grad-start: #3d3534;
+  --grad-mid: #241e1e;
+  --grad-end: #110e0e;
+  --text-main: #ffffff;
+  --text-secondary: #c4b5a5;
+  --text-positive: #34d399;
+  --text-negative: #f87171;
+  --accent-pill: rgba(255, 255, 255, 0.12);
+  --accent-pill-text: #ffffff;
+}
+
+.theme-taupe-light {
+  --bg-screen: #faf8f6;
+  --bg-surface: #ffffff;
+  --border-surface: #eadecf;
+  --grad-start: #ebe5df;
+  --grad-mid: #f6f3f0;
+  --grad-end: #faf8f6;
+  --text-main: #201a1a;
+  --text-secondary: #736762;
+  --text-positive: #059669;
+  --text-negative: #e11d48;
+  --accent-pill: rgba(0, 0, 0, 0.05);
+  --accent-pill-text: #201a1a;
+}
+
+/* COBALT (Electric Royal Blue & Midnight) */
+.theme-cobalt-dark {
+  --bg-screen: #080c14;
+  --bg-surface: #0f172a;
+  --border-surface: #1e293b;
+  --grad-start: #2563eb;
+  --grad-mid: #1d4ed8;
+  --grad-end: #080c14;
+  --text-main: #ffffff;
+  --text-secondary: #94a3b8;
+  --text-positive: #34d399;
+  --text-negative: #f87171;
+  --accent-pill: rgba(255, 255, 255, 0.15);
+  --accent-pill-text: #ffffff;
+}
+
+.theme-cobalt-light {
+  --bg-screen: #f8faff;
+  --bg-surface: #ffffff;
+  --border-surface: #dbeafe;
+  --grad-start: #dbeafe;
+  --grad-mid: #eff6ff;
+  --grad-end: #f8faff;
+  --text-main: #0f172a;
+  --text-secondary: #64748b;
+  --text-positive: #059669;
+  --text-negative: #e11d48;
+  --accent-pill: rgba(37, 99, 235, 0.08);
+  --accent-pill-text: #1d4ed8;
+}
+
+@layer components {
+  /* Screen Header */
+  .screen-header {
+    @apply flex-row items-center justify-between px-5 py-4 mt-2;
+  }
+  .screen-title {
+    @apply text-2xl font-bold text-main tracking-tight;
+  }
+
+  /* Cards & Containers */
+  .card-main {
+    @apply border border-surface rounded-3xl p-6 bg-surface shadow-sm;
+  }
+  .card-item {
+    @apply border border-surface rounded-2xl p-4 bg-surface shadow-sm flex-row items-center justify-between;
+  }
+  .card-group {
+    @apply w-48 rounded-3xl p-5 items-start justify-start flex-col border border-surface bg-surface shadow-sm;
+  }
+  /* Group Cards */
+  .card-group-item {
+    @apply border border-surface rounded-2xl p-4 bg-surface shadow-sm;
+  }
+  .group-card-title {
+    @apply text-base font-bold text-main;
+  }
+  .group-card-desc {
+    @apply text-xs text-secondary mt-0.5;
+  }
+  .group-card-members {
+    @apply text-[11px] font-medium text-secondary mt-0.5;
+  }
+
+  /* Expandable FAB & Speed Dial */
+  .fab-backdrop {
+    @apply absolute inset-0 bg-black;
+  }
+  .fab-speed-dial-menu {
+    @apply absolute items-end;
+  }
+  .fab-speed-dial-item {
+    @apply flex-row items-center gap-3 px-4 py-2.5 rounded-2xl bg-surface border border-surface shadow-xl;
+  }
+  .fab-speed-dial-label {
+    @apply text-xs font-semibold text-main;
+  }
+  .fab-speed-dial-icon-qr {
+    @apply w-8 h-8 rounded-xl items-center justify-center;
+  }
+  .fab-speed-dial-icon-add {
+    @apply w-8 h-8 rounded-xl items-center justify-center;
+  }
+  .fab-main-btn {
+    @apply w-14 h-14 rounded-full bg-surface border border-surface items-center justify-center shadow-xl absolute;
+  }
+
+  /* Section Labels & Headings */
+  .section-label {
+    @apply text-[11px] font-medium text-secondary uppercase tracking-widest;
+  }
+  .section-header-row {
+    @apply flex-row items-center justify-between mb-4 mt-2;
+  }
+  .section-header-title {
+    @apply text-xl font-bold text-main;
+  }
+
+  /* Action Buttons */
+  .btn-primary-dark {
+    @apply flex-1 bg-main py-4 rounded-2xl flex-row items-center justify-center gap-2;
+  }
+  .btn-outline-light {
+    @apply flex-1 bg-surface border border-surface py-4 rounded-2xl flex-row items-center justify-center gap-2;
+  }
+  .btn-icon-circle {
+    @apply w-10 h-10 rounded-full bg-accent-pill border border-surface items-center justify-center;
+  }
+
+  /* Icon Circles */
+  .icon-circle-light {
+    @apply w-12 h-12 rounded-full bg-accent-pill items-center justify-center;
+  }
+
+  /* Balances */
+  .balance-positive {
+    @apply font-semibold text-positive;
+  }
+  .balance-negative {
+    @apply font-semibold text-negative;
+  }
+
+  /* Bottom Navigation */
+  .bottom-nav-bar {
+    @apply border-t border-surface bg-surface flex-row items-center justify-around pt-2 pb-6;
+  }
+  .tab-item {
+    @apply flex-1 items-center justify-center py-1;
+  }
+  .tab-label-active {
+    @apply text-[11px] font-semibold text-main mt-1;
+  }
+  .tab-label-inactive {
+    @apply text-[11px] font-normal text-secondary mt-1;
+  }
+
+  /* Chart Legend Dots & Badges */
+  .chart-dot-1 { background-color: var(--chart-1); }
+  .chart-dot-2 { background-color: var(--chart-2); }
+  .chart-dot-3 { background-color: var(--chart-3); }
+  .chart-dot-4 { background-color: var(--chart-4); }
+  .chart-dot-5 { background-color: var(--chart-5); }
+  .chart-dot-6 { background-color: var(--chart-6); }
+  .chart-dot-7 { background-color: var(--chart-7); }
+  .chart-dot-8 { background-color: var(--chart-8); }
+
+  /* ==========================================================================
+     FAIRSHARE SPLITWISE-STYLE EXPENSE CREATION & EDITING COMPONENTS
+     ========================================================================== */
+  .fairshare-expense-screen {
+    @apply flex-1 bg-screen;
+  }
+  .fairshare-expense-header {
+    @apply flex-row items-center justify-between px-4 py-3.5 border-b border-surface bg-surface;
+  }
+  .fairshare-header-title {
+    @apply text-lg font-bold text-main;
+  }
+  .fairshare-icon-btn {
+    @apply p-2 rounded-xl items-center justify-center;
+  }
+  .fairshare-group-pill {
+    @apply flex-row items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface border border-surface self-start;
+  }
+  .fairshare-main-form {
+    @apply px-5 pt-6 gap-6 flex-1;
+  }
+  .fairshare-category-btn {
+    @apply w-12 h-12 rounded-2xl bg-surface border border-surface items-center justify-center shadow-sm;
+  }
+  .fairshare-input-line {
+    @apply flex-1 border-b border-surface py-2 text-base text-main;
+  }
+  .fairshare-amount-row {
+    @apply flex-row items-center gap-3.5;
+  }
+  .fairshare-currency-symbol {
+    @apply w-12 h-12 rounded-2xl bg-surface border border-surface items-center justify-center;
+  }
+  .fairshare-amount-input {
+    @apply flex-1 border-b border-surface py-2 text-2xl font-bold text-main;
+  }
+  .fairshare-sentence-row {
+    @apply flex-row items-center justify-center flex-wrap gap-2 py-4;
+  }
+  .fairshare-pill-btn {
+    @apply px-3.5 py-1.5 rounded-xl bg-surface border border-surface;
+  }
+  .fairshare-bottom-bar {
+    @apply flex-row items-center justify-between px-5 py-3.5 border-t border-surface bg-surface;
+  }
+  .fairshare-tab-nav {
+    @apply flex-row border-b border-surface bg-surface;
+  }
+  .fairshare-tab-btn {
+    @apply flex-1 py-3 items-center border-b-2 border-transparent;
+  }
+  .fairshare-tab-btn-active {
+    @apply border-sky-400;
+  }
+  .fairshare-member-row {
+    @apply flex-row items-center justify-between px-5 py-3.5 border-b border-surface;
+  }
+  .fairshare-summary-footer {
+    @apply flex-row items-center justify-between px-5 py-4 border-t border-surface bg-surface;
+  }
 }

@@ -1,248 +1,358 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, View, Text, ScrollView } from 'react-native';
-import { useTheme } from '@/hooks/use-theme';
-import { EventCohort, Expense } from '@/types';
+import { View, ScrollView, useColorScheme } from 'react-native';
+import Svg, { G, Path, Circle } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
+import { EventCohort, Expense, GroupMember } from '@/types';
+import { Text } from '@/components/ui/Text';
+import { CHART_PALETTE } from '@/constants/theme';
+import { useThemeStore, getThemePalette } from '@/store/useThemeStore';
 
 interface MonthlySpendingsTabProps {
   cohort: EventCohort;
   expenses: Expense[];
   currentUserId: string;
+  members?: GroupMember[];
 }
 
 export function MonthlySpendingsTab({
   cohort,
   expenses,
   currentUserId,
+  members = [],
 }: MonthlySpendingsTabProps) {
-  const theme = useTheme();
+  const systemScheme = useColorScheme();
+  const { themeBase, colorScheme } = useThemeStore();
+  const colors = getThemePalette(themeBase, colorScheme, systemScheme);
+  const isDark =
+    colorScheme === 'dark' ||
+    (colorScheme === 'system' && (systemScheme === 'dark' || !systemScheme));
+  // 1. Calculate per-member spending (share incurred vs money paid upfront)
+  const stats = useMemo(() => {
+    let grandTotalGroup = 0;
+    let grandTotalUser = 0;
 
-  // Aggregate monthly spending starting from group creation month to current month
-  const monthlyData = useMemo(() => {
-    const creationDate = new Date(cohort.createdAt || Date.now());
-    const now = new Date();
-
-    const startYear = creationDate.getFullYear();
-    const startMonth = creationDate.getMonth(); // 0-indexed
-
-    const endYear = now.getFullYear();
-    const endMonth = now.getMonth();
-
-    const monthsList: { key: string; label: string; groupTotal: number; userTotal: number }[] = [];
-
-    let curY = startYear;
-    let curM = startMonth;
-
-    while (curY < endYear || (curY === endYear && curM <= endMonth)) {
-      const monthDate = new Date(curY, curM, 1);
-      const label = monthDate.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-      const key = `${curY}-${String(curM + 1).padStart(2, '0')}`;
-
-      monthsList.push({ key, label, groupTotal: 0, userTotal: 0 });
-
-      curM++;
-      if (curM > 11) {
-        curM = 0;
-        curY++;
+    // Collect all participant IDs from members and expenses
+    const userMap: Record<
+      string,
+      {
+        userId: string;
+        name: string;
+        avatarUrl?: string;
+        shareAmount: number; // Consumption share
+        paidAmount: number; // Upfront paid cash
+        isCurrentUser: boolean;
       }
-    }
+    > = {};
 
-    // Populate expenses into months
-    expenses.forEach((exp) => {
-      const expDate = new Date(exp.createdAt);
-      const expKey = `${expDate.getFullYear()}-${String(expDate.getMonth() + 1).padStart(2, '0')}`;
-
-      const targetMonth = monthsList.find((m) => m.key === expKey);
-      if (targetMonth) {
-        targetMonth.groupTotal += exp.totalAmount;
-
-        const userSplit = exp.splits.find((s) => s.userId === currentUserId);
-        if (userSplit) {
-          targetMonth.userTotal += userSplit.amount;
-        }
-      }
+    // Seed members from group
+    members.forEach((m) => {
+      const isMe = m.userId === currentUserId;
+      userMap[m.userId] = {
+        userId: m.userId,
+        name: m.profile?.fullName || (isMe ? 'You' : 'Member'),
+        avatarUrl: m.profile?.avatarUrl,
+        shareAmount: 0,
+        paidAmount: 0,
+        isCurrentUser: isMe,
+      };
     });
 
-    const maxVal = Math.max(...monthsList.map((m) => Math.max(m.groupTotal, m.userTotal)), 1);
+    // Populate from expenses
+    expenses.forEach((exp) => {
+      grandTotalGroup += exp.totalAmount;
 
-    return { monthsList, maxVal };
-  }, [cohort, expenses, currentUserId]);
+      // Track who paid upfront
+      if (!userMap[exp.paidByUserId]) {
+        userMap[exp.paidByUserId] = {
+          userId: exp.paidByUserId,
+          name: exp.paidByUserId === currentUserId ? 'You' : 'Member',
+          shareAmount: 0,
+          paidAmount: 0,
+          isCurrentUser: exp.paidByUserId === currentUserId,
+        };
+      }
+      userMap[exp.paidByUserId].paidAmount += exp.totalAmount;
 
-  const grandTotalGroup = monthlyData.monthsList.reduce((acc, m) => acc + m.groupTotal, 0);
-  const grandTotalUser = monthlyData.monthsList.reduce((acc, m) => acc + m.userTotal, 0);
-  const avgMonthly = Math.round((grandTotalGroup / Math.max(monthlyData.monthsList.length, 1)) * 100) / 100;
+      // Track split distribution (shares)
+      exp.splits.forEach((s) => {
+        if (!userMap[s.userId]) {
+          userMap[s.userId] = {
+            userId: s.userId,
+            name: s.userId === currentUserId ? 'You' : 'Member',
+            shareAmount: 0,
+            paidAmount: 0,
+            isCurrentUser: s.userId === currentUserId,
+          };
+        }
+        userMap[s.userId].shareAmount += s.amount;
+        if (s.userId === currentUserId) {
+          grandTotalUser += s.amount;
+        }
+      });
+    });
+
+    const userList = Object.values(userMap);
+
+    // Pie chart slices based on member share amounts
+    const slices = userList
+      .filter((u) => u.shareAmount > 0)
+      .map((u, index) => {
+        const color = CHART_PALETTE[index % CHART_PALETTE.length];
+        const percentage = grandTotalGroup > 0 ? (u.shareAmount / grandTotalGroup) * 100 : 0;
+        return {
+          ...u,
+          color,
+          percentage,
+        };
+      })
+      .sort((a, b) => b.shareAmount - a.shareAmount);
+
+    // Top Spender (most cash paid upfront for group)
+    const topPayer = [...userList].sort((a, b) => b.paidAmount - a.paidAmount)[0] || null;
+
+    // Highest Consumer (most incurred share of expenses)
+    const topConsumer = [...userList].sort((a, b) => b.shareAmount - a.shareAmount)[0] || null;
+
+    return {
+      grandTotalGroup,
+      grandTotalUser,
+      slices,
+      topPayer: topPayer && topPayer.paidAmount > 0 ? topPayer : null,
+      topConsumer: topConsumer && topConsumer.shareAmount > 0 ? topConsumer : null,
+    };
+  }, [cohort, expenses, currentUserId, members]);
+
+  // 2. SVG Donut Arc Math
+  const donutArcs = useMemo(() => {
+    const size = 150;
+    const cx = size / 2;
+    const cy = size / 2;
+    const r = 65;
+    const innerR = 45;
+
+    if (stats.grandTotalGroup === 0 || stats.slices.length === 0) {
+      return { size, cx, cy, r, innerR, paths: [], isSingle: false };
+    }
+
+    if (stats.slices.length === 1) {
+      return {
+        size,
+        cx,
+        cy,
+        r,
+        innerR,
+        paths: [],
+        isSingle: true,
+        singleColor: stats.slices[0].color,
+      };
+    }
+
+    let currentAngle = -Math.PI / 2;
+    const paths = stats.slices.map((slice) => {
+      const angle = (slice.shareAmount / stats.grandTotalGroup) * 2 * Math.PI;
+      const startAngle = currentAngle;
+      const endAngle = currentAngle + angle;
+      currentAngle = endAngle;
+
+      const x1 = cx + r * Math.cos(startAngle);
+      const y1 = cy + r * Math.sin(startAngle);
+      const x2 = cx + r * Math.cos(endAngle);
+      const y2 = cy + r * Math.sin(endAngle);
+      const x3 = cx + innerR * Math.cos(endAngle);
+      const y3 = cy + innerR * Math.sin(endAngle);
+      const x4 = cx + innerR * Math.cos(startAngle);
+      const y4 = cy + innerR * Math.sin(startAngle);
+
+      const largeArcFlag = angle > Math.PI ? 1 : 0;
+      const d = `M ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2} L ${x3} ${y3} A ${innerR} ${innerR} 0 ${largeArcFlag} 0 ${x4} ${y4} Z`;
+
+      return {
+        ...slice,
+        d,
+      };
+    });
+
+    return { size, cx, cy, r, innerR, paths, isSingle: false };
+  }, [stats]);
 
   return (
-    <View style={styles.container}>
-      {/* Monthly Summary Cards */}
-      <View style={styles.metricsRow}>
-        <View style={[styles.metricCard, { backgroundColor: theme.backgroundElement }]}>
-          <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>TOTAL GROUP SPEND</Text>
-          <Text style={[styles.metricValue, { color: '#6366F1' }]}>₹{grandTotalGroup.toFixed(2)}</Text>
+    <View className="gap-4 mt-1">
+      {/* 3 Summary Metric Cards (Themed with NativeWind) */}
+      <View className="flex-row gap-2.5">
+        <View className="flex-1 bg-surface border border-surface rounded-2xl p-3 items-center shadow-sm">
+          <Text className="text-[9px] font-semibold text-secondary uppercase tracking-wider mb-1" numberOfLines={1}>
+            TOTAL GROUP SPEND
+          </Text>
+          <Text className="text-sm font-semibold text-sky-400" numberOfLines={1}>
+            ₹{stats.grandTotalGroup.toFixed(2)}
+          </Text>
         </View>
 
-        <View style={[styles.metricCard, { backgroundColor: theme.backgroundElement }]}>
-          <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>YOUR CUMULATIVE SHARE</Text>
-          <Text style={[styles.metricValue, { color: '#10B981' }]}>₹{grandTotalUser.toFixed(2)}</Text>
+        <View className="flex-1 bg-surface border border-surface rounded-2xl p-3 items-center shadow-sm">
+          <Text className="text-[9px] font-semibold text-secondary uppercase tracking-wider mb-1" numberOfLines={1}>
+            YOUR SHARE
+          </Text>
+          <Text className="text-sm font-semibold text-emerald-400" numberOfLines={1}>
+            ₹{stats.grandTotalUser.toFixed(2)}
+          </Text>
         </View>
 
-        <View style={[styles.metricCard, { backgroundColor: theme.backgroundElement }]}>
-          <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>AVG MONTHLY SPEND</Text>
-          <Text style={[styles.metricValue, { color: theme.text }]}>₹{avgMonthly.toFixed(2)}</Text>
+        <View className="flex-1 bg-surface border border-surface rounded-2xl p-3 items-center shadow-sm">
+          <Text className="text-[9px] font-semibold text-secondary uppercase tracking-wider mb-1" numberOfLines={1}>
+            ACTIVE MEMBERS
+          </Text>
+          <Text className="text-sm font-semibold text-main" numberOfLines={1}>
+            {members.length > 0 ? `${members.length} members` : '1 member'}
+          </Text>
         </View>
       </View>
 
-      {/* Monthly Spendings Combined Bar Graph */}
-      <View style={[styles.chartCard, { backgroundColor: theme.backgroundElement }]}>
-        <View style={styles.chartHeader}>
-          <Text style={[styles.chartTitle, { color: theme.text }]}>
-            Monthly Spendings Comparison
-          </Text>
-          <View style={styles.legendRow}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#6366F1' }]} />
-              <Text style={[styles.legendText, { color: theme.textSecondary }]}>Group Total</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
-              <Text style={[styles.legendText, { color: theme.textSecondary }]}>Your Share</Text>
-            </View>
+      {/* Main Spending Pie Chart Card */}
+      <View className="card-main p-5 gap-4">
+        <View className="flex-row items-center justify-between">
+          <Text className="text-base font-bold text-main">Spending by Person</Text>
+          <View className="bg-accent-pill px-2.5 py-1 rounded-full border border-surface">
+            <Text className="text-[10px] font-semibold text-secondary lowercase">
+              {stats.slices.length} {stats.slices.length === 1 ? 'participant' : 'participants'}
+            </Text>
           </View>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.barScroll}>
-          {monthlyData.monthsList.map((m) => {
-            const groupBarHeight = Math.round((m.groupTotal / monthlyData.maxVal) * 120);
-            const userBarHeight = Math.round((m.userTotal / monthlyData.maxVal) * 120);
+        {stats.grandTotalGroup === 0 || stats.slices.length === 0 ? (
+          <View className="py-8 items-center justify-center gap-2">
+            <Ionicons name="pie-chart-outline" size={40} color="#64748B" />
+            <Text className="text-xs font-semibold text-secondary text-center">
+              No expenses recorded yet to generate spending breakdown.
+            </Text>
+          </View>
+        ) : (
+          <View className="gap-5">
+            {/* Chart + Inline Donut Overview */}
+            <View className="flex-row items-center justify-center gap-5 py-2">
+              <View className="relative w-[150px] h-[150px] items-center justify-center">
+                <Svg width={donutArcs.size} height={donutArcs.size}>
+                  <G>
+                    {donutArcs.isSingle ? (
+                      <Circle
+                        cx={donutArcs.cx}
+                        cy={donutArcs.cy}
+                        r={(donutArcs.r + donutArcs.innerR) / 2}
+                        stroke={donutArcs.singleColor || '#38BDF8'}
+                        strokeWidth={donutArcs.r - donutArcs.innerR}
+                        fill="none"
+                      />
+                    ) : (
+                      donutArcs.paths.map((p, i) => (
+                        <Path
+                          key={i}
+                          d={p.d}
+                          fill={p.color}
+                          stroke={colors.surface}
+                          strokeWidth={2}
+                        />
+                      ))
+                    )}
+                  </G>
+                </Svg>
 
-            return (
-              <View key={m.key} style={styles.barColumn}>
-                <View style={styles.barPairContainer}>
-                  {/* Group Bar */}
-                  <View style={styles.singleBarWrapper}>
-                    <Text style={[styles.barAmtText, { color: theme.textSecondary }]}>
-                      {m.groupTotal > 0 ? `₹${Math.round(m.groupTotal)}` : ''}
-                    </Text>
-                    <View
-                      style={[
-                        styles.barFill,
-                        { height: Math.max(groupBarHeight, 4), backgroundColor: '#6366F1' },
-                      ]}
-                    />
-                  </View>
-
-                  {/* User Share Bar */}
-                  <View style={styles.singleBarWrapper}>
-                    <Text style={[styles.barAmtText, { color: theme.textSecondary }]}>
-                      {m.userTotal > 0 ? `₹${Math.round(m.userTotal)}` : ''}
-                    </Text>
-                    <View
-                      style={[
-                        styles.barFill,
-                        { height: Math.max(userBarHeight, 4), backgroundColor: '#10B981' },
-                      ]}
-                    />
-                  </View>
+                {/* Donut Hole Total Display */}
+                <View className="absolute items-center justify-center pointer-events-none">
+                  <Text className="text-xs font-semibold text-main" numberOfLines={1}>
+                    ₹{stats.grandTotalGroup >= 100000
+                      ? `${(stats.grandTotalGroup / 1000).toFixed(0)}k`
+                      : Math.round(stats.grandTotalGroup)}
+                  </Text>
+                  <Text className="text-[8px] font-semibold text-secondary uppercase tracking-widest mt-0.5">
+                    TOTAL
+                  </Text>
                 </View>
-
-                <Text style={[styles.monthLabel, { color: theme.text }]}>{m.label}</Text>
               </View>
-            );
-          })}
-        </ScrollView>
+
+              {/* Side Legends Column with All Participants, Amount & Percentage */}
+              <View className="flex-1 gap-2">
+                {stats.slices.map((slice, idx) => (
+                  <View
+                    key={idx}
+                    className="flex-row items-center justify-between bg-accent-pill/70 px-3 py-2 rounded-xl border border-surface"
+                  >
+                    <View className="flex-row items-center gap-2 flex-1 pr-2">
+                      <View
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: slice.color }}
+                      />
+                      <Text
+                        className="text-xs font-semibold text-main flex-1"
+                        numberOfLines={1}
+                      >
+                        {slice.name}{slice.isCurrentUser ? ' (You)' : ''}
+                      </Text>
+                    </View>
+                    <View className="items-end">
+                      <Text className="text-xs font-bold text-main" numberOfLines={1}>
+                        ₹{slice.shareAmount.toFixed(0)}
+                      </Text>
+                      <Text className="text-[10px] font-semibold text-secondary" numberOfLines={1}>
+                        {slice.percentage.toFixed(0)}%
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* Bottom Spend Statistics Cards */}
+      <View className="card-main p-4 gap-3">
+        <Text className="text-sm font-semibold text-main">Group Spend Highlights</Text>
+
+        <View className="gap-2.5">
+          {/* Most Spender (Overall money paid upfront) */}
+          <View className="flex-row items-center justify-between p-3 rounded-xl bg-accent-pill border border-surface">
+            <View className="flex-row items-center gap-2.5 flex-1 pr-2">
+              <View className="w-8 h-8 rounded-lg bg-sky-500/15 border border-sky-500/30 items-center justify-center">
+                <Ionicons name="card-outline" size={16} color="#38BDF8" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-[10px] font-semibold text-secondary uppercase tracking-wider" numberOfLines={1}>
+                  TOP SPENDER (PAID UPFRONT)
+                </Text>
+                <Text className="text-xs font-semibold text-main mt-0.5" numberOfLines={1}>
+                  {stats.topPayer ? stats.topPayer.name : 'No payments yet'}
+                </Text>
+              </View>
+            </View>
+            {stats.topPayer && (
+              <Text className="text-xs font-semibold text-sky-400" numberOfLines={1}>
+                ₹{stats.topPayer.paidAmount.toFixed(2)} paid
+              </Text>
+            )}
+          </View>
+
+          {/* Most Spent Person (Highest consumption share) */}
+          <View className="flex-row items-center justify-between p-3 rounded-xl bg-accent-pill border border-surface">
+            <View className="flex-row items-center gap-2.5 flex-1 pr-2">
+              <View className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 items-center justify-center">
+                <Ionicons name="pie-chart-outline" size={16} color="#34D399" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-[10px] font-semibold text-secondary uppercase tracking-wider" numberOfLines={1}>
+                  HIGHEST SHARE (MOST INCURRED)
+                </Text>
+                <Text className="text-xs font-semibold text-main mt-0.5" numberOfLines={1}>
+                  {stats.topConsumer ? stats.topConsumer.name : 'No expenses yet'}
+                </Text>
+              </View>
+            </View>
+            {stats.topConsumer && (
+              <Text className="text-xs font-semibold text-emerald-400" numberOfLines={1}>
+                ₹{stats.topConsumer.shareAmount.toFixed(2)} share
+              </Text>
+            )}
+          </View>
+        </View>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    gap: 14,
-    marginTop: 4,
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  metricCard: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 12,
-    gap: 4,
-  },
-  metricLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  metricValue: {
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  chartCard: {
-    padding: 16,
-    borderRadius: 16,
-    gap: 16,
-  },
-  chartHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  chartTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  legendRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  legendText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  barScroll: {
-    gap: 18,
-    alignItems: 'flex-end',
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  barColumn: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  barPairContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 4,
-    height: 140,
-  },
-  singleBarWrapper: {
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    width: 24,
-  },
-  barAmtText: {
-    fontSize: 9,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  barFill: {
-    width: 18,
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
-  },
-  monthLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-});

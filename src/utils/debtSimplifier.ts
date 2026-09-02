@@ -21,14 +21,21 @@ export function calculateSimplifiedDebts(
     if (expense.cohortId !== cohortId) return;
 
     const paidBy = expense.paidByUserId;
-    const totalAmount = expense.totalAmount;
+    const totalAmount = Number(expense.totalAmount || 0);
 
     // Credit the person who paid
     netBalances[paidBy] = (netBalances[paidBy] || 0) + totalAmount;
 
+    // Use expense splits if present, or fallback to the payer if no splits recorded (self-expense)
+    const splits =
+      expense.splits && expense.splits.length > 0
+        ? expense.splits
+        : [{ userId: paidBy, amount: totalAmount }];
+
     // Debit each participant according to their split amount
-    expense.splits.forEach((split) => {
-      netBalances[split.userId] = (netBalances[split.userId] || 0) - split.amount;
+    splits.forEach((split) => {
+      const splitAmt = Number(split.amount || 0);
+      netBalances[split.userId] = (netBalances[split.userId] || 0) - splitAmt;
     });
   });
 

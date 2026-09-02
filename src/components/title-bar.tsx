@@ -3,6 +3,8 @@ import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/use-theme';
 
+import { Ionicons } from '@expo/vector-icons';
+
 interface TitleBarProps {
   title?: string;
   onNotificationPress?: () => void;
@@ -54,9 +56,11 @@ export function TitleBar({
               onPress={onLayoutToggle}
               activeOpacity={0.7}
             >
-              <Text style={styles.iconSymbol}>
-                {isGroupsOnlyView ? '▦' : '☰'}
-              </Text>
+              <Ionicons
+                name={isGroupsOnlyView ? 'grid-outline' : 'list-outline'}
+                size={16}
+                color={theme.text}
+              />
             </TouchableOpacity>
           )}
 
@@ -66,7 +70,7 @@ export function TitleBar({
             onPress={onNotificationPress}
             activeOpacity={0.7}
           >
-            <Text style={styles.iconSymbol}>🔔</Text>
+            <Ionicons name="notifications-outline" size={16} color={theme.text} />
           </TouchableOpacity>
 
           {/* User Profile Avatar */}

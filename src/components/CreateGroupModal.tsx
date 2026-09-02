@@ -1,20 +1,23 @@
 import React, { useState } from 'react';
 import {
-  StyleSheet,
   View,
-  Text,
   Modal,
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
+  useColorScheme,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTheme } from '@/hooks/use-theme';
+import * as ImagePicker from 'expo-image-picker';
 import { useExpenseStore } from '@/store/useExpenseStore';
+import { useThemeStore, getActiveThemeClass } from '@/store/useThemeStore';
+import { showAlert } from '@/store/useAlertStore';
 import { EventCategory, EventCohort } from '@/types';
 import { CategoryIcon, GENERIC_CUSTOM_ICONS } from '@/components/ui/CategoryIcon';
+import { GroupAvatar } from '@/components/ui/GroupAvatar';
 import { Ionicons } from '@expo/vector-icons';
+import { Text } from '@/components/ui/Text';
+import { SplitwiseImportModal } from '@/components/SplitwiseImportModal';
 
 interface CreateGroupModalProps {
   visible: boolean;
@@ -22,20 +25,25 @@ interface CreateGroupModalProps {
 }
 
 export function CreateGroupModal({ visible, onClose }: CreateGroupModalProps) {
-  const theme = useTheme();
+  const systemScheme = useColorScheme();
+  const { themeBase, colorScheme } = useThemeStore();
+  const activeThemeClass = getActiveThemeClass(themeBase, colorScheme, systemScheme);
+
   const router = useRouter();
   const { addCohort, currentUser } = useExpenseStore();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<EventCategory>('trip');
-  const [customCategoryName, setCustomCategoryName] = useState('');
-  const [customIcon, setCustomIcon] = useState('gift');
+  const [category, setCategory] = useState<EventCategory>('house');
   const [currency, setCurrency] = useState('INR');
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>();
+  const [customCategoryName, setCustomCategoryName] = useState('');
+  const [customIcon, setCustomIcon] = useState('shapes-outline');
+  const [splitwiseModalVisible, setSplitwiseModalVisible] = useState(false);
 
   const categories: { label: string; value: EventCategory }[] = [
-    { label: 'Trip', value: 'trip' },
-    { label: 'House', value: 'house' },
+    { label: 'House / Roommates', value: 'house' },
+    { label: 'Trip / Travel', value: 'trip' },
     { label: 'Event', value: 'event' },
     { label: 'Dining', value: 'dining' },
     { label: 'Transport', value: 'transport' },
@@ -43,9 +51,35 @@ export function CreateGroupModal({ visible, onClose }: CreateGroupModalProps) {
     { label: 'Custom', value: 'custom' },
   ];
 
-  const handleCreate = () => {
+  const handlePickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        showAlert(
+          'Permission Denied',
+          'Camera roll access is needed to select a group profile picture.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]?.uri) {
+        setAvatarUrl(result.assets[0].uri);
+      }
+    } catch (e) {
+      console.warn('Image picker error:', e);
+    }
+  };
+
+  const handleCreate = async () => {
     if (!name.trim()) {
-      Alert.alert('Name Required', 'Please enter a group or event name.');
+      showAlert('Name Required', 'Please enter a group or event name.');
       return;
     }
 
@@ -53,12 +87,18 @@ export function CreateGroupModal({ visible, onClose }: CreateGroupModalProps) {
     const cleanNameCode = name.replace(/[^a-zA-Z0-9]/g, '').substring(0, 4).toUpperCase();
     const inviteCode = `${cleanNameCode || 'FS'}${randomSuffix}`;
 
+    const isCustom = category === 'custom';
+    const finalCategory: EventCategory = isCustom
+      ? (customCategoryName.trim() ? (customCategoryName.trim().toLowerCase() as EventCategory) : 'custom')
+      : category;
+
     const newCohort: EventCohort = {
       id: `cohort_${Date.now()}`,
       name: name.trim(),
       description: description.trim() || undefined,
-      category,
-      customIcon: category === 'custom' ? customIcon : undefined,
+      category: finalCategory,
+      customIcon: isCustom ? customIcon : undefined,
+      avatarUrl: avatarUrl || undefined,
       currency,
       createdBy: currentUser.id,
       inviteCode,
@@ -66,12 +106,12 @@ export function CreateGroupModal({ visible, onClose }: CreateGroupModalProps) {
       updatedAt: new Date().toISOString(),
     };
 
-    addCohort(newCohort);
+    const saved = await addCohort(newCohort);
     onClose();
     resetForm();
 
     // Navigate to the newly created cohort screen
-    router.push(`/event/${newCohort.id}` as any);
+    router.push(`/event/${saved.id}` as any);
   };
 
   const resetForm = () => {
@@ -80,101 +120,160 @@ export function CreateGroupModal({ visible, onClose }: CreateGroupModalProps) {
     setCategory('trip');
     setCustomIcon('gift');
     setCurrency('INR');
+    setAvatarUrl(undefined);
   };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+      <View className={`flex-1 ${activeThemeClass} bg-black/50 justify-end`}>
+        <TouchableOpacity
+          className="flex-1"
+          activeOpacity={1}
+          onPress={onClose}
+        />
+        <View className="bg-surface rounded-t-3xl max-h-[90%] p-6 border-t border-surface">
           {/* Header */}
-          <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Create Event Cohort</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Text style={[styles.closeX, { color: theme.textSecondary }]}>✕</Text>
+          <View className="flex-row justify-between items-center mb-3">
+            <Text className="text-xl font-extrabold text-main">Create Event Cohort</Text>
+            <TouchableOpacity onPress={onClose} className="p-1">
+              <Ionicons name="close" size={22} color="#94A3B8" />
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContent}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="gap-3 pb-8">
+            {/* Group Profile Picture Picker */}
+            <View className="items-center justify-center my-1">
+              <View className="relative">
+                <GroupAvatar
+                  avatarUrl={avatarUrl}
+                  category={category}
+                  customIcon={category === 'custom' ? customIcon : undefined}
+                  size={76}
+                  variant="solid"
+                />
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-main items-center justify-center border-2 border-surface shadow-sm"
+                  onPress={handlePickImage}
+                >
+                  <Ionicons name="camera" size={13} color="#0F172A" />
+                </TouchableOpacity>
+              </View>
+
+              <View className="flex-row items-center gap-2.5 mt-2.5">
+                <TouchableOpacity
+                  onPress={handlePickImage}
+                  className="px-3.5 py-1.5 rounded-full bg-accent-pill border border-surface flex-row items-center gap-1.5"
+                >
+                  <Ionicons name="image-outline" size={13} color="#94A3B8" />
+                  <Text className="text-xs font-semibold text-main">
+                    {avatarUrl ? 'Change Picture' : '+ Add Picture'}
+                  </Text>
+                </TouchableOpacity>
+                {avatarUrl && (
+                  <TouchableOpacity
+                    onPress={() => setAvatarUrl(undefined)}
+                    className="px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/20"
+                  >
+                    <Text className="text-xs font-semibold text-rose-400">Remove</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
             {/* Event Name */}
-            <Text style={[styles.label, { color: theme.textSecondary }]}>EVENT / GROUP NAME</Text>
+            <Text className="section-label">EVENT / GROUP NAME</Text>
             <TextInput
-              style={[styles.input, { backgroundColor: theme.backgroundSelected, color: theme.text }]}
+              className="h-12 bg-surface border border-surface rounded-2xl px-4 text-sm text-main shadow-sm"
               placeholder="e.g. Goa Vacation, Apartment 402"
-              placeholderTextColor={theme.textSecondary}
+              placeholderTextColor="#94A3B8"
               value={name}
               onChangeText={setName}
             />
 
             {/* Description */}
-            <Text style={[styles.label, { color: theme.textSecondary }]}>DESCRIPTION (OPTIONAL)</Text>
+            <Text className="section-label">DESCRIPTION (OPTIONAL)</Text>
             <TextInput
-              style={[styles.input, { backgroundColor: theme.backgroundSelected, color: theme.text }]}
+              className="h-12 bg-surface border border-surface rounded-2xl px-4 text-sm text-main shadow-sm"
               placeholder="Brief note or destination details"
-              placeholderTextColor={theme.textSecondary}
+              placeholderTextColor="#94A3B8"
               value={description}
               onChangeText={setDescription}
             />
 
             {/* Category Selector */}
-            <Text style={[styles.label, { color: theme.textSecondary }]}>CATEGORY</Text>
-            <View style={styles.categoryGrid}>
-              {categories.map((cat) => (
-                <TouchableOpacity
-                  key={cat.value}
-                  style={[
-                    styles.categoryBtn,
-                    category === cat.value ? styles.categoryBtnActive : { backgroundColor: theme.backgroundSelected },
-                  ]}
-                  onPress={() => setCategory(cat.value)}
-                >
-                  <CategoryIcon category={cat.value} customIcon={customIcon} size={22} />
-                  <Text
-                    style={[
-                      styles.catLabel,
-                      category === cat.value ? styles.catLabelActive : { color: theme.text },
-                    ]}
+            <Text className="section-label">CATEGORY</Text>
+            <View className="flex-row flex-wrap gap-2">
+              {categories.map((cat) => {
+                const isSelected = category === cat.value;
+                return (
+                  <TouchableOpacity
+                    key={`${cat.value}-${isSelected}`}
+                    className={`flex-row items-center gap-2 px-3.5 py-2.5 rounded-2xl border ${
+                      isSelected
+                        ? 'bg-main border-main'
+                        : 'bg-accent-pill border-surface'
+                    }`}
+                    onPress={() => {
+                      setCategory(cat.value);
+                      if (cat.value !== 'custom') {
+                        setCustomCategoryName('');
+                      }
+                    }}
                   >
-                    {cat.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <CategoryIcon
+                      category={cat.value}
+                      customIcon={cat.value === 'custom' ? customIcon : undefined}
+                      size={24}
+                      variant={isSelected ? 'solid' : 'light'}
+                    />
+                    <Text
+                      className={`text-xs font-bold ${
+                        isSelected ? 'text-screen' : 'text-secondary'
+                      }`}
+                    >
+                      {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {/* Custom Icon Picker Grid */}
             {category === 'custom' && (
-              <View style={styles.customPickerBox}>
-                <Text style={[styles.subLabel, { color: theme.text }]}>Custom Category Name:</Text>
+              <View className="p-3.5 bg-accent-pill border border-surface rounded-2xl gap-2 mt-1">
+                <Text className="text-xs font-bold text-main">Custom Category Name:</Text>
                 <TextInput
-                  style={[styles.input, { backgroundColor: theme.backgroundSelected, color: theme.text, marginBottom: 12 }]}
+                  className="h-10 bg-surface border border-surface rounded-xl px-3 text-xs text-main"
                   placeholder="e.g. Badminton Club, Movie Night, Snacks"
-                  placeholderTextColor={theme.textSecondary}
+                  placeholderTextColor="#94A3B8"
                   value={customCategoryName}
                   onChangeText={setCustomCategoryName}
                 />
 
-                <Text style={[styles.subLabel, { color: theme.text }]}>Choose Custom Icon:</Text>
-                <View style={styles.iconGrid}>
+                <Text className="text-xs font-bold text-main mt-1">Choose Custom Icon:</Text>
+                <View className="flex-row flex-wrap gap-2">
                   {GENERIC_CUSTOM_ICONS.map((item) => {
                     const isSelected = customIcon === item.name;
                     return (
                       <TouchableOpacity
                         key={item.name}
-                        style={[
-                          styles.iconPickTile,
-                          isSelected ? styles.iconPickTileActive : { backgroundColor: theme.backgroundSelected },
-                        ]}
+                        className={`items-center justify-center w-14 h-12 rounded-xl border ${
+                          isSelected
+                            ? 'bg-main border-main'
+                            : 'bg-surface border-surface'
+                        }`}
                         onPress={() => setCustomIcon(item.name)}
                       >
                         <Ionicons
                           name={item.name}
-                          size={20}
-                          color={isSelected ? '#FFFFFF' : theme.text}
+                          size={18}
+                          color={isSelected ? '#0F172A' : '#94A3B8'}
                         />
                         <Text
-                          style={[
-                            styles.iconPickText,
-                            isSelected ? { color: '#FFFFFF' } : { color: theme.textSecondary },
-                          ]}
+                          className={`text-[9px] font-semibold mt-0.5 ${
+                            isSelected ? 'text-screen font-bold' : 'text-secondary'
+                          }`}
                         >
                           {item.label}
                         </Text>
@@ -186,22 +285,22 @@ export function CreateGroupModal({ visible, onClose }: CreateGroupModalProps) {
             )}
 
             {/* Currency Selector */}
-            <Text style={[styles.label, { color: theme.textSecondary }]}>CURRENCY</Text>
-            <View style={styles.currencyRow}>
+            <Text className="section-label">CURRENCY</Text>
+            <View className="flex-row gap-2">
               {['INR', 'USD', 'EUR', 'GBP'].map((curr) => (
                 <TouchableOpacity
                   key={curr}
-                  style={[
-                    styles.currBtn,
-                    currency === curr ? styles.currBtnActive : { backgroundColor: theme.backgroundSelected },
-                  ]}
+                  className={`flex-1 py-2.5 rounded-xl items-center border ${
+                    currency === curr
+                      ? 'bg-main border-main'
+                      : 'bg-accent-pill border-surface'
+                  }`}
                   onPress={() => setCurrency(curr)}
                 >
                   <Text
-                    style={[
-                      styles.currText,
-                      currency === curr ? styles.currTextActive : { color: theme.text },
-                    ]}
+                    className={`text-xs font-bold ${
+                      currency === curr ? 'text-screen' : 'text-secondary'
+                    }`}
                   >
                     {curr}
                   </Text>
@@ -209,143 +308,48 @@ export function CreateGroupModal({ visible, onClose }: CreateGroupModalProps) {
               ))}
             </View>
 
+            {/* Splitwise CSV Migration Button */}
+            <TouchableOpacity
+              onPress={() => setSplitwiseModalVisible(true)}
+              className="p-3.5 rounded-2xl flex-row items-center justify-between border border-emerald-500/30 bg-emerald-500/10 mt-1"
+              activeOpacity={0.75}
+            >
+              <View className="flex-row items-center gap-2.5 flex-1 pr-2">
+                <View className="w-8 h-8 rounded-xl bg-emerald-500/20 items-center justify-center">
+                  <Ionicons name="swap-horizontal" size={16} color="#10B981" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-xs font-bold text-main">
+                    Or Import from Splitwise
+                  </Text>
+                  <Text className="text-[11px] font-semibold text-emerald-500">
+                    Import export.csv with members & history
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#10B981" />
+            </TouchableOpacity>
+
             {/* Submit Button */}
-            <TouchableOpacity style={styles.createBtn} onPress={handleCreate}>
-              <Text style={styles.createBtnText}>Create Cohort Ledger</Text>
+            <TouchableOpacity
+              className="bg-main py-4 rounded-2xl items-center mt-3 shadow-sm"
+              onPress={handleCreate}
+            >
+              <Text className="text-screen font-bold text-base">Create Cohort Ledger</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
       </View>
+
+      <SplitwiseImportModal
+        visible={splitwiseModalVisible}
+        onClose={() => setSplitwiseModalVisible(false)}
+        onSuccess={(cohortId) => {
+          setSplitwiseModalVisible(false);
+          onClose();
+          router.push(`/event/${cohortId}` as any);
+        }}
+      />
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'flex-end',
-  },
-  card: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '90%',
-    padding: 20,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  closeX: {
-    fontSize: 20,
-    fontWeight: '700',
-    padding: 4,
-  },
-  formContent: {
-    gap: 12,
-    paddingBottom: 24,
-  },
-  label: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginTop: 4,
-  },
-  subLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  input: {
-    height: 44,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    fontSize: 15,
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  categoryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  categoryBtnActive: {
-    backgroundColor: '#6366F1',
-  },
-  catLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  catLabelActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  customPickerBox: {
-    marginTop: 6,
-    marginBottom: 4,
-  },
-  iconGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  iconPickTile: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 60,
-    height: 52,
-    borderRadius: 10,
-    gap: 2,
-  },
-  iconPickTileActive: {
-    backgroundColor: '#EC4899',
-  },
-  iconPickText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  currencyRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  currBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  currBtnActive: {
-    backgroundColor: '#6366F1',
-  },
-  currText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  currTextActive: {
-    color: '#FFFFFF',
-  },
-  createBtn: {
-    backgroundColor: '#6366F1',
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  createBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 16,
-  },
-});

@@ -1,42 +1,65 @@
 import React, { useState, useEffect } from 'react';
 import {
-  StyleSheet,
   View,
-  Text,
   Modal,
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
+  Image,
+  useColorScheme,
 } from 'react-native';
-import { useTheme } from '@/hooks/use-theme';
+import * as ImagePicker from 'expo-image-picker';
 import { useExpenseStore } from '@/store/useExpenseStore';
+import { useThemeStore, getActiveThemeClass, getThemePalette } from '@/store/useThemeStore';
+import { showAlert } from '@/store/useAlertStore';
 import { EventCategory, EventCohort } from '@/types';
 import { CategoryIcon, GENERIC_CUSTOM_ICONS } from '@/components/ui/CategoryIcon';
+import { GroupAvatar } from '@/components/ui/GroupAvatar';
 import { Ionicons } from '@expo/vector-icons';
+import { Text } from '@/components/ui/Text';
 
 interface EditGroupModalProps {
   visible: boolean;
   onClose: () => void;
-  cohort: EventCohort;
+  cohort?: EventCohort | null;
 }
 
-export function EditGroupModal({ visible, onClose, cohort }: EditGroupModalProps) {
-  const theme = useTheme();
-  const { updateCohort } = useExpenseStore();
+const STANDARD_CATEGORIES = ['trip', 'house', 'event', 'dining', 'transport', 'utilities'];
 
-  const [name, setName] = useState(cohort.name);
-  const [description, setDescription] = useState(cohort.description || '');
-  const [category, setCategory] = useState<EventCategory>(cohort.category);
+export function EditGroupModal({ visible, onClose, cohort }: EditGroupModalProps) {
+  const systemScheme = useColorScheme();
+  const { themeBase, colorScheme } = useThemeStore();
+  const activeThemeClass = getActiveThemeClass(themeBase, colorScheme, systemScheme);
+  const colors = getThemePalette(themeBase, colorScheme, systemScheme);
+
+  const { updateCohort, members, currentUser } = useExpenseStore();
+  const cohortMembers = cohort ? members[cohort.id] || [] : [];
+
+  const [name, setName] = useState(cohort?.name || '');
+  const [description, setDescription] = useState(cohort?.description || '');
+  const [category, setCategory] = useState<EventCategory>(cohort?.category || 'trip');
   const [customCategoryName, setCustomCategoryName] = useState('');
-  const [customIcon, setCustomIcon] = useState(cohort.customIcon || 'gift');
+  const [customIcon, setCustomIcon] = useState(cohort?.customIcon || 'gift');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(cohort?.avatarUrl || cohort?.bannerUrl || null);
 
   useEffect(() => {
-    setName(cohort.name);
-    setDescription(cohort.description || '');
-    setCategory(cohort.category);
-    setCustomIcon(cohort.customIcon || 'gift');
+    if (cohort && visible) {
+      setName(cohort.name || '');
+      setDescription(cohort.description || '');
+      const rawCat = (cohort.category || 'trip').toLowerCase();
+      if (STANDARD_CATEGORIES.includes(rawCat)) {
+        setCategory(rawCat as EventCategory);
+        setCustomCategoryName('');
+      } else {
+        setCategory('custom');
+        setCustomCategoryName(rawCat === 'custom' ? '' : cohort.category);
+      }
+      setCustomIcon(cohort.customIcon || 'gift');
+      setAvatarUrl(cohort.avatarUrl || cohort.bannerUrl || null);
+    }
   }, [cohort, visible]);
+
+  if (!cohort) return null;
 
   const categories: { label: string; value: EventCategory }[] = [
     { label: 'Trip', value: 'trip' },
@@ -48,19 +71,50 @@ export function EditGroupModal({ visible, onClose, cohort }: EditGroupModalProps
     { label: 'Custom', value: 'custom' },
   ];
 
+  const handlePickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        showAlert(
+          'Permission Denied',
+          'Camera roll access is needed to select a group profile picture.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]?.uri) {
+        setAvatarUrl(result.assets[0].uri);
+      }
+    } catch (e) {
+      console.warn('Image picker error:', e);
+    }
+  };
+
   const handleSave = () => {
     if (!name.trim()) {
-      Alert.alert('Name Required', 'Please enter a group or event name.');
+      showAlert('Name Required', 'Please enter a group or event name.');
       return;
     }
 
-    const finalCategory = category === 'custom' && customCategoryName.trim() ? customCategoryName.trim() : category;
+    const isCustom = category === 'custom';
+    const finalCategory: EventCategory = isCustom
+      ? (customCategoryName.trim() ? (customCategoryName.trim().toLowerCase() as EventCategory) : 'custom')
+      : category;
 
     updateCohort(cohort.id, {
       name: name.trim(),
       description: description.trim() || undefined,
-      category: finalCategory as EventCategory,
-      customIcon: category === 'custom' ? customIcon : undefined,
+      category: finalCategory,
+      customIcon: isCustom ? customIcon : undefined,
+      avatarUrl: avatarUrl || undefined,
+      bannerUrl: avatarUrl || undefined,
     });
 
     onClose();
@@ -68,97 +122,155 @@ export function EditGroupModal({ visible, onClose, cohort }: EditGroupModalProps
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+      <View className={`flex-1 ${activeThemeClass} bg-black/50 justify-end`}>
+        <TouchableOpacity
+          className="flex-1"
+          activeOpacity={1}
+          onPress={onClose}
+        />
+        <View className="bg-surface rounded-t-3xl max-h-[90%] p-6 border-t border-surface">
           {/* Header */}
-          <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Edit Group Info</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Text style={[styles.closeX, { color: theme.textSecondary }]}>✕</Text>
+          <View className="flex-row justify-between items-center mb-3">
+            <Text className="text-xl font-extrabold text-main">Edit Group Info</Text>
+            <TouchableOpacity onPress={onClose} className="p-1">
+              <Ionicons name="close" size={22} color="#94A3B8" />
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContent}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="gap-3 pb-8">
+            {/* Group Profile Picture Section */}
+            <View className="items-center justify-center my-1">
+              <View className="relative">
+                <GroupAvatar
+                  avatarUrl={avatarUrl}
+                  category={category}
+                  customIcon={category === 'custom' ? customIcon : undefined}
+                  size={76}
+                  variant="solid"
+                />
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-main items-center justify-center border-2 border-surface shadow-sm"
+                  onPress={handlePickImage}
+                >
+                  <Ionicons name="camera" size={13} color="#0F172A" />
+                </TouchableOpacity>
+              </View>
+
+              <View className="flex-row items-center gap-2.5 mt-2.5">
+                <TouchableOpacity
+                  onPress={handlePickImage}
+                  className="px-3.5 py-1.5 rounded-full bg-accent-pill border border-surface flex-row items-center gap-1.5"
+                >
+                  <Ionicons name="image-outline" size={13} color="#94A3B8" />
+                  <Text className="text-xs font-semibold text-main">
+                    {avatarUrl ? 'Change Picture' : '+ Add Picture'}
+                  </Text>
+                </TouchableOpacity>
+                {avatarUrl && (
+                  <TouchableOpacity
+                    onPress={() => setAvatarUrl(null)}
+                    className="px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/20"
+                  >
+                    <Text className="text-xs font-semibold text-rose-400">Remove</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
             {/* Event Name */}
-            <Text style={[styles.label, { color: theme.textSecondary }]}>EVENT / GROUP NAME</Text>
+            <Text className="section-label">EVENT / GROUP NAME</Text>
             <TextInput
-              style={[styles.input, { backgroundColor: theme.backgroundSelected, color: theme.text }]}
+              className="h-12 bg-surface border border-surface rounded-2xl px-4 text-sm text-main shadow-sm"
               placeholder="Group name"
-              placeholderTextColor={theme.textSecondary}
+              placeholderTextColor="#94A3B8"
               value={name}
               onChangeText={setName}
             />
 
             {/* Description */}
-            <Text style={[styles.label, { color: theme.textSecondary }]}>DESCRIPTION</Text>
+            <Text className="section-label">DESCRIPTION</Text>
             <TextInput
-              style={[styles.input, { backgroundColor: theme.backgroundSelected, color: theme.text }]}
+              className="h-12 bg-surface border border-surface rounded-2xl px-4 text-sm text-main shadow-sm"
               placeholder="Description"
-              placeholderTextColor={theme.textSecondary}
+              placeholderTextColor="#94A3B8"
               value={description}
               onChangeText={setDescription}
             />
 
             {/* Category Selector */}
-            <Text style={[styles.label, { color: theme.textSecondary }]}>CATEGORY</Text>
-            <View style={styles.categoryGrid}>
-              {categories.map((cat) => (
-                <TouchableOpacity
-                  key={cat.value}
-                  style={[
-                    styles.categoryBtn,
-                    category === cat.value ? styles.categoryBtnActive : { backgroundColor: theme.backgroundSelected },
-                  ]}
-                  onPress={() => setCategory(cat.value)}
-                >
-                  <CategoryIcon category={cat.value} customIcon={customIcon} size={22} />
-                  <Text
-                    style={[
-                      styles.catLabel,
-                      category === cat.value ? styles.catLabelActive : { color: theme.text },
-                    ]}
+            <Text className="section-label">CATEGORY</Text>
+            <View className="flex-row flex-wrap gap-2">
+              {categories.map((cat) => {
+                const isSelected = category === cat.value;
+                return (
+                  <TouchableOpacity
+                    key={`${cat.value}-${isSelected}`}
+                    className={`flex-row items-center gap-2 px-3.5 py-2.5 rounded-2xl border ${
+                      isSelected
+                        ? 'bg-main border-main'
+                        : 'bg-accent-pill border-surface'
+                    }`}
+                    onPress={() => {
+                      setCategory(cat.value);
+                      if (cat.value !== 'custom') {
+                        setCustomCategoryName('');
+                      }
+                    }}
                   >
-                    {cat.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <CategoryIcon
+                      category={cat.value}
+                      customIcon={cat.value === 'custom' ? customIcon : undefined}
+                      size={24}
+                      variant={isSelected ? 'solid' : 'light'}
+                    />
+                    <Text
+                      className={`text-xs font-bold ${
+                        isSelected ? 'text-screen' : 'text-secondary'
+                      }`}
+                    >
+                      {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {/* Custom Icon Picker Grid */}
             {category === 'custom' && (
-              <View style={styles.customPickerBox}>
-                <Text style={[styles.subLabel, { color: theme.text }]}>Custom Category Name:</Text>
+              <View className="p-3.5 bg-accent-pill border border-surface rounded-2xl gap-2 mt-1">
+                <Text className="text-xs font-bold text-main">Custom Category Name:</Text>
                 <TextInput
-                  style={[styles.input, { backgroundColor: theme.backgroundSelected, color: theme.text, marginBottom: 12 }]}
+                  className="h-10 bg-surface border border-surface rounded-xl px-3 text-xs text-main"
                   placeholder="e.g. Badminton, Movie Night"
-                  placeholderTextColor={theme.textSecondary}
+                  placeholderTextColor="#94A3B8"
                   value={customCategoryName}
                   onChangeText={setCustomCategoryName}
                 />
 
-                <Text style={[styles.subLabel, { color: theme.text }]}>Choose Custom Icon:</Text>
-                <View style={styles.iconGrid}>
+                <Text className="text-xs font-bold text-main mt-1">Choose Custom Icon:</Text>
+                <View className="flex-row flex-wrap gap-2">
                   {GENERIC_CUSTOM_ICONS.map((item) => {
                     const isSelected = customIcon === item.name;
                     return (
                       <TouchableOpacity
                         key={item.name}
-                        style={[
-                          styles.iconPickTile,
-                          isSelected ? styles.iconPickTileActive : { backgroundColor: theme.backgroundSelected },
-                        ]}
+                        className={`items-center justify-center w-14 h-12 rounded-xl border ${
+                          isSelected
+                            ? 'bg-main border-main'
+                            : 'bg-surface border-surface'
+                        }`}
                         onPress={() => setCustomIcon(item.name)}
                       >
                         <Ionicons
                           name={item.name}
-                          size={20}
-                          color={isSelected ? '#FFFFFF' : theme.text}
+                          size={18}
+                          color={isSelected ? '#0F172A' : '#94A3B8'}
                         />
                         <Text
-                          style={[
-                            styles.iconPickText,
-                            isSelected ? { color: '#FFFFFF' } : { color: theme.textSecondary },
-                          ]}
+                          className={`text-[9px] font-semibold mt-0.5 ${
+                            isSelected ? 'text-screen font-bold' : 'text-secondary'
+                          }`}
                         >
                           {item.label}
                         </Text>
@@ -170,8 +282,11 @@ export function EditGroupModal({ visible, onClose, cohort }: EditGroupModalProps
             )}
 
             {/* Submit Button */}
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-              <Text style={styles.saveBtnText}>Save Changes</Text>
+            <TouchableOpacity
+              className="bg-main py-4 rounded-2xl items-center mt-3 shadow-sm"
+              onPress={handleSave}
+            >
+              <Text className="text-screen font-bold text-base">Save Changes</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -179,113 +294,3 @@ export function EditGroupModal({ visible, onClose, cohort }: EditGroupModalProps
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'flex-end',
-  },
-  card: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '90%',
-    padding: 20,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  closeX: {
-    fontSize: 20,
-    fontWeight: '700',
-    padding: 4,
-  },
-  formContent: {
-    gap: 12,
-    paddingBottom: 24,
-  },
-  label: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginTop: 4,
-  },
-  subLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  input: {
-    height: 44,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    fontSize: 15,
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  categoryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  categoryBtnActive: {
-    backgroundColor: '#6366F1',
-  },
-  catLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  catLabelActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  customPickerBox: {
-    marginTop: 6,
-    marginBottom: 4,
-  },
-  iconGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  iconPickTile: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 60,
-    height: 52,
-    borderRadius: 10,
-    gap: 2,
-  },
-  iconPickTileActive: {
-    backgroundColor: '#EC4899',
-  },
-  iconPickText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  saveBtn: {
-    backgroundColor: '#6366F1',
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  saveBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 16,
-  },
-});
