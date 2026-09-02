@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Modal, TouchableOpacity, ScrollView, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useExpenseStore } from '@/store/useExpenseStore';
-import { useThemeStore, getActiveThemeClass } from '@/store/useThemeStore';
+import { useThemeStore, getActiveThemeClass, getThemePalette } from '@/store/useThemeStore';
 import { EventCohort } from '@/types';
 import { GroupAvatar } from '@/components/ui/GroupAvatar';
 import { Text } from '@/components/ui/Text';
@@ -23,6 +23,7 @@ export function SelectGroupModal({
   const systemScheme = useColorScheme();
   const { themeBase, colorScheme } = useThemeStore();
   const activeThemeClass = getActiveThemeClass(themeBase, colorScheme, systemScheme);
+  const colors = getThemePalette(themeBase, colorScheme, systemScheme);
 
   const { cohorts, members } = useExpenseStore();
 
@@ -99,8 +100,8 @@ export function SelectGroupModal({
                   onCreateNewGroup();
                 }}
               >
-                <Ionicons name="add-circle-outline" size={20} color="#38BDF8" />
-                <Text className="text-sm font-bold text-sky-400">Create New Group</Text>
+                <Ionicons name="add-circle-outline" size={20} color={colors.cyan} />
+                <Text className="text-sm font-bold" style={{ color: colors.cyan }}>Create New Group</Text>
               </TouchableOpacity>
             )}
           </ScrollView>

@@ -77,7 +77,15 @@ interface ExpenseState {
   // Cohort Actions
   addCohort: (cohort: EventCohort) => Promise<EventCohort>;
   updateCohort: (cohortId: string, updates: Partial<EventCohort>) => Promise<void>;
+  toggleArchiveCohort: (cohortId: string) => Promise<void>;
+  deleteCohort: (cohortId: string) => Promise<void>;
+  restoreDeletedCohort: (cohortId: string) => Promise<void>;
+  deleteCohortPermanently: (cohortId: string) => Promise<void>;
+  archiveCohort: (cohortId: string) => Promise<void>;
+  restoreCohort: (cohortId: string) => Promise<void>;
   joinCohortByInviteCode: (inviteCode: string) => Promise<EventCohort | null>;
+  kickMember: (cohortId: string, userId: string) => Promise<void>;
+  leaveCohort: (cohortId: string) => Promise<{ success: boolean; nextAdminName?: string }>;
 
   // Expense Actions
   addExpense: (expense: Expense) => Promise<void>;
@@ -339,7 +347,13 @@ export const useExpenseStore = create<ExpenseState>()(
           const user = await profileService.getCurrentProfile();
 
           // 2. Fetch cohorts and membership
-          const { cohorts, members } = await groupService.fetchUserCohorts(user.id);
+          const { cohorts: rawCohorts, members: rawMembers } = await groupService.fetchUserCohorts(user.id);
+
+          // 2.5. Automatically purge cohorts deleted for more than 15 days
+          const expiredIds = await groupService.purgeExpiredDeletedCohorts(rawCohorts);
+          const cohorts = rawCohorts.filter((c) => !expiredIds.includes(c.id));
+          const members = { ...rawMembers };
+          expiredIds.forEach((id) => delete members[id]);
 
           // 3. Fetch expenses, shortcuts & house needs for all cohorts in parallel
           const expensesMap: Record<string, Expense[]> = {};
@@ -366,14 +380,14 @@ export const useExpenseStore = create<ExpenseState>()(
             expenses: expensesMap,
             shortcuts: shortcutsMap,
             sharedLists: sharedListsMap,
-            activeCohortId: cohorts[0]?.id || null,
+            activeCohortId: cohorts.find((c) => !c.isDeleted && !c.isArchived)?.id || cohorts[0]?.id || null,
             isLoading: false,
           });
         } catch (err: any) {
           console.warn('[Store] fetchInitialData error:', err);
           set({
             isLoading: false,
-            error: err?.message || 'Failed to fetch data from Supabase. Working in offline mode.',
+            error: err?.message || 'Failed to load data. Working in offline mode.',
           });
         }
       },
@@ -385,7 +399,12 @@ export const useExpenseStore = create<ExpenseState>()(
         set({ isSyncing: true, error: null });
         try {
           const user = get().currentUser;
-          const { cohorts, members } = await groupService.fetchUserCohorts(user.id);
+          const { cohorts: rawCohorts, members: rawMembers } = await groupService.fetchUserCohorts(user.id);
+
+          const expiredIds = await groupService.purgeExpiredDeletedCohorts(rawCohorts);
+          const cohorts = rawCohorts.filter((c) => !expiredIds.includes(c.id));
+          const members = { ...rawMembers };
+          expiredIds.forEach((id) => delete members[id]);
 
           const expensesMap: Record<string, Expense[]> = {};
           const shortcutsMap: Record<string, ExpenseShortcut[]> = {};
@@ -535,6 +554,244 @@ export const useExpenseStore = create<ExpenseState>()(
       },
 
       /**
+       * Toggles archive status for a cohort (stops including this group's owing in total owings, never auto-deleted)
+       */
+      toggleArchiveCohort: async (cohortId: string) => {
+        const cohort = get().cohorts.find((c) => c.id === cohortId);
+        if (!cohort) return;
+        const nextArchived = !cohort.isArchived;
+        const now = new Date().toISOString();
+
+        set((state) => ({
+          cohorts: state.cohorts.map((c) =>
+            c.id === cohortId
+              ? { ...c, isArchived: nextArchived, archivedAt: nextArchived ? now : undefined, updatedAt: now }
+              : c
+          ),
+        }));
+
+        try {
+          await groupService.toggleArchiveCohort(cohortId, nextArchived);
+        } catch (err) {
+          console.warn(`[Store] toggleArchiveCohort error for ${cohortId}:`, err);
+        }
+      },
+
+      /**
+       * Soft deletes a cohort (moved to trash with 15-day recovery window)
+       */
+      deleteCohort: async (cohortId: string) => {
+        const now = new Date().toISOString();
+        set((state) => ({
+          cohorts: state.cohorts.map((c) =>
+            c.id === cohortId ? { ...c, isDeleted: true, deletedAt: now, updatedAt: now } : c
+          ),
+          activeCohortId: state.activeCohortId === cohortId ? null : state.activeCohortId,
+        }));
+
+        try {
+          await groupService.deleteCohort(cohortId);
+        } catch (err) {
+          console.warn(`[Store] deleteCohort error for ${cohortId}:`, err);
+        }
+      },
+
+      /**
+       * Restores a deleted cohort back from trash
+       */
+      restoreDeletedCohort: async (cohortId: string) => {
+        const now = new Date().toISOString();
+        set((state) => ({
+          cohorts: state.cohorts.map((c) =>
+            c.id === cohortId ? { ...c, isDeleted: false, deletedAt: undefined, updatedAt: now } : c
+          ),
+        }));
+
+        try {
+          await groupService.restoreDeletedCohort(cohortId);
+        } catch (err) {
+          console.warn(`[Store] restoreDeletedCohort error for ${cohortId}:`, err);
+        }
+      },
+
+      /**
+       * Backwards-compatible alias for deleteCohort
+       */
+      archiveCohort: async (cohortId: string) => {
+        await get().deleteCohort(cohortId);
+      },
+
+      /**
+       * Backwards-compatible alias for restoreDeletedCohort
+       */
+      restoreCohort: async (cohortId: string) => {
+        await get().restoreDeletedCohort(cohortId);
+      },
+
+      /**
+       * Permanently deletes a cohort and its associated history forever
+       */
+      deleteCohortPermanently: async (cohortId: string) => {
+        set((state) => {
+          const nextCohorts = state.cohorts.filter((c) => c.id !== cohortId);
+          const nextMembers = { ...state.members };
+          delete nextMembers[cohortId];
+          const nextExpenses = { ...state.expenses };
+          delete nextExpenses[cohortId];
+          const nextShortcuts = { ...state.shortcuts };
+          delete nextShortcuts[cohortId];
+          const nextSharedLists = { ...state.sharedLists };
+          delete nextSharedLists[cohortId];
+
+          return {
+            cohorts: nextCohorts,
+            activeCohortId: state.activeCohortId === cohortId ? null : state.activeCohortId,
+            members: nextMembers,
+            expenses: nextExpenses,
+            shortcuts: nextShortcuts,
+            sharedLists: nextSharedLists,
+          };
+        });
+
+        try {
+          await groupService.deleteCohortPermanently(cohortId);
+        } catch (err) {
+          console.warn(`[Store] deleteCohortPermanently error for ${cohortId}:`, err);
+        }
+      },
+
+      /**
+       * Kicks / removes a member from a cohort (admin only)
+       */
+      kickMember: async (cohortId: string, userId: string) => {
+        const currentUser = get().currentUser;
+        const currentMembers = get().members[cohortId] || [];
+        const targetMember = currentMembers.find((m) => m.userId === userId);
+        const targetName =
+          targetMember?.profile?.fullName || targetMember?.profile?.nickname || 'A member';
+        const adminName =
+          currentUser.fullName || currentUser.nickname || 'Admin';
+
+        // 1. Optimistically update local members
+        set((state) => ({
+          members: {
+            ...state.members,
+            [cohortId]: (state.members[cohortId] || []).filter((m) => m.userId !== userId),
+          },
+        }));
+
+        // 2. Add system notification comment into cohort
+        const sysComment: TransactionComment = {
+          id: `comment_sys_${Date.now()}`,
+          cohortId,
+          userId: currentUser.id,
+          content: `System: ${adminName} removed ${targetName} from the group.`,
+          createdAt: new Date().toISOString(),
+        };
+        await get().addComment(sysComment);
+
+        // 3. Remove in Supabase
+        try {
+          await groupService.removeMemberFromCohort(cohortId, userId);
+        } catch (err) {
+          console.warn(`[Store] kickMember backend error for ${userId} in ${cohortId}:`, err);
+        }
+      },
+
+      /**
+       * Leaves a cohort. If the leaving user is the admin, automatically transfers
+       * admin rights to the next oldest member and notifies everyone in the group.
+       */
+      leaveCohort: async (cohortId: string) => {
+        const currentUser = get().currentUser;
+        const cohort = get().cohorts.find((c) => c.id === cohortId);
+        const currentMembers = get().members[cohortId] || [];
+        const currentMember = currentMembers.find((m) => m.userId === currentUser.id);
+        const isAdmin = cohort?.createdBy === currentUser.id || currentMember?.role === 'admin';
+        const userName = currentUser.fullName || currentUser.nickname || 'Member';
+
+        // Remaining active non-placeholder members
+        const remaining = currentMembers.filter(
+          (m) => m.userId !== currentUser.id && !m.isPlaceholder
+        );
+
+        // If user is the only member, they cannot leave (only delete)
+        if (remaining.length === 0) {
+          return { success: false };
+        }
+
+        if (isAdmin) {
+          // Sort remaining members by joinedAt ascending (oldest first)
+          remaining.sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
+          const nextAdmin = remaining[0];
+          const nextAdminName =
+            nextAdmin.profile?.fullName || nextAdmin.profile?.nickname || 'A member';
+
+          // 1. Update local state: promote nextAdmin to admin, update cohort.createdBy, remove currentUser
+          set((state) => ({
+            cohorts: state.cohorts.filter((c) => c.id !== cohortId),
+            activeCohortId: state.activeCohortId === cohortId ? null : state.activeCohortId,
+            members: {
+              ...state.members,
+              [cohortId]: (state.members[cohortId] || [])
+                .filter((m) => m.userId !== currentUser.id)
+                .map((m) => (m.userId === nextAdmin.userId ? { ...m, role: 'admin' } : m)),
+            },
+          }));
+
+          // 2. Add system succession notification
+          const sysComment: TransactionComment = {
+            id: `comment_sys_${Date.now()}`,
+            cohortId,
+            userId: currentUser.id,
+            content: `System: ${userName} left the group. ${nextAdminName} is now the group admin.`,
+            createdAt: new Date().toISOString(),
+          };
+          await get().addComment(sysComment);
+
+          // 3. Persist role promotion, creator change, and member removal to Supabase
+          try {
+            await Promise.all([
+              groupService.updateMemberRole(cohortId, nextAdmin.userId, 'admin'),
+              groupService.updateCohort(cohortId, { createdBy: nextAdmin.userId }),
+              groupService.removeMemberFromCohort(cohortId, currentUser.id),
+            ]);
+          } catch (err) {
+            console.warn(`[Store] leaveCohort admin succession error in ${cohortId}:`, err);
+          }
+
+          return { success: true, nextAdminName };
+        } else {
+          // Normal member leaves
+          set((state) => ({
+            cohorts: state.cohorts.filter((c) => c.id !== cohortId),
+            activeCohortId: state.activeCohortId === cohortId ? null : state.activeCohortId,
+            members: {
+              ...state.members,
+              [cohortId]: (state.members[cohortId] || []).filter((m) => m.userId !== currentUser.id),
+            },
+          }));
+
+          const sysComment: TransactionComment = {
+            id: `comment_sys_${Date.now()}`,
+            cohortId,
+            userId: currentUser.id,
+            content: `System: ${userName} left the group.`,
+            createdAt: new Date().toISOString(),
+          };
+          await get().addComment(sysComment);
+
+          try {
+            await groupService.removeMemberFromCohort(cohortId, currentUser.id);
+          } catch (err) {
+            console.warn(`[Store] leaveCohort member removal error in ${cohortId}:`, err);
+          }
+
+          return { success: true };
+        }
+      },
+
+      /**
        * Joins a cohort by invite code
        */
       joinCohortByInviteCode: async (inviteCode: string) => {
@@ -542,19 +799,24 @@ export const useExpenseStore = create<ExpenseState>()(
         try {
           const result = await groupService.joinCohortByInviteCode(inviteCode, currentUser);
           if (result) {
-            const { cohort, member } = result;
+            const { cohort, member, members: cohortMembersList } = result;
             set((state) => {
               const existingList = state.members[cohort.id] || [];
-              const memberExists = existingList.some((m) => m.userId === currentUser.id);
+              const updatedMembers =
+                cohortMembersList && cohortMembersList.length > 0
+                  ? cohortMembersList
+                  : existingList.some((m) => m.userId === currentUser.id)
+                  ? existingList
+                  : [...existingList, member];
 
               return {
                 cohorts: state.cohorts.some((c) => c.id === cohort.id)
-                  ? state.cohorts
+                  ? state.cohorts.map((c) => (c.id === cohort.id ? cohort : c))
                   : [cohort, ...state.cohorts],
                 activeCohortId: cohort.id,
                 members: {
                   ...state.members,
-                  [cohort.id]: memberExists ? existingList : [...existingList, member],
+                  [cohort.id]: updatedMembers,
                 },
                 expenses: {
                   ...state.expenses,
@@ -562,6 +824,9 @@ export const useExpenseStore = create<ExpenseState>()(
                 },
               };
             });
+
+            // Fetch expenses for the newly joined cohort
+            get().fetchExpensesForCohort(cohort.id);
             return cohort;
           }
         } catch (err) {
@@ -642,31 +907,34 @@ export const useExpenseStore = create<ExpenseState>()(
       },
 
       /**
-       * Adds a comment to an expense
+       * Adds a comment to an expense or cohort activity feed
        */
       addComment: async (comment: TransactionComment) => {
+        const key = comment.expenseId || comment.cohortId || 'global';
         set((state) => {
-          const list = state.comments[comment.expenseId] || [];
+          const list = state.comments[key] || [];
           return {
             comments: {
               ...state.comments,
-              [comment.expenseId]: [...list, comment],
+              [key]: [...list, comment],
             },
           };
         });
 
         try {
-          const savedComment = await expenseService.addComment(comment);
-          if (savedComment.id !== comment.id) {
-            set((state) => {
-              const list = state.comments[comment.expenseId] || [];
-              return {
-                comments: {
-                  ...state.comments,
-                  [comment.expenseId]: list.map((c) => (c.id === comment.id ? savedComment : c)),
-                },
-              };
-            });
+          if (comment.expenseId) {
+            const savedComment = await expenseService.addComment(comment);
+            if (savedComment.id !== comment.id) {
+              set((state) => {
+                const list = state.comments[key] || [];
+                return {
+                  comments: {
+                    ...state.comments,
+                    [key]: list.map((c) => (c.id === comment.id ? savedComment : c)),
+                  },
+                };
+              });
+            }
           }
         } catch (err) {
           console.warn('[Store] addComment backend failed:', err);

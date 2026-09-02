@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useExpenseStore } from '@/store/useExpenseStore';
 import { useThemeStore, getActiveThemeClass, getThemePalette } from '@/store/useThemeStore';
 import { showAlert } from '@/store/useAlertStore';
-import { GroupMember, UserProfile } from '@/types';
+import { GroupMember, UserProfile, EventCohort } from '@/types';
 import { launchUPIIntent } from '@/services/payment/upiIntent';
 import { Text } from '@/components/ui/Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,6 +23,8 @@ interface MemberProfileModalProps {
   onClose: () => void;
   member?: GroupMember | null;
   profile?: UserProfile | null;
+  cohortId?: string;
+  cohort?: EventCohort | null;
 }
 
 export function MemberProfileModal({
@@ -30,11 +32,13 @@ export function MemberProfileModal({
   onClose,
   member,
   profile: directProfile,
+  cohortId,
+  cohort,
 }: MemberProfileModalProps) {
   const router = useRouter();
   const systemScheme = useColorScheme();
   const insets = useSafeAreaInsets();
-  const { currentUser } = useExpenseStore();
+  const { currentUser, members, kickMember, leaveCohort } = useExpenseStore();
   const { themeBase, colorScheme } = useThemeStore();
   const activeThemeClass = getActiveThemeClass(themeBase, colorScheme, systemScheme);
   const colors = getThemePalette(themeBase, colorScheme, systemScheme);
@@ -52,6 +56,64 @@ export function MemberProfileModal({
   const displayName = isSelf ? (user.nickname || user.fullName || 'You') : (user.nickname || user.fullName || 'Member');
   const username = user.username;
   const hasVpa = !!user.vpaId;
+
+  const cohortMembers = cohortId ? members[cohortId] || [] : [];
+  const currentMember = cohortMembers.find((m) => m.userId === currentUser.id);
+  const isCurrentAdmin = currentMember?.role === 'admin' || cohort?.createdBy === currentUser.id;
+
+  const handleKickMember = () => {
+    if (!cohortId) return;
+    showAlert(
+      `Remove ${displayName}?`,
+      `Are you sure you want to remove ${displayName} from "${cohort?.name || 'this group'}"? They will no longer have access to this ledger.`,
+      [
+        {
+          text: 'Remove Member',
+          style: 'destructive',
+          onPress: async () => {
+            await kickMember(cohortId, user.id);
+            onClose();
+            showAlert('Member Removed', `${displayName} has been removed from the group.`);
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
+  const handleLeaveGroup = () => {
+    if (!cohortId) return;
+    const remaining = cohortMembers.filter(
+      (m) => m.userId !== currentUser.id && !m.isPlaceholder
+    );
+    remaining.sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
+    const nextAdminName =
+      remaining[0]?.profile?.fullName || remaining[0]?.profile?.nickname || 'the next oldest member';
+
+    const message = isCurrentAdmin
+      ? remaining.length > 0
+        ? `Since you are the group admin, leaving will automatically assign admin privileges to ${nextAdminName} and notify all group members. Are you sure you want to leave "${cohort?.name || 'this group'}"?`
+        : `You are the only member in this group. Leaving will archive and schedule "${cohort?.name || 'this group'}" for deletion in 15 days.`
+      : `Are you sure you want to leave "${cohort?.name || 'this group'}"?`;
+
+    showAlert('Leave Group', message, [
+      {
+        text: 'Leave Group',
+        style: 'destructive',
+        onPress: async () => {
+          const res = await leaveCohort(cohortId);
+          onClose();
+          router.replace('/(tabs)/groups' as any);
+          if (res.nextAdminName) {
+            showAlert('Group Left', `You left the group. Admin transferred to ${res.nextAdminName}.`);
+          } else {
+            showAlert('Group Left', `You have left "${cohort?.name || 'the group'}".`);
+          }
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
 
   const handleCopyVpa = async () => {
     if (!user.vpaId) return;
@@ -270,6 +332,42 @@ export function MemberProfileModal({
                 </View>
               )}
             </View>
+
+            {/* Admin Management Actions: Kick Member */}
+            {!isSelf && isCurrentAdmin && cohortId && (
+              <TouchableOpacity
+                className="w-full py-3.5 rounded-2xl items-center justify-center flex-row gap-2 border shadow-sm mt-1"
+                style={{
+                  backgroundColor: 'rgba(251, 113, 133, 0.1)',
+                  borderColor: 'rgba(251, 113, 133, 0.3)',
+                }}
+                onPress={handleKickMember}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="person-remove-outline" size={17} color="#FB7185" />
+                <Text className="text-rose-400 font-bold text-sm">
+                  Remove Member from Group
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Leave Group Action for Self (Only available in multi-member groups; 1-member groups can only be deleted) */}
+            {isSelf && cohortId && cohortMembers.filter((m) => !m.isPlaceholder).length > 1 && (
+              <TouchableOpacity
+                className="w-full py-3.5 rounded-2xl items-center justify-center flex-row gap-2 border shadow-sm mt-1"
+                style={{
+                  backgroundColor: 'rgba(251, 113, 133, 0.1)',
+                  borderColor: 'rgba(251, 113, 133, 0.3)',
+                }}
+                onPress={handleLeaveGroup}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="log-out-outline" size={18} color="#FB7185" />
+                <Text className="text-rose-400 font-bold text-sm">
+                  Leave Group
+                </Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </View>
       </View>

@@ -18,6 +18,10 @@ function mapCohortRow(row: any): EventCohort {
     currency: row.currency || 'INR',
     createdBy: row.created_by,
     inviteCode: row.invite_code,
+    isArchived: row.is_archived ?? false,
+    archivedAt: row.archived_at || undefined,
+    isDeleted: row.is_deleted ?? false,
+    deletedAt: row.deleted_at || undefined,
     createdAt: row.created_at || new Date().toISOString(),
     updatedAt: row.updated_at || new Date().toISOString(),
   };
@@ -231,9 +235,14 @@ export async function updateCohort(
  * Joins a cohort by invite code
  */
 export async function joinCohortByInviteCode(
-  inviteCode: string,
+  rawInviteCode: string,
   user: UserProfile
-): Promise<{ cohort: EventCohort; member: GroupMember } | null> {
+): Promise<{ cohort: EventCohort; member: GroupMember; members: GroupMember[] } | null> {
+  const cleanCode = rawInviteCode
+    .replace(/^(fairshare:\/\/join\/|https?:\/\/[^\/]+\/join\/)/i, '')
+    .trim()
+    .toUpperCase();
+
   let effectiveUser = user;
   if (!isUuid(effectiveUser.id)) {
     effectiveUser = await getCurrentProfile();
@@ -241,7 +250,7 @@ export async function joinCohortByInviteCode(
 
   if (!isSupabaseConfigured() || !isUuid(effectiveUser.id)) {
     const found = DEFAULT_COHORTS.find(
-      (c) => c.inviteCode.toUpperCase() === inviteCode.trim().toUpperCase()
+      (c) => c.inviteCode.toUpperCase() === cleanCode
     );
     if (found) {
       const fallbackMember: GroupMember = {
@@ -252,27 +261,40 @@ export async function joinCohortByInviteCode(
         joinedAt: new Date().toISOString(),
         profile: effectiveUser,
       };
-      return { cohort: found, member: fallbackMember };
+      return { cohort: found, member: fallbackMember, members: [fallbackMember] };
     }
     return null;
   }
 
   try {
-    const cleanCode = inviteCode.trim().toUpperCase();
+    // 1. Find cohort by invite_code or fallback by ID if UUID
+    let query = supabase.from('cohorts').select('*').ilike('invite_code', cleanCode);
+    let { data: cohortRow, error: cohortErr } = await query.maybeSingle();
 
-    // Find cohort
-    const { data: cohortRow, error: cohortErr } = await supabase
-      .from('cohorts')
-      .select('*')
-      .ilike('invite_code', cleanCode)
-      .maybeSingle();
+    if (!cohortRow && isUuid(cleanCode)) {
+      const idQuery = await supabase.from('cohorts').select('*').eq('id', cleanCode).maybeSingle();
+      cohortRow = idQuery.data;
+      cohortErr = idQuery.error;
+    }
 
     if (cohortErr) throw cohortErr;
     if (!cohortRow) return null;
 
     const cohort = mapCohortRow(cohortRow);
 
-    // Join group_members if not already joined
+    // 2. Ensure user profile is registered before foreign key insertion
+    await supabase.from('profiles').upsert({
+      id: effectiveUser.id,
+      email: effectiveUser.email || undefined,
+      full_name: effectiveUser.fullName || effectiveUser.nickname || 'You',
+      avatar_url: effectiveUser.avatarUrl || undefined,
+      nickname: effectiveUser.nickname || undefined,
+      vpa_id: effectiveUser.vpaId || undefined,
+      is_guest: false,
+      auth_provider: effectiveUser.authProvider || 'email',
+    });
+
+    // 3. Join group_members if not already joined
     const { data: memberRow, error: memberErr } = await supabase
       .from('group_members')
       .upsert(
@@ -289,9 +311,18 @@ export async function joinCohortByInviteCode(
     if (memberErr) throw memberErr;
 
     const member = mapMemberRow(memberRow);
-    return { cohort, member };
+
+    // 4. Fetch all active members in this cohort so the joining user gets full roster
+    const { data: allMembersData } = await supabase
+      .from('group_members')
+      .select('*, profiles:user_id(*)')
+      .eq('cohort_id', cohort.id);
+
+    const membersList = (allMembersData || []).map(mapMemberRow);
+
+    return { cohort, member, members: membersList };
   } catch (err) {
-    console.warn(`[GroupService] joinCohortByInviteCode fallback for ${inviteCode}:`, err);
+    console.warn(`[GroupService] joinCohortByInviteCode error for ${cleanCode}:`, err);
     return null;
   }
 }
@@ -331,4 +362,169 @@ export async function addMembersToCohort(
     console.warn('[GroupService] addMembersToCohort fallback:', err);
     return newMembers;
   }
+}
+
+/**
+ * Removes a member from a cohort in Supabase
+ */
+export async function removeMemberFromCohort(
+  cohortId: string,
+  userId: string
+): Promise<boolean> {
+  if (!isSupabaseConfigured() || !isUuid(cohortId) || !isUuid(userId)) return true;
+
+  try {
+    const { error } = await supabase
+      .from('group_members')
+      .delete()
+      .eq('cohort_id', cohortId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn(`[GroupService] removeMemberFromCohort error for ${userId} in ${cohortId}:`, err);
+    return false;
+  }
+}
+
+/**
+ * Updates a member's role in a cohort
+ */
+export async function updateMemberRole(
+  cohortId: string,
+  userId: string,
+  role: 'admin' | 'member'
+): Promise<boolean> {
+  if (!isSupabaseConfigured() || !isUuid(cohortId) || !isUuid(userId)) return true;
+
+  try {
+    const { error } = await supabase
+      .from('group_members')
+      .update({ role })
+      .eq('cohort_id', cohortId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn(`[GroupService] updateMemberRole error for ${userId} in ${cohortId}:`, err);
+    return false;
+  }
+}
+
+/**
+ * Toggles archive status for a cohort (excluded from total owings, never auto-deleted)
+ */
+export async function toggleArchiveCohort(cohortId: string, isArchived: boolean): Promise<boolean> {
+  if (!isSupabaseConfigured() || !isUuid(cohortId)) return true;
+
+  try {
+    const { error } = await supabase
+      .from('cohorts')
+      .update({
+        is_archived: isArchived,
+        archived_at: isArchived ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', cohortId);
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn(`[GroupService] toggleArchiveCohort error for ${cohortId}:`, err);
+    return false;
+  }
+}
+
+/**
+ * Soft deletes a cohort (moved to trash for 15 days recovery window)
+ */
+export async function deleteCohort(cohortId: string): Promise<boolean> {
+  if (!isSupabaseConfigured() || !isUuid(cohortId)) return true;
+
+  try {
+    const { error } = await supabase
+      .from('cohorts')
+      .update({
+        is_deleted: true,
+        deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', cohortId);
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn(`[GroupService] deleteCohort error for ${cohortId}:`, err);
+    return false;
+  }
+}
+
+/**
+ * Restores a deleted cohort back from trash
+ */
+export async function restoreDeletedCohort(cohortId: string): Promise<boolean> {
+  if (!isSupabaseConfigured() || !isUuid(cohortId)) return true;
+
+  try {
+    const { error } = await supabase
+      .from('cohorts')
+      .update({
+        is_deleted: false,
+        deleted_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', cohortId);
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn(`[GroupService] restoreDeletedCohort error for ${cohortId}:`, err);
+    return false;
+  }
+}
+
+/**
+ * Permanently deletes a cohort and all its relational records from the database
+ */
+export async function deleteCohortPermanently(cohortId: string): Promise<boolean> {
+  if (!isSupabaseConfigured() || !isUuid(cohortId)) return true;
+
+  try {
+    // Delete relational children first
+    await supabase.from('expenses').delete().eq('cohort_id', cohortId);
+    await supabase.from('shared_list_items').delete().eq('cohort_id', cohortId);
+    await supabase.from('expense_shortcuts').delete().eq('cohort_id', cohortId);
+    await supabase.from('group_members').delete().eq('cohort_id', cohortId);
+
+    // Delete cohort
+    const { error } = await supabase.from('cohorts').delete().eq('id', cohortId);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn(`[GroupService] deleteCohortPermanently error for ${cohortId}:`, err);
+    return false;
+  }
+}
+
+/**
+ * Automatically purges cohorts that have been deleted/in trash for more than 15 days
+ */
+export async function purgeExpiredDeletedCohorts(cohorts: EventCohort[]): Promise<string[]> {
+  const FIFTEEN_DAYS_MS = 15 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const expiredCohortIds: string[] = [];
+
+  for (const c of cohorts) {
+    if (c.isDeleted && c.deletedAt) {
+      const deletedTime = new Date(c.deletedAt).getTime();
+      if (now - deletedTime >= FIFTEEN_DAYS_MS) {
+        expiredCohortIds.push(c.id);
+        await deleteCohortPermanently(c.id);
+      }
+    }
+  }
+
+  return expiredCohortIds;
 }

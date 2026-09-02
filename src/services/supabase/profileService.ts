@@ -91,24 +91,49 @@ export async function updateProfile(
   dbPayload.updated_at = new Date().toISOString();
 
   try {
-    const { data, error } = await supabase
+    // 1. Try direct update first on the existing profile record
+    const { data: updatedData, error: updateError } = await supabase
       .from('profiles')
-      .upsert({
-        id: activeUserId,
-        ...dbPayload,
-      })
+      .update(dbPayload)
+      .eq('id', activeUserId)
       .select()
       .maybeSingle();
 
-    if (error) throw error;
-    if (!data) {
-      return {
-        ...DEFAULT_CURRENT_USER,
-        id: activeUserId,
-        ...updates,
-      };
+    if (!updateError && updatedData) {
+      return mapProfileRow(updatedData);
     }
-    return mapProfileRow(data);
+
+    // 2. If record does not exist yet, fallback to upsert with guaranteed non-null fields
+    const defaultFullName =
+      updates.fullName?.trim() ||
+      updates.nickname?.trim() ||
+      updates.username?.trim() ||
+      'You';
+
+    const upsertPayload = {
+      id: activeUserId,
+      full_name: defaultFullName,
+      is_guest: true,
+      auth_provider: 'guest',
+      ...dbPayload,
+    };
+
+    const { data: upsertData, error: upsertError } = await supabase
+      .from('profiles')
+      .upsert(upsertPayload)
+      .select()
+      .maybeSingle();
+
+    if (upsertError) throw upsertError;
+    if (upsertData) {
+      return mapProfileRow(upsertData);
+    }
+
+    return {
+      ...DEFAULT_CURRENT_USER,
+      id: activeUserId,
+      ...updates,
+    };
   } catch (err) {
     console.warn(`[ProfileService] updateProfile fallback for ${activeUserId}:`, err);
     return {
@@ -128,34 +153,40 @@ export async function getCurrentProfile(): Promise<UserProfile> {
   }
 
   try {
-    let { data: authData } = await supabase.auth.getUser();
-
-    // If no user exists yet, try anonymous sign in
-    if (!authData?.user?.id) {
-      const { data: signInData, error: signInErr } = await supabase.auth.signInAnonymously();
-      if (!signInErr && signInData?.user) {
-        authData = { user: signInData.user };
-      }
-    }
+    const { data: authData } = await supabase.auth.getUser();
 
     if (authData?.user?.id) {
       const liveProfile = await fetchProfile(authData.user.id);
       if (liveProfile) return liveProfile;
 
-      // Upsert initial profile
+      const metaName =
+        authData.user.user_metadata?.full_name ||
+        authData.user.user_metadata?.name ||
+        authData.user.email?.split('@')[0] ||
+        'You';
+
+      const avatarUrl =
+        authData.user.user_metadata?.avatar_url ||
+        authData.user.user_metadata?.picture;
+
+      // Upsert initial profile for authenticated user
       const newProfile: UserProfile = {
         id: authData.user.id,
-        fullName: 'You',
-        isGuest: true,
-        authProvider: 'guest',
+        email: authData.user.email || '',
+        fullName: metaName,
+        avatarUrl,
+        isGuest: false,
+        authProvider: (authData.user.app_metadata?.provider as any) || 'email',
         createdAt: new Date().toISOString(),
       };
 
       await supabase.from('profiles').upsert({
         id: authData.user.id,
-        full_name: 'You',
-        is_guest: true,
-        auth_provider: 'guest',
+        email: authData.user.email,
+        full_name: metaName,
+        avatar_url: avatarUrl,
+        is_guest: false,
+        auth_provider: authData.user.app_metadata?.provider || 'email',
       });
 
       return newProfile;

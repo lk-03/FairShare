@@ -94,38 +94,49 @@ Return ONLY valid JSON matching this exact structure without markdown or backtic
 }`;
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: systemPrompt },
-                {
-                  inline_data: {
-                    mime_type: 'image/jpeg',
-                    data: base64Data,
-                  },
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.1,
-            responseMimeType: 'application/json',
-          },
-        }),
-      }
-    );
+    const modelsToTry = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
+    let response: Response | null = null;
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.warn('[GeminiVision] API error response:', response.status, errText);
+    for (const model of modelsToTry) {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: systemPrompt },
+                  {
+                    inline_data: {
+                      mime_type: 'image/jpeg',
+                      data: base64Data,
+                    },
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              temperature: 0.1,
+              responseMimeType: 'application/json',
+            },
+          }),
+        }
+      );
+
+      if (res.ok) {
+        response = res;
+        break;
+      } else {
+        const errText = await res.text();
+        console.warn(`[GeminiVision] Model ${model} returned ${res.status}:`, errText);
+      }
+    }
+
+    if (!response) {
       return null;
     }
 

@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
+  Image,
   TouchableOpacity,
   ScrollView,
   useWindowDimensions,
@@ -11,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeStore, getThemePalette } from '../../store/useThemeStore';
+import { AppLogo } from '../ui/AppLogo';
 
 interface OnboardingCarouselProps {
   onComplete: () => void;
@@ -461,12 +463,7 @@ export function OnboardingCarousel({ onComplete, onSkip }: OnboardingCarouselPro
       {/* Top Bar with Skip & Branding */}
       <View className="flex-row items-center justify-between px-6 mb-2">
         <View className="flex-row items-center gap-2">
-          <View
-            className="w-8 h-8 rounded-xl items-center justify-center"
-            style={{ backgroundColor: colors.cyan }}
-          >
-            <Ionicons name="wallet" size={16} color="#0F172A" />
-          </View>
+          <AppLogo size={28} withShadow withGlow />
           <Text className="text-base font-black tracking-tight" style={{ color: colors.textMain }}>
             FairShare
           </Text>

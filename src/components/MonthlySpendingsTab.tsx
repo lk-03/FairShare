@@ -183,7 +183,7 @@ export function MonthlySpendingsTab({
           <Text className="text-[9px] font-semibold text-secondary uppercase tracking-wider mb-1" numberOfLines={1}>
             TOTAL GROUP SPEND
           </Text>
-          <Text className="text-sm font-semibold text-sky-400" numberOfLines={1}>
+          <Text className="text-sm font-semibold" style={{ color: colors.cyan }} numberOfLines={1}>
             ₹{stats.grandTotalGroup.toFixed(2)}
           </Text>
         </View>
@@ -237,7 +237,7 @@ export function MonthlySpendingsTab({
                         cx={donutArcs.cx}
                         cy={donutArcs.cy}
                         r={(donutArcs.r + donutArcs.innerR) / 2}
-                        stroke={donutArcs.singleColor || '#38BDF8'}
+                        stroke={donutArcs.singleColor || colors.cyan}
                         strokeWidth={donutArcs.r - donutArcs.innerR}
                         fill="none"
                       />
@@ -311,8 +311,11 @@ export function MonthlySpendingsTab({
           {/* Most Spender (Overall money paid upfront) */}
           <View className="flex-row items-center justify-between p-3 rounded-xl bg-accent-pill border border-surface">
             <View className="flex-row items-center gap-2.5 flex-1 pr-2">
-              <View className="w-8 h-8 rounded-lg bg-sky-500/15 border border-sky-500/30 items-center justify-center">
-                <Ionicons name="card-outline" size={16} color="#38BDF8" />
+              <View
+                className="w-8 h-8 rounded-lg border items-center justify-center"
+                style={{ backgroundColor: `${colors.cyan}20`, borderColor: `${colors.cyan}40` }}
+              >
+                <Ionicons name="card-outline" size={16} color={colors.cyan} />
               </View>
               <View className="flex-1">
                 <Text className="text-[10px] font-semibold text-secondary uppercase tracking-wider" numberOfLines={1}>
@@ -324,7 +327,7 @@ export function MonthlySpendingsTab({
               </View>
             </View>
             {stats.topPayer && (
-              <Text className="text-xs font-semibold text-sky-400" numberOfLines={1}>
+              <Text className="text-xs font-semibold" style={{ color: colors.cyan }} numberOfLines={1}>
                 ₹{stats.topPayer.paidAmount.toFixed(2)} paid
               </Text>
             )}

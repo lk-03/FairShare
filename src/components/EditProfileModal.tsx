@@ -82,7 +82,7 @@ export function EditProfileModal({ visible, onClose }: EditProfileModalProps) {
     }
   };
 
-  const displayName = nickname || fullName || 'User';
+  const displayName = nickname || fullName || 'You';
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>

@@ -8,6 +8,7 @@ import {
   Image,
   useColorScheme,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useExpenseStore } from '@/store/useExpenseStore';
 import { useThemeStore, getActiveThemeClass, getThemePalette } from '@/store/useThemeStore';
@@ -27,12 +28,13 @@ interface EditGroupModalProps {
 const STANDARD_CATEGORIES = ['trip', 'house', 'event', 'dining', 'transport', 'utilities'];
 
 export function EditGroupModal({ visible, onClose, cohort }: EditGroupModalProps) {
+  const router = useRouter();
   const systemScheme = useColorScheme();
   const { themeBase, colorScheme } = useThemeStore();
   const activeThemeClass = getActiveThemeClass(themeBase, colorScheme, systemScheme);
   const colors = getThemePalette(themeBase, colorScheme, systemScheme);
 
-  const { updateCohort, members, currentUser } = useExpenseStore();
+  const { updateCohort, deleteCohort, toggleArchiveCohort, members, currentUser } = useExpenseStore();
   const cohortMembers = cohort ? members[cohort.id] || [] : [];
 
   const [name, setName] = useState(cohort?.name || '');
@@ -288,6 +290,63 @@ export function EditGroupModal({ visible, onClose, cohort }: EditGroupModalProps
             >
               <Text className="text-screen font-bold text-base">Save Changes</Text>
             </TouchableOpacity>
+
+            {/* Archive / Unarchive Button */}
+            <TouchableOpacity
+              className="py-3.5 rounded-2xl items-center mt-3 border flex-row justify-center gap-2"
+              style={{
+                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                borderColor: 'rgba(245, 158, 11, 0.3)',
+              }}
+              onPress={async () => {
+                onClose();
+                const nextArchived = !cohort.isArchived;
+                await toggleArchiveCohort(cohort.id);
+                if (nextArchived) {
+                  showAlert('Group Archived', `"${cohort.name}" is now archived. Its balance will no longer count towards your total owings, but the group remains accessible.`);
+                } else {
+                  showAlert('Group Unarchived', `"${cohort.name}" is now unarchived and included in your total owings.`);
+                }
+              }}
+            >
+              <Ionicons name={cohort.isArchived ? "archive" : "archive-outline"} size={18} color="#F59E0B" />
+              <Text className="text-amber-400 font-bold text-sm">
+                {cohort.isArchived ? "Unarchive Group (Include in Totals)" : "Archive Group (Exclude from Totals)"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Delete Group (15 Days Trash) Button */}
+            {(currentUser.id === cohort.createdBy || cohortMembers.some(m => m.userId === currentUser.id && m.role === 'admin')) && (
+              <TouchableOpacity
+                className="py-3.5 rounded-2xl items-center mt-2 border flex-row justify-center gap-2"
+                style={{
+                  backgroundColor: 'rgba(251, 113, 133, 0.1)',
+                  borderColor: 'rgba(251, 113, 133, 0.3)',
+                }}
+                onPress={() => {
+                  showAlert(
+                    'Delete Group',
+                    `Are you sure you want to delete "${cohort.name}"?\n\nThis group will be moved to Trash for 15 days, after which it will be permanently deleted from the database. You can restore it anytime within 15 days.`,
+                    [
+                      {
+                        text: 'Delete Group (15 Days Trash)',
+                        style: 'destructive',
+                        onPress: async () => {
+                          onClose();
+                          await deleteCohort(cohort.id);
+                          router.replace('/(tabs)/groups' as any);
+                          showAlert('Moved to Trash', `"${cohort.name}" has been moved to Trash and will be permanently deleted in 15 days.`);
+                        },
+                      },
+                      { text: 'Cancel', style: 'cancel' },
+                    ]
+                  );
+                }}
+              >
+                <Ionicons name="trash-outline" size={18} color="#FB7185" />
+                <Text className="text-rose-400 font-bold text-sm">Delete Group</Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </View>
       </View>

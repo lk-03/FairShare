@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
-import { View, ScrollView, TouchableOpacity } from 'react-native';
+import { View, ScrollView, TouchableOpacity, useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useExpenseStore } from '@/store/useExpenseStore';
-import { useThemeStore } from '@/store/useThemeStore';
+import { useThemeStore, getThemePalette } from '@/store/useThemeStore';
 import { showAlert } from '@/store/useAlertStore';
 import { BottomTabInset } from '@/constants/theme';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
@@ -25,6 +25,9 @@ function formatTimeAgo(dateStr: string) {
 
 export default function ActivityScreen() {
   const router = useRouter();
+  const systemScheme = useColorScheme();
+  const { themeBase, colorScheme } = useThemeStore();
+  const colors = getThemePalette(themeBase, colorScheme, systemScheme);
   const { expenses, comments, cohorts, currentUser, members, addShortcut } = useExpenseStore();
 
   const activityFeed = useMemo(() => {
@@ -64,26 +67,47 @@ export default function ActivityScreen() {
       });
     });
 
-    // Process all comments (if we want them in the feed)
-    Object.entries(comments).forEach(([expenseId, expenseComments]) => {
-      // Need to find which cohort this expense belongs to
-      let foundCohortId = '';
-      let foundExpense: import('@/types').Expense | null = null;
-      Object.entries(expenses).forEach(([cid, exps]) => {
-        const match = exps.find(e => e.id === expenseId);
-        if (match) {
-          foundCohortId = cid;
-          foundExpense = match;
-        }
-      });
+    // Process all comments & system notifications
+    Object.entries(comments).forEach(([key, commentList]) => {
+      // Check if key is a cohortId directly
+      const directCohort = cohorts.find((c) => c.id === key);
 
-      if (foundCohortId && foundExpense) {
-        const cohort = cohorts.find(c => c.id === foundCohortId);
+      // Need to find which cohort this expense belongs to if key is an expenseId
+      let foundCohortId = directCohort ? directCohort.id : '';
+      let foundExpense: import('@/types').Expense | null = null;
+
+      if (!directCohort) {
+        Object.entries(expenses).forEach(([cid, exps]) => {
+          const match = exps.find((e) => e.id === key);
+          if (match) {
+            foundCohortId = cid;
+            foundExpense = match;
+          }
+        });
+      }
+
+      if (directCohort) {
+        commentList.forEach((comment) => {
+          feed.push({
+            id: `com_${comment.id}`,
+            type: 'system',
+            timestamp: new Date(comment.createdAt).getTime(),
+            dateStr: comment.createdAt,
+            cohortId: directCohort.id,
+            cohortName: directCohort.name,
+            title: directCohort.name,
+            amount: null,
+            meta: comment.content,
+            category: 'group',
+          });
+        });
+      } else if (foundCohortId && foundExpense) {
+        const cohort = cohorts.find((c) => c.id === foundCohortId);
         const cohortMembers = members[foundCohortId] || [];
-        
+
         const expense = foundExpense as import('@/types').Expense;
-        
-        expenseComments.forEach(comment => {
+
+        commentList.forEach((comment) => {
           // If the user is involved in the expense or made the comment
           const isUserComment = comment.userId === currentUser.id;
           const isPayer = expense.paidByUserId === currentUser.id;
@@ -120,9 +144,11 @@ export default function ActivityScreen() {
 
       <ScrollView
         contentContainerClassName="px-5 pb-10 gap-3"
-        style={{ paddingBottom: BottomTabInset + 24 }}
+        style={{ paddingBottom: BottomTabInset + 40 }}
         showsVerticalScrollIndicator={false}
       >
+        <Text className="section-label">RECENT TIMELINE</Text>
+
         {activityFeed.length === 0 ? (
           <Text className="text-center mt-10 text-secondary text-sm">No recent activity.</Text>
         ) : (
@@ -186,7 +212,11 @@ export default function ActivityScreen() {
                   <View className="mr-4">
                     {item.type === 'comment' ? (
                       <View className="w-12 h-12 rounded-full bg-accent-pill border border-surface items-center justify-center">
-                        <Ionicons name="chatbubble-ellipses-outline" size={22} color="#38BDF8" />
+                        <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.cyan} />
+                      </View>
+                    ) : item.type === 'system' ? (
+                      <View className="w-12 h-12 rounded-full bg-accent-pill border border-surface items-center justify-center">
+                        <Ionicons name="shield-checkmark-outline" size={22} color={colors.cyan} />
                       </View>
                     ) : (
                       <CategoryIcon category={item.category} customIcon={item.customIcon} size={48} variant="solid" />

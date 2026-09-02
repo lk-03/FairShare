@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  Image,
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
@@ -14,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useThemeStore, getThemePalette, getActiveThemeClass } from '../../store/useThemeStore';
 import { showAlert } from '../../store/useAlertStore';
 import * as authService from '../../services/supabase/authService';
+import { AppLogo } from '../ui/AppLogo';
 
 interface AuthModalProps {
   onAuthenticated: (authData: {
@@ -189,12 +191,7 @@ export function AuthModal({ onAuthenticated, onBack }: AuthModalProps) {
           )}
 
           <View className="flex-row items-center gap-2">
-            <View
-              className="w-8 h-8 rounded-xl items-center justify-center shadow-sm"
-              style={{ backgroundColor: colors.cyan }}
-            >
-              <Ionicons name="wallet" size={16} color="#0F172A" />
-            </View>
+            <AppLogo size={28} withShadow withGlow />
             <Text className="text-lg font-black tracking-tight" style={{ color: colors.textMain }}>
               FairShare
             </Text>

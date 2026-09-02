@@ -10,9 +10,9 @@ import {
 
 export const DEFAULT_CURRENT_USER: UserProfile = {
   id: '',
-  fullName: '',
+  fullName: 'You',
   email: '',
-  isGuest: false,
+  isGuest: true,
   createdAt: new Date().toISOString(),
 };
 

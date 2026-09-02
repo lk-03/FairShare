@@ -55,11 +55,12 @@ export default function EventDetailScreen() {
   const router = useRouter();
   const cohortId = Array.isArray(id) ? id[0] : (id || '');
 
-  const { cohorts, members, expenses, currentUser, addShortcut, reassignShadowMember } = useExpenseStore();
+  const { cohorts, members, expenses, currentUser, addShortcut, reassignShadowMember, toggleArchiveCohort, deleteCohort, leaveCohort } = useExpenseStore();
 
   const [activeTab, setActiveTab] = useState<'general' | 'monthly' | 'needs'>('general');
   const [qrVisible, setQrVisible] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
+  const [addMenuVisible, setAddMenuVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [splitwiseModalVisible, setSplitwiseModalVisible] = useState(false);
   const [shadowMemberToReassign, setShadowMemberToReassign] = useState<GroupMember | null>(null);
@@ -221,7 +222,13 @@ export default function EventDetailScreen() {
       {/* Banner Card & Sticky Sub-Tabs Bar */}
       <View className="px-5 pt-2 pb-1 gap-3">
         {/* Banner Card */}
-        <View className="card-main">
+        <View
+          className="card-main p-4 rounded-3xl border shadow-sm"
+          style={{
+            backgroundColor: colors.surface,
+            borderColor: colors.border,
+          }}
+        >
           <View className="flex-row items-center gap-3.5 mb-4">
             <GroupAvatar
               avatarUrl={cohort.avatarUrl || cohort.bannerUrl}
@@ -232,36 +239,77 @@ export default function EventDetailScreen() {
             />
             <View className="flex-1 justify-center">
               <View className="flex-row items-center justify-between gap-2">
-                <Text className="text-xl font-extrabold text-main flex-1" numberOfLines={1}>
+                <Text
+                  className="text-xl font-extrabold flex-1"
+                  style={{ color: colors.textMain }}
+                  numberOfLines={1}
+                >
                   {cohort.name}
                 </Text>
-                <View className="flex-row items-center gap-1 bg-accent-pill px-2.5 py-1 rounded-full border border-surface">
-                  <Ionicons name={categoryMeta.iconName} size={12} color="#94A3B8" />
-                  <Text className="text-[11px] font-semibold text-secondary lowercase">
+                <View
+                  className="flex-row items-center gap-1 px-2.5 py-1 rounded-full border"
+                  style={{
+                    backgroundColor: `${colors.cyan}18`,
+                    borderColor: `${colors.cyan}35`,
+                  }}
+                >
+                  <Ionicons name={categoryMeta.iconName} size={12} color={colors.cyan} />
+                  <Text
+                    className="text-[11px] font-bold lowercase"
+                    style={{ color: colors.cyan }}
+                  >
                     {categoryMeta.label}
                   </Text>
                 </View>
               </View>
 
               {cohort.description ? (
-                <Text className="text-xs text-secondary mt-1" numberOfLines={2}>
+                <Text
+                  className="text-xs font-medium mt-1 leading-4"
+                  style={{ color: colors.textSecondary }}
+                  numberOfLines={2}
+                >
                   {cohort.description}
                 </Text>
               ) : (
-                <Text className="text-xs text-secondary/60 mt-1 italic">
+                <Text
+                  className="text-xs italic mt-1"
+                  style={{ color: colors.textSecondary, opacity: 0.6 }}
+                >
                   No description
                 </Text>
               )}
             </View>
           </View>
 
-          <View className="border-t border-surface pt-3 flex-row items-center justify-between">
-            <Text className="section-label" numberOfLines={1}>YOUR NET POSITION</Text>
+          <View
+            className="border-t pt-3 flex-row items-center justify-between"
+            style={{ borderColor: colors.border }}
+          >
             <Text
-              className={`text-2xl font-extrabold ${userNetBalance >= 0 ? 'balance-positive' : 'balance-negative'}`}
+              className="text-[11px] font-bold uppercase tracking-wider"
+              style={{ color: colors.textSecondary }}
               numberOfLines={1}
             >
-              {userNetBalance >= 0 ? `+₹${userNetBalance.toFixed(2)}` : `-₹${Math.abs(userNetBalance).toFixed(2)}`}
+              YOUR NET POSITION
+            </Text>
+            <Text
+              className="text-2xl font-black"
+              style={{
+                color:
+                  userNetBalance > 0.01
+                    ? '#34D399'
+                    : userNetBalance < -0.01
+                    ? '#FB7185'
+                    : colors.textMain,
+              }}
+              numberOfLines={1}
+            >
+              {userNetBalance > 0.01
+                ? `+₹${userNetBalance.toFixed(2)}`
+                : userNetBalance < -0.01
+                ? `-₹${Math.abs(userNetBalance).toFixed(2)}`
+                : `₹0.00`}
             </Text>
           </View>
         </View>
@@ -274,18 +322,19 @@ export default function EventDetailScreen() {
           contentContainerClassName="gap-2 pr-4"
         >
           <TouchableOpacity
-            className={`px-4 py-2 rounded-2xl border ${
-              activeTab === 'general'
-                ? 'bg-main border-main'
-                : 'bg-surface border-surface'
-            }`}
+            className="px-4 py-2 rounded-2xl border"
+            style={{
+              backgroundColor: activeTab === 'general' ? colors.cyan : colors.surface,
+              borderColor: activeTab === 'general' ? colors.cyan : colors.border,
+            }}
             onPress={() => handleTabPress('general', 0)}
             activeOpacity={0.75}
           >
             <Text
-              className={`text-xs font-semibold ${
-                activeTab === 'general' ? 'text-screen' : 'text-secondary'
-              }`}
+              className="text-xs font-bold"
+              style={{
+                color: activeTab === 'general' ? '#0F172A' : colors.textSecondary,
+              }}
               numberOfLines={1}
             >
               General Ledger
@@ -293,18 +342,19 @@ export default function EventDetailScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            className={`px-4 py-2 rounded-2xl border ${
-              activeTab === 'monthly'
-                ? 'bg-main border-main'
-                : 'bg-surface border-surface'
-            }`}
+            className="px-4 py-2 rounded-2xl border"
+            style={{
+              backgroundColor: activeTab === 'monthly' ? colors.cyan : colors.surface,
+              borderColor: activeTab === 'monthly' ? colors.cyan : colors.border,
+            }}
             onPress={() => handleTabPress('monthly', 1)}
             activeOpacity={0.75}
           >
             <Text
-              className={`text-xs font-semibold ${
-                activeTab === 'monthly' ? 'text-screen' : 'text-secondary'
-              }`}
+              className="text-xs font-bold"
+              style={{
+                color: activeTab === 'monthly' ? '#0F172A' : colors.textSecondary,
+              }}
               numberOfLines={1}
             >
               Monthly Spendings
@@ -312,18 +362,19 @@ export default function EventDetailScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            className={`px-4 py-2 rounded-2xl border ${
-              activeTab === 'needs'
-                ? 'bg-main border-main'
-                : 'bg-surface border-surface'
-            }`}
+            className="px-4 py-2 rounded-2xl border"
+            style={{
+              backgroundColor: activeTab === 'needs' ? colors.cyan : colors.surface,
+              borderColor: activeTab === 'needs' ? colors.cyan : colors.border,
+            }}
             onPress={() => handleTabPress('needs', 2)}
             activeOpacity={0.75}
           >
             <Text
-              className={`text-xs font-semibold ${
-                activeTab === 'needs' ? 'text-screen' : 'text-secondary'
-              }`}
+              className="text-xs font-bold"
+              style={{
+                color: activeTab === 'needs' ? '#0F172A' : colors.textSecondary,
+              }}
               numberOfLines={1}
             >
               Needs / House Cart
@@ -402,7 +453,7 @@ export default function EventDetailScreen() {
                             {headline}
                           </Text>
                           {hasPayeeVpa && (
-                            <Ionicons name="checkmark-circle" size={13} color="#38BDF8" />
+                            <Ionicons name="checkmark-circle" size={13} color={colors.cyan} />
                           )}
                         </View>
                         <Text className="text-xs text-secondary mt-0.5" numberOfLines={1}>
@@ -417,12 +468,16 @@ export default function EventDetailScreen() {
 
                         {isDebtor && (
                           <TouchableOpacity
-                            className="bg-sky-500/15 border border-sky-500/30 px-3 py-1.5 rounded-xl flex-row items-center gap-1.5"
+                            className="px-3 py-1.5 rounded-xl flex-row items-center gap-1.5 border"
+                            style={{
+                              backgroundColor: `${colors.cyan}18`,
+                              borderColor: `${colors.cyan}40`,
+                            }}
                             onPress={() => setSettleDebt(debt)}
                             activeOpacity={0.7}
                           >
-                            <Ionicons name="flash-outline" size={14} color="#38BDF8" />
-                            <Text className="text-xs font-bold text-sky-400">
+                            <Ionicons name="flash-outline" size={14} color={colors.cyan} />
+                            <Text className="text-xs font-bold" style={{ color: colors.cyan }}>
                               Settle UPI
                             </Text>
                           </TouchableOpacity>
@@ -493,7 +548,10 @@ export default function EventDetailScreen() {
                         )}
                       </View>
                       {isAdmin && (
-                        <View className="absolute -bottom-1 -right-1 bg-sky-500 rounded-full p-0.5 border border-surface">
+                        <View
+                          className="absolute -bottom-1 -right-1 rounded-full p-0.5 border border-surface"
+                          style={{ backgroundColor: colors.cyan }}
+                        >
                           <Ionicons name="shield-checkmark" size={10} color="#0F172A" />
                         </View>
                       )}
@@ -504,9 +562,8 @@ export default function EventDetailScreen() {
                         {name}
                       </Text>
                       <Text
-                        className={`text-[10px] font-semibold mt-0.5 text-center ${
-                          isAdmin ? 'text-sky-400' : 'text-secondary'
-                        }`}
+                        className="text-[10px] font-semibold mt-0.5 text-center"
+                        style={isAdmin ? { color: colors.cyan } : { color: colors.textSecondary }}
                         numberOfLines={1}
                       >
                         {isAdmin ? 'Admin' : 'Member'}
@@ -672,7 +729,7 @@ export default function EventDetailScreen() {
                       className="p-3.5 rounded-2xl bg-accent-pill border border-surface items-center justify-center mt-1"
                       activeOpacity={0.75}
                     >
-                      <Text className="text-xs font-bold text-sky-400">
+                      <Text className="text-xs font-bold" style={{ color: colors.cyan }}>
                         Show More (+{Math.min(50, remainingExpensesCount)} of {remainingExpensesCount} older expenses)
                       </Text>
                     </TouchableOpacity>
@@ -713,7 +770,7 @@ export default function EventDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* Floating Action Button (FAB) for Add Expense */}
+      {/* Floating Action Button (FAB) for Expanding New Transaction Options */}
       <TouchableOpacity
         className="fab-main-btn"
         style={{
@@ -721,10 +778,107 @@ export default function EventDetailScreen() {
           bottom: 24,
         }}
         activeOpacity={0.85}
-        onPress={() => setAddModalVisible(true)}
+        onPress={() => setAddMenuVisible(true)}
       >
-        <Ionicons name="add" size={28} color="#38BDF8" />
+        <Ionicons name="add" size={28} color={colors.cyan} />
       </TouchableOpacity>
+
+      {/* Expandable Action Sheet (Add Expense / Scan Receipt) */}
+      <Modal
+        visible={addMenuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAddMenuVisible(false)}
+      >
+        <View className={`flex-1 ${activeThemeClass} bg-black/60 justify-end`}>
+          <TouchableOpacity
+            className="flex-1"
+            activeOpacity={1}
+            onPress={() => setAddMenuVisible(false)}
+          />
+          <View
+            className="bg-surface rounded-t-[32px] p-6 gap-3.5 border-t border-border"
+            style={{
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              paddingBottom: Math.max(insets.bottom + 16, 32),
+            }}
+          >
+            <View className="flex-row items-center justify-between pb-2 border-b border-border">
+              <Text className="text-xs font-bold uppercase tracking-wider text-secondary">
+                NEW TRANSACTION
+              </Text>
+              <TouchableOpacity onPress={() => setAddMenuVisible(false)}>
+                <Ionicons name="close" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Option 1: Add Expense (Manual Entry) */}
+            <TouchableOpacity
+              className="flex-row items-center gap-4 p-4 rounded-2xl border"
+              style={{
+                backgroundColor: isDark ? colors.accentPill : '#FFFFFF',
+                borderColor: colors.border,
+              }}
+              activeOpacity={0.8}
+              onPress={() => {
+                setAddMenuVisible(false);
+                setAddModalVisible(true);
+              }}
+            >
+              <View
+                className="w-12 h-12 rounded-full items-center justify-center"
+                style={{
+                  backgroundColor: colors.surface,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Ionicons name="add" size={26} color={colors.cyan} />
+              </View>
+              <View className="flex-1">
+                <Text className="text-base font-extrabold text-main">Add Expense</Text>
+                <Text className="text-xs text-secondary mt-0.5">
+                  Manual entry with custom splits and single/multiple payers
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            {/* Option 2: Scan Receipt (AI OCR) */}
+            <TouchableOpacity
+              className="flex-row items-center gap-4 p-4 rounded-2xl border"
+              style={{
+                backgroundColor: isDark ? colors.accentPill : '#FFFFFF',
+                borderColor: colors.border,
+              }}
+              activeOpacity={0.8}
+              onPress={() => {
+                setAddMenuVisible(false);
+                setItemizedReceiptModalVisible(true);
+              }}
+            >
+              <View
+                className="w-12 h-12 rounded-full items-center justify-center"
+                style={{
+                  backgroundColor: colors.surface,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Ionicons name="receipt-outline" size={22} color={colors.cyan} />
+              </View>
+              <View className="flex-1">
+                <Text className="text-base font-extrabold text-main">Scan Receipt</Text>
+                <Text className="text-xs text-secondary mt-0.5">
+                  AI OCR itemized bill extraction with Gemini Vision
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <QRCodeModal
         visible={qrVisible}
@@ -780,8 +934,8 @@ export default function EventDetailScreen() {
                 setItemizedReceiptModalVisible(true);
               }}
             >
-              <Ionicons name="sparkles" size={22} color="#38BDF8" />
-              <Text className="text-base font-semibold text-cyan-400">Scan & Itemize Receipt (OCR)</Text>
+              <Ionicons name="receipt-outline" size={22} color={colors.cyan} />
+              <Text className="text-base font-semibold" style={{ color: colors.cyan }}>Scan Receipt (AI Itemized OCR)</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -791,8 +945,8 @@ export default function EventDetailScreen() {
                 setQrVisible(true);
               }}
             >
-              <Ionicons name="qr-code-outline" size={22} color="#94A3B8" />
-              <Text className="text-base font-semibold text-main">Invite Members via QR</Text>
+              <Ionicons name="qr-code-outline" size={22} color={colors.cyan} />
+              <Text className="text-base font-semibold text-main">Invite Members (QR & Code)</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -816,6 +970,107 @@ export default function EventDetailScreen() {
               >
                 <Ionicons name="swap-horizontal" size={22} color="#10B981" />
                 <Text className="text-base font-semibold text-emerald-400">Import Splitwise CSV History</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Archive / Unarchive Group (Mute from Total Owings) */}
+            <TouchableOpacity
+              className="flex-row items-center gap-3.5 py-3 border-t"
+              style={{ borderColor: colors.border }}
+              onPress={async () => {
+                setMenuVisible(false);
+                const nextArchived = !cohort.isArchived;
+                await toggleArchiveCohort(cohort.id);
+                if (nextArchived) {
+                  showAlert('Group Archived', `"${cohort.name}" is now archived. Its balance will no longer count towards your total owings, but the group remains accessible.`);
+                } else {
+                  showAlert('Group Unarchived', `"${cohort.name}" is now unarchived and included in your total owings.`);
+                }
+              }}
+            >
+              <Ionicons name={cohort.isArchived ? "archive" : "archive-outline"} size={22} color="#F59E0B" />
+              <Text className="text-base font-semibold text-amber-400">
+                {cohort.isArchived ? "Unarchive Group (Include in Totals)" : "Archive Group (Exclude from Totals)"}
+              </Text>
+            </TouchableOpacity>
+
+            {(currentUser.id === cohort.createdBy || activeMembers.some(m => m.userId === currentUser.id && m.role === 'admin')) && (
+              <TouchableOpacity
+                className="flex-row items-center gap-3.5 py-3 border-t"
+                style={{ borderColor: colors.border }}
+                onPress={() => {
+                  setMenuVisible(false);
+                  showAlert(
+                    'Delete Group',
+                    `Are you sure you want to delete "${cohort.name}"?\n\nThis group will be moved to Trash for 15 days, after which it will be permanently deleted from the database. You can restore it anytime within 15 days.`,
+                    [
+                      {
+                        text: 'Delete Group (15 Days Trash)',
+                        style: 'destructive',
+                        onPress: async () => {
+                          await deleteCohort(cohort.id);
+                          router.replace('/(tabs)/groups' as any);
+                          showAlert('Moved to Trash', `"${cohort.name}" has been moved to Trash and will be permanently deleted in 15 days.`);
+                        },
+                      },
+                      { text: 'Cancel', style: 'cancel' },
+                    ]
+                  );
+                }}
+              >
+                <Ionicons name="trash-outline" size={22} color="#FB7185" />
+                <Text className="text-base font-semibold text-rose-400">Delete Group</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Leave Group Action (Only in multi-member groups; 1-member groups can only be deleted) */}
+            {activeMembers.length > 1 && (
+              <TouchableOpacity
+                className="flex-row items-center gap-3.5 py-3 border-t"
+                style={{ borderColor: colors.border }}
+                onPress={() => {
+                  setMenuVisible(false);
+                  const isUserAdmin =
+                    cohort.createdBy === currentUser.id ||
+                    activeMembers.some((m) => m.userId === currentUser.id && m.role === 'admin');
+                  const remaining = activeMembers.filter(
+                    (m) => m.userId !== currentUser.id && !m.isPlaceholder
+                  );
+                  remaining.sort(
+                    (a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime()
+                  );
+                  const nextAdminName =
+                    remaining[0]?.profile?.fullName ||
+                    remaining[0]?.profile?.nickname ||
+                    'the next oldest member';
+
+                  const message = isUserAdmin
+                    ? `Since you are the group admin, leaving will automatically assign admin privileges to ${nextAdminName} and notify all group members. Are you sure you want to leave "${cohort.name}"?`
+                    : `Are you sure you want to leave "${cohort.name}"?`;
+
+                  showAlert('Leave Group', message, [
+                    {
+                      text: 'Leave Group',
+                      style: 'destructive',
+                      onPress: async () => {
+                        const res = await leaveCohort(cohort.id);
+                        router.replace('/(tabs)/groups' as any);
+                        if (res.nextAdminName) {
+                          showAlert(
+                            'Group Left',
+                            `You left the group. Admin transferred to ${res.nextAdminName}.`
+                          );
+                        } else {
+                          showAlert('Group Left', `You have left "${cohort.name}".`);
+                        }
+                      },
+                    },
+                    { text: 'Cancel', style: 'cancel' },
+                  ]);
+                }}
+              >
+                <Ionicons name="log-out-outline" size={22} color="#FB7185" />
+                <Text className="text-base font-semibold text-rose-400">Leave Group</Text>
               </TouchableOpacity>
             )}
 
@@ -923,8 +1178,8 @@ export default function EventDetailScreen() {
 
                     {currentUser.id === cohort.createdBy && (
                       <View className="flex-row items-center gap-1 bg-surface px-2.5 py-1 rounded-xl border border-surface">
-                        <Text className="text-[11px] font-bold text-sky-400">Reassign</Text>
-                        <Ionicons name="chevron-forward" size={12} color="#38BDF8" />
+                        <Text className="text-[11px] font-bold" style={{ color: colors.cyan }}>Reassign</Text>
+                        <Ionicons name="chevron-forward" size={12} color={colors.cyan} />
                       </View>
                     )}
                   </TouchableOpacity>
@@ -1030,14 +1285,17 @@ export default function EventDetailScreen() {
                         activeOpacity={0.75}
                       >
                         <View className="flex-row items-center gap-3">
-                          <View className="w-8 h-8 rounded-full bg-cyan-500/20 items-center justify-center">
-                            <Ionicons name="person" size={14} color="#38BDF8" />
+                          <View
+                            className="w-8 h-8 rounded-full items-center justify-center"
+                            style={{ backgroundColor: `${colors.cyan}20` }}
+                          >
+                            <Ionicons name="person" size={14} color={colors.cyan} />
                           </View>
                           <Text className="text-sm font-bold text-main">
                             {targetDisplayName}
                           </Text>
                         </View>
-                        <Ionicons name="swap-horizontal" size={16} color="#38BDF8" />
+                        <Ionicons name="swap-horizontal" size={16} color={colors.cyan} />
                       </TouchableOpacity>
                     );
                   })}
@@ -1063,6 +1321,8 @@ export default function EventDetailScreen() {
           visible={!!selectedMemberForProfile}
           onClose={() => setSelectedMemberForProfile(null)}
           member={selectedMemberForProfile}
+          cohortId={cohort.id}
+          cohort={cohort}
         />
       )}
 

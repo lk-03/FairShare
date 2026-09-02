@@ -72,7 +72,7 @@ FairShare/
 
 #### `app.json`
 - **Role:** Expo Application Configuration manifest.
-- **Details:** Sets app name (`FairShare`), package ID (`com.fairshare.app`), scheme (`fairshare`), splash screen branding (`#208AEF`), adaptive Android icons, and enables experimental features: `typedRoutes` and `reactCompiler`.
+- **Details:** Sets app name (`FairShare`), package ID (`com.fairshare.app`), scheme (`fairshare`), splash screen branding (`#0B1220` with `./assets/images/splash-icon.png`), adaptive Android icons (`#0B1220`), and enables experimental features: `typedRoutes` and `reactCompiler`.
 
 #### `tailwind.config.js`
 - **Role:** Tailwind CSS / NativeWind configuration.
@@ -111,17 +111,18 @@ FairShare/
 
 ### Backend & Cloud Database (`supabase/`)
 
-#### `supabase/schema.sql`
-- **Role:** PostgreSQL database schema definition with Row Level Security (RLS) for Supabase.
-- **Tables Defined:**
-  1. `profiles`: User accounts, avatars, UPI VPA IDs (`vpa_id`), phone numbers, and guest flags.
-  2. `event_cohorts`: Groups/events with categories (`trip`, `house`, `event`, `dining`, `other`), invite codes, and currencies.
-  3. `group_members`: Membership joins with roles (`admin`, `member`).
-  4. `expenses`: Expense records with total amount, category, payer ID, receipt URL, and split type.
-  5. `expense_line_items`: Itemized receipt lines for OCR parsing and granular splits.
-  6. `expense_splits`: Member-specific expense shares and percentage allocations.
-  7. `transaction_comments`: Expense-level discussions and note trails.
-- **Security:** RLS policies restrict viewing and inserting cohort expenses to verified group members.
+#### `supabase/schema.sql` & `supabase/migrations/`
+- **Role:** PostgreSQL database schema definitions and versioned migrations with Row Level Security (RLS) for Supabase.
+- **Key Tables:**
+  1. `profiles`: User accounts, avatars, UPI VPA IDs (`vpa_id`), `@username`, and auth provider.
+  2. `cohorts`: Groups with categories, custom icons, invite codes, currencies, archive flags (`is_archived`, `archived_at`), and 15-day trash deletion flags (`is_deleted`, `deleted_at`).
+  3. `group_members`: Membership joins with roles (`admin`, `member`), kick permissions, and admin succession support.
+  4. `expenses`, `expense_splits`, `line_items`, `line_item_assignments`: Multi-mode expense engine and itemized OCR receipt records.
+  5. `comments`: Expense and cohort-level activity/system event discussions.
+  6. `shared_list_items` & `expense_shortcuts`: Shared House Cart checklist and 1-tap repetitive bill shortcuts.
+- **Migrations:**
+  - `supabase/migrations/20260830_initial_schema.sql`: Full baseline schema with RLS, triggers, and Storage buckets (`receipts`, `avatars`).
+  - `supabase/migrations/20260902_group_deletion_and_admin_succession.sql`: Migration for `is_archived`, `archived_at`, `is_deleted`, `deleted_at`, nullable `expense_id` with `cohort_id` on `comments`, cohort deletion policies, and member kick/succession RLS policies.
 
 #### `supabase/functions/ocr-parser/index.ts`
 - **Role:** Deno-based Supabase Edge Function for automated receipt OCR.
@@ -229,10 +230,10 @@ FairShare/
 ### AI Vision & OCR Services (`src/services/ai/`)
 
 #### `src/services/ai/geminiVisionService.ts`
-- **Role:** High-accuracy AI vision receipt scanner integrating Google Gemini 2.0 / 1.5 Flash Vision (`EXPO_PUBLIC_GEMINI_API_KEY`) on Google AI Studio's 100% Free Tier.
+- **Role:** High-accuracy AI vision receipt scanner integrating Google Gemini Flash Vision (`gemini-3.6-flash` / `gemini-flash-latest`) via `EXPO_PUBLIC_GEMINI_API_KEY` on Google AI Studio's Free Tier.
 - **Functions:**
   - `preprocessReceiptImage`: Auto-resizes and optimizes receipt image to 1400px width with high contrast JPEG compression via `expo-image-manipulator`.
-  - `parseReceiptWithGemini`: Sends base64 image data to Gemini Flash Vision with a structured JSON schema, extracting real store/vendor names, dates, item line items with quantities and prices, tax/GST, discounts, and total amounts in ~500ms.
+  - `parseReceiptWithGemini`: Sends base64 image data to Gemini 3.6 Flash Vision with a structured JSON schema, extracting real store/vendor names, dates, item line items with quantities and prices, tax/GST, discounts, and total amounts in ~500ms with fallback handling.
 
 ---
 
@@ -302,6 +303,10 @@ FairShare/
   - `processSharedAsset`: Ingests shared `.pdf` invoices, `.png`/`.jpg` screenshots, text streams from Blinkit / WhatsApp, or local file URIs and normalizes into `ParsedReceiptData`.
   - `processMultiScreenshots`: Stitches multiple screenshot image slices.
 
+#### `src/services/supabase/profileService.ts`
+- **Role:** Supabase profiles table service managing user profile persistence, verified UPI status, avatars, and nicknames.
+- **Resilience:** Implements a direct `.update()` first pipeline with safe fallback `.upsert()` guaranteeing non-null `full_name`, eliminating Postgres 23502 constraint errors on partial updates.
+
 ---
 
 ### Custom Hooks (`src/hooks/`)
@@ -338,8 +343,9 @@ FairShare/
 #### `src/components/ui/ThemeGradientHeader.tsx`
 - **Role:** Curved 3-stop SVG linear gradient container rendered via `react-native-svg` (`Defs`, `LinearGradient`, `Rect`) that dynamically resizes using `onLayout`.
 
-#### `src/components/ui/collapsible.tsx`
-- **Role:** Animated expandable accordion widget powered by `react-native-reanimated` (`FadeIn`).
+#### `src/components/ui/AppLogo.tsx`
+- **Role:** Transparent, dynamic accent-color-coded brand mark component rendered via white silhouette alpha mask (`assets/images/logo-symbol.png`).
+- **Features:** Eliminates square/black background boxes, adapts to selected theme accent (`colors.cyan`), provides soft contour drop shadow wrapping the symbol glyph, and supports an optional ambient glow.
 
 #### `src/components/ui/CustomAlertModal.tsx`
 - **Role:** Root-mounted modal component rendering custom, theme-aware alert boxes and action sheets.
@@ -394,21 +400,37 @@ FairShare/
 - **Role:** Full-screen translucent modal (`statusBarTranslucent={true}`) with edge-to-edge layout extending behind the bottom gesture bar and top status bar. Displays complete transaction breakdown, category icon, payer badge, split distributions with safe fallback member initials, member nicknames and `@username` handles, verified UPI checkmarks, notes, embedded comment thread with group-scoped tagging, and 1-tap "Save as Shortcut" header action.
 
 #### `src/components/MemberProfileModal.tsx`
-- **Role:** Bottom-sheet modal displaying member profile details (avatar, name, `@username`, verified UPI ID, 1-tap copy, and direct "Pay via UPI" action). When viewing own profile, displays "YOUR PROFILE" header and an "Edit Profile in Settings" action.
+- **Role:** Bottom-sheet modal displaying member profile details (avatar, name, `@username`, verified UPI ID, 1-tap copy, and direct "Pay via UPI" action).
+- **Admin & Member Controls:**
+  - When viewing another member as an Admin, offers **"Remove Member from Group"** (with confirmation prompt and group notification broadcast).
+  - When viewing self, provides **"Leave Group"** with automatic **Admin Succession** (transferring admin privileges to the next oldest member by `joinedAt` timestamp and posting a group notification) or archiving the group if the user is the sole member.
 
 #### `src/components/ItemizedReceiptModal.tsx`
-- **Role:** Full-screen interactive receipt scanning (OCR), digital PDF invoice ingestion, and itemized multi-mode expense splitting board.
-- **Capabilities:** Supports on-device camera capture, multi-screenshot selection with overlap deduplication, **Upload PDF Invoice** (`expo-document-picker`), direct OCR text paste, and 1-tap realistic presets (BigBasket Tax Invoice PDF, Swiggy Instamart Multi-Screenshot, Blinkit Share/PDF, Biggies Burgers, Trattoria Bella Napoli, Late Night Biryani). Features full-width item headers, responsive sub-headers (Qty, split mode badge, price input), wrapped non-overflowing Calculation Summary chips, inline dynamic split mode controls per item (Equal, Shares/Ratios with steppers, Exact rupee contributions, Percentage shares, Quantity unit steppers), proportional GST/tip/discount auto-calculator, and bottom scroll padding ensuring all member breakdowns scroll completely above the floating footer.
+- **Role:** Full-screen interactive receipt scanning (AI OCR), digital PDF invoice ingestion, and itemized multi-mode expense splitting board.
+- **Capabilities:** Features a full-screen pulsing AI scanning progress overlay (powered by Gemini Vision), full-screen **Receipt Lightbox Preview Modal** (allowing 1-tap full-size bill reference inspection), modular compact line-item overview cards with direct quantity stepper controls (`[-] [ QTY ] [+]`), dedicated per-item split sub-modal (`editingItemIndex`) for focused Equal / Shares / Exact / Percentage assignments without cluttering the main screen, proportional GST/tip/discount distribution, clean state reset (`resetForm`) upon save/dismiss, zero-emoji typography, and a single prominent sticky bottom confirmation CTA.
 
 #### `src/components/CreateGroupModal.tsx` & `src/components/EditGroupModal.tsx`
 - **Role:** Modals for creating and editing event cohorts, categories, currencies, and unique invite codes (`<NAME><SUFFIX>`).
-- **Details:** Wrapped in `activeThemeClass` to ensure CSS custom variables (`--bg-surface`, `--text-main`, `--accent-pill`) resolve seamlessly in detached native modal portals without triggering `cssInterop` upgrade crashes. Includes safe null checks on `cohort`, normalized category/custom category sync, and persistent custom icon selection.
+- **Details:** Wrapped in `activeThemeClass` to ensure CSS custom variables resolve seamlessly. Automatically presents an immediate post-creation **Invite Popup** (`QRCodeModal` with `isNewGroup={true}`) featuring the QR matrix, 1-tap Copy Invite Code button, and native Share link action before opening the newly created cohort ledger. Includes safe null checks on `cohort`, normalized category/custom category sync, and persistent custom icon selection.
+
+#### `src/components/JoinGroupModal.tsx`
+- **Role:** Bottom-sheet modal allowing users to join a group ledger by entering a group invite code or launching the camera to scan a QR code.
+- **Features:** Direct 1-tap clipboard paste button, auto-uppercasing, error feedback, async loading indicator, and immediate navigation to the joined cohort.
 
 #### `src/components/SelectGroupModal.tsx`
 - **Role:** Bottom-sheet selector allowing users to choose which cohort an expense belongs to before launching the Add Expense modal.
 
+#### `src/components/GroupActionModal.tsx`
+- **Role:** Bottom-sheet context action modal presented upon holding/long-pressing any group card across the Home screen carousel or the Groups directory.
+- **Available Actions:**
+  1. **Invite Members**: Opens `QRCodeModal` with the group's QR code, 1-tap Copy Invite Code, and native share link.
+  2. **Edit Group Details**: Opens `EditGroupModal` to customize name, icon, category, and description (admin-guarded).
+  3. **Archive Group / Unarchive Group (Mute from Total Owings)**: Toggles `isArchived`. Stops including this group's owing balance in the user's top-level dashboard totals (`totalOwed` / `totalOwe`) while keeping the group permanently accessible without ever auto-deleting.
+  4. **Delete Group**: Moves the cohort to the 15-day Trash queue with countdown tracking before permanent database erasure.
+
 #### `src/components/QRCodeModal.tsx`
 - **Role:** Modal displaying an in-memory generated QR code matrix (`qrcode` library) linking to `fairshare://join/<inviteCode>` for instant cohort invites.
+- **Features:** High-contrast QR matrix display, interactive **Group Invite Code card**, **1-tap Copy Code** button (`expo-clipboard`) with visual checkmark confirmation, and **Share Invite Link** native share sheet (`Share.share`). Supports direct `cohort` prop or raw `title`/`inviteCode`.
 
 #### `src/components/SplitwiseImportModal.tsx`
 - **Role:** Full-screen modal for Group Admins to import Splitwise `export.csv` history directly into existing cohorts.
@@ -445,8 +467,10 @@ FairShare/
 - **Details:** Displays user avatar with pencil edit trigger, verified UPI status, Nickname and `@username`, Payment Methods, **Import Splitwise CSV**, **Guide** (interactive feature tour), Theme & Appearance selector, and Logout with Supabase session clearance.
 
 #### `src/app/event/[id].tsx`
-- **Role:** Dynamic group detail screen featuring a **Horizontal Swipeable Tab Pager** (`General Ledger` ➔ `Monthly Spendings` charts ➔ `Needs / House Cart` list) with preloaded instant transitions, sticky sub-tab pills, cohort ledger, debt breakdown, settlement actions, **Group Members Roster** (with avatar image rendering, tap-to-view **Member Profile Sheet** with verified UPI details, and responsive 3.35-width cards with 4th card horizontal peek), and instant **Past Members Bottom Sheet** extending below the Android gesture bar.
-- **Role:** QR code scanner modal utilizing `expo-camera` to join groups via invite QR codes or universal links.
+- **Role:** Dynamic group detail screen featuring a **Horizontal Swipeable Tab Pager** (`General Ledger` ➔ `Monthly Spendings` charts ➔ `Needs / House Cart` list) with preloaded instant transitions, sticky sub-tab pills, cohort ledger, debt breakdown, settlement actions, **Group Members Roster** (with avatar image rendering, tap-to-view **Member Profile Sheet** with verified UPI details, and responsive 3.35-width cards with 4th card horizontal peek), instant **Past Members Bottom Sheet**, and an expandable floating `+` action sheet providing 1-tap access to **Add Expense** (`add`) and **Scan Receipt** (`receipt-outline`) matching the Home screen icon system.
+
+#### `src/app/scan.tsx`
+- **Role:** Full-screen QR code scanner utilizing `expo-camera` `CameraView` to scan group invite QR codes and join cohorts via `fairshare://join/<inviteCode>` deep links.
 
 ---
 
@@ -499,12 +523,12 @@ FairShare/
 
 #### `src/app/(tabs)/index.tsx`
 - **Role:** Main Dashboard screen.
-- **Details:** Renders `ThemeGradientHeader` with bold "FairShare" brand title in top-left, user profile avatar in top-right, prominent Net Balance display ($\pm ₹X$), clean frosted quick action buttons (*Add*, *Scan Receipt*, *Scan QR*, *New Group*), pull-to-refresh (`RefreshControl`), horizontal group card carousel with empty state fallback, and recent activity feed with empty state fallback.
+- **Details:** Renders `ThemeGradientHeader` with bold "FairShare" brand title in top-left, user profile avatar in top-right, prominent Net Balance display ($\pm ₹X$ / settled $₹0.00$), clean frosted quick action buttons (*Add*, *Scan Receipt*, *Join Group*, *New Group*), pull-to-refresh (`RefreshControl`), horizontal group card carousel with empty state fallback, and recent activity feed with empty state fallback. Includes an auth router guard routing unauthenticated or new users directly to `/welcome` for **Google OAuth** and **Email OTP/Magic Link** sign-in. Accurately distinguishes positive dues ($+₹X$), negative debts ($-₹X$), and exact zero balance ($₹0.00$, "You are all settled up").
 
 
 #### `src/app/(tabs)/groups.tsx`
 - **Role:** Groups & Event Cohorts directory screen.
-- **Details:** Features dual group card layouts with bold title typography, clearly differentiated descriptions and icon-prefixed desaturated member rosters, styled via `.card-group-item`, `.group-card-title`, `.group-card-desc`, and `.group-card-members` in `global.css`, with a compact, bottom-right pinned expandable speed-dial Floating Action Button (FAB) positioned immediately above the tab bar.
+- **Details:** Features dual group card layouts with bold title typography, clearly differentiated descriptions and icon-prefixed desaturated member rosters, styled via `.card-group-item`, `.group-card-title`, `.group-card-desc`, and `.group-card-members` in `global.css`, with a compact, bottom-right pinned expandable speed-dial Floating Action Button (FAB) offering **Join Group** (Code / QR) and **New Event Cohort**.
 
 
 
@@ -523,9 +547,14 @@ FairShare/
 #### `src/app/event/[id].tsx`
 - **Role:** Single Event / Cohort Ledger details screen.
 - **Details:**
-  - Banner Card featuring `GroupAvatar` profile picture, bold Group Name, category badge pill with icon and title, group description, and personal net balance ($\pm ₹X$).
+  - Banner Card featuring `GroupAvatar` profile picture, bold Group Name, dynamic category badge pill with icon and title (`colors.cyan`), group description with dynamic theme token binding (`colors.textSecondary`), and personal net balance ($\pm ₹X$).
   - Sub-tab switcher: **General Ledger** featuring **Status** (personalized settlement directives such as *"Person X owes you ₹X"* / *"You owe Person X ₹X"* with one-tap UPI payments) and **History** (expense log displaying total amount alongside user's net $+\text{₹X}$ / $-\text{₹X}$ share), **Monthly Spendings** (spending charts), and **Needs / House Cart** (shared grocery checklist).
-  - FAB for logging new expenses, three-dot options menu for QR invites and editing group details.
+  - Expandable FAB for logging new expenses or scanning receipts, three-dot options menu for QR invites, Splitwise import, editing group details, **Delete Group** (15-day archive with automatic database cleanup), and **Leave Group** (strictly available for multi-member groups; 1-member groups can only be deleted).
+  - Fully bound to dynamic theme palette (`colors.cyan`, `colors.textSecondary`, `colors.surface`, `colors.border`), ensuring zero hardcoded color leaks or unstyled black text across Admin badges, Settle buttons, verified checkmarks, and pagination controls.
+
+#### `src/app/(tabs)/groups.tsx`
+- **Role:** Groups directory and cohort management screen.
+- **Details:** Displays active event cohorts and ledgers with live member previews and net position badges. Features an **Archived Groups** collapsible section showing cohorts scheduled for permanent database deletion with countdown badges (*Deletes in X days*), **Restore** action button, and **Delete Now** permanent purge action.
 
 
 

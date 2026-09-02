@@ -18,6 +18,7 @@ import { GroupAvatar } from '@/components/ui/GroupAvatar';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@/components/ui/Text';
 import { SplitwiseImportModal } from '@/components/SplitwiseImportModal';
+import { QRCodeModal } from '@/components/QRCodeModal';
 
 interface CreateGroupModalProps {
   visible: boolean;
@@ -40,6 +41,7 @@ export function CreateGroupModal({ visible, onClose }: CreateGroupModalProps) {
   const [customCategoryName, setCustomCategoryName] = useState('');
   const [customIcon, setCustomIcon] = useState('shapes-outline');
   const [splitwiseModalVisible, setSplitwiseModalVisible] = useState(false);
+  const [createdCohortForInvite, setCreatedCohortForInvite] = useState<EventCohort | null>(null);
 
   const categories: { label: string; value: EventCategory }[] = [
     { label: 'House / Roommates', value: 'house' },
@@ -107,24 +109,31 @@ export function CreateGroupModal({ visible, onClose }: CreateGroupModalProps) {
     };
 
     const saved = await addCohort(newCohort);
+    setCreatedCohortForInvite(saved);
+  };
+
+  const handleFinishInviteAndOpen = () => {
+    const targetId = createdCohortForInvite?.id;
+    setCreatedCohortForInvite(null);
     onClose();
     resetForm();
-
-    // Navigate to the newly created cohort screen
-    router.push(`/event/${saved.id}` as any);
+    if (targetId) {
+      router.push(`/event/${targetId}` as any);
+    }
   };
 
   const resetForm = () => {
     setName('');
     setDescription('');
-    setCategory('trip');
-    setCustomIcon('gift');
+    setCategory('house');
+    setCustomIcon('shapes-outline');
     setCurrency('INR');
     setAvatarUrl(undefined);
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <>
+      <Modal visible={visible && !createdCohortForInvite} transparent animationType="slide" onRequestClose={onClose}>
       <View className={`flex-1 ${activeThemeClass} bg-black/50 justify-end`}>
         <TouchableOpacity
           className="flex-1"
@@ -351,5 +360,18 @@ export function CreateGroupModal({ visible, onClose }: CreateGroupModalProps) {
         }}
       />
     </Modal>
+
+    {/* Post-Group Creation Invite Popup */}
+    {createdCohortForInvite && (
+      <QRCodeModal
+        visible={!!createdCohortForInvite}
+        onClose={handleFinishInviteAndOpen}
+        onContinue={handleFinishInviteAndOpen}
+        title={createdCohortForInvite.name}
+        inviteCode={createdCohortForInvite.inviteCode}
+        isNewGroup={true}
+      />
+    )}
+  </>
   );
 }

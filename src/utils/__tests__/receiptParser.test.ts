@@ -2,15 +2,65 @@ import {
   parseReceiptText,
   calculateItemizedSplits,
   stitchMultiReceipts,
-  MOCK_RECEIPT_TEMPLATES,
 } from '../receiptParser';
 import { parseInvoicePdfText } from '../pdfInvoiceParser';
 import { LineItem } from '@/types';
 
+const SAMPLE_BURGER_RECEIPT = `Biggies Burgers & Shakes
+Bill No: 4892  Date: 29/08/2026
+1x Truffle Mushroom Burger 380.00
+2x Loaded Cheese Nachos 420.00
+1x Peri Peri Fries 170.00
+3x Cold Brew Iced Coffee 360.00
+Sub Total: 1330.00
+CGST (2.5%): 33.25
+SGST (2.5%): 33.25
+Service Charge (5%): 66.50
+Discount (Zomato Pro): 150.00
+Grand Total: 1313.00
+Thank you for visiting!`;
+
+const SAMPLE_CAFE_RECEIPT = `Trattoria Bella Napoli
+Table: 12  Order: 104
+1 Wood Fired Margherita Pizza 450.00
+1 Creamy Fettuccine Alfredo 380.00
+2 Garlic Bread with Cheese 240.00
+2 Sparkling Lime Mint Cooler 220.00
+Subtotal: 1290.00
+GST (5%): 64.50
+Total: 1354.50`;
+
+const SAMPLE_BIGBASKET_PDF = `INVOICE NO: BB-2026-892182
+DATE: 29/08/2026
+Billed to: Rahul Sharma
+Sl. Description HSN Qty Unit Price Net Amount
+1 Fresho Onion 1 kg 0703 1 38.00 38.00
+2 Nandini Goodlife Milk 1 L 0401 2 54.00 108.00
+3 Fortune Sunlite Refined Oil 1 L 1512 1 135.00 135.00
+4 Aashirvaad Superior MP Atta 5 kg 1101 1 270.00 270.00
+5 Farm Fresh Eggs Pack of 6 0407 1 58.00 58.00
+6 Amul Salted Butter 100g 0405 1 56.00 56.00
+7 Fresho Capsicum Green 500g 0709 1 45.00 45.00
+Delivery Charges: 29.00
+CGST (2.5%): 17.75
+SGST (2.5%): 17.75
+Total Savings: 69.00
+Grand Total: 756.50`;
+
+const SAMPLE_BLINKIT_SHARE = `Blinkit Order #BLNK-882193
+Delivered in 9 mins to Flat 302
+- Amul Taaza Homogenised Toned Milk (500 ml) x 2 = ₹54.00
+- Modern White Bread (400 g) x 1 = ₹45.00
+- Amul Salted Butter (100 g) x 1 = ₹58.00
+- Maggi 2-Minute Noodles (Pack of 4) x 1 = ₹56.00
+Handling Charge: ₹4.00
+GST (18% on platform): ₹0.72
+Total Amount: ₹217.72`;
+
 describe('receiptParser — On-Device OCR & Itemized Split Engine', () => {
   describe('parseReceiptText', () => {
     it('should parse burger joint receipt with dishes, quantities, taxes, discounts, and total', () => {
-      const parsed = parseReceiptText(MOCK_RECEIPT_TEMPLATES.burgerJoint.rawText);
+      const parsed = parseReceiptText(SAMPLE_BURGER_RECEIPT);
 
       expect(parsed.merchantName).toBe('Biggies Burgers & Shakes');
       expect(parsed.lineItems.length).toBe(4);
@@ -32,7 +82,7 @@ describe('receiptParser — On-Device OCR & Itemized Split Engine', () => {
     });
 
     it('should parse Italian cafe receipt with GST accurately', () => {
-      const parsed = parseReceiptText(MOCK_RECEIPT_TEMPLATES.italianCafe.rawText);
+      const parsed = parseReceiptText(SAMPLE_CAFE_RECEIPT);
 
       expect(parsed.merchantName).toBe('Trattoria Bella Napoli');
       expect(parsed.lineItems.length).toBe(4);
@@ -175,7 +225,7 @@ describe('receiptParser — On-Device OCR & Itemized Split Engine', () => {
 
   describe('parseInvoicePdfText — Digital Tax Invoice Parsing', () => {
     it('should parse BigBasket tax invoice PDF with 7 items, CGST, SGST, delivery and savings', () => {
-      const parsed = parseInvoicePdfText(MOCK_RECEIPT_TEMPLATES.bigBasketPdf.rawText);
+      const parsed = parseInvoicePdfText(SAMPLE_BIGBASKET_PDF);
 
       expect(parsed.merchantName).toBe('BigBasket Supermarket');
       expect(parsed.lineItems.length).toBe(7);
@@ -196,7 +246,7 @@ describe('receiptParser — On-Device OCR & Itemized Split Engine', () => {
     });
 
     it('should parse Blinkit order summary with pack sizes and platform fees', () => {
-      const parsed = parseInvoicePdfText(MOCK_RECEIPT_TEMPLATES.blinkitShare.rawText);
+      const parsed = parseInvoicePdfText(SAMPLE_BLINKIT_SHARE);
 
       expect(parsed.merchantName).toBe('Blinkit Grocery');
       expect(parsed.lineItems.length).toBe(4);

@@ -27,6 +27,10 @@ export interface EventCohort {
   currency: string; // e.g. 'INR', 'USD'
   createdBy: string; // UserProfile id
   inviteCode: string;
+  isArchived?: boolean; // When true: archived / excluded from total owings, never auto-deleted
+  archivedAt?: string; // ISO string
+  isDeleted?: boolean; // When true: in trash, scheduled for permanent deletion in 15 days
+  deletedAt?: string; // ISO string
   createdAt: string;
   updatedAt: string;
 }
@@ -110,7 +114,8 @@ export interface Expense {
 
 export interface TransactionComment {
   id: string;
-  expenseId: string;
+  expenseId?: string;
+  cohortId?: string;
   userId: string;
   content: string;
   createdAt: string;

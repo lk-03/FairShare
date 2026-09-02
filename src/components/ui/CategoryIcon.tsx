@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useThemeStore } from '@/store/useThemeStore';
+import { useThemeStore, getThemePalette } from '@/store/useThemeStore';
 
 export type CategoryIconType =
   | 'trip'
@@ -168,7 +168,8 @@ export function CategoryIcon({
   variant = 'solid',
 }: CategoryIconProps) {
   const systemScheme = useColorScheme();
-  const { colorScheme } = useThemeStore();
+  const { themeBase, colorScheme } = useThemeStore();
+  const themeColors = getThemePalette(themeBase, colorScheme, systemScheme);
   const isDark =
     colorScheme === 'dark' ||
     (colorScheme === 'system' && (systemScheme === 'dark' || !systemScheme));
@@ -179,7 +180,7 @@ export function CategoryIcon({
   let iconName: keyof typeof Ionicons.glyphMap = 'apps';
   let bgColor = isDark ? '#1E293B' : '#F1F5F9';
   let borderColor = isDark ? '#334155' : '#E2E8F0';
-  let iconColor = isDark ? '#38BDF8' : '#0284C7';
+  let iconColor = themeColors.cyan;
 
   if (cfg) {
     iconName = cfg.iconName;

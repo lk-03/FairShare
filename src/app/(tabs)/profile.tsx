@@ -10,6 +10,7 @@ import { SetUpiModal } from '@/components/SetUpiModal';
 import { EditProfileModal } from '@/components/EditProfileModal';
 import { AvatarPickerModal } from '@/components/AvatarPickerModal';
 import { SplitwiseImportModal } from '@/components/SplitwiseImportModal';
+import { AppLogo } from '@/components/ui/AppLogo';
 import { showAlert } from '@/store/useAlertStore';
 import { signOut } from '@/services/supabase/authService';
 import { useRouter } from 'expo-router';
@@ -31,7 +32,7 @@ export default function ProfileScreen() {
   const [avatarPickerVisible, setAvatarPickerVisible] = useState(false);
   const [splitwiseModalVisible, setSplitwiseModalVisible] = useState(false);
 
-  const displayName = currentUser.nickname || currentUser.fullName || 'User';
+  const displayName = currentUser.nickname || currentUser.fullName || 'You';
 
   const handleLogout = () => {
     showAlert('Log Out', 'Are you sure you want to log out of FairShare?', [
@@ -238,6 +239,17 @@ export default function ProfileScreen() {
         >
           <Text className="text-base font-bold text-negative">Log Out</Text>
         </TouchableOpacity>
+
+        {/* Brand Footer */}
+        <View className="items-center justify-center py-8 gap-2">
+          <View className="flex-row items-center gap-2">
+            <AppLogo size={24} withShadow withGlow />
+            <Text className="text-sm font-black text-main">FairShare</Text>
+          </View>
+          <Text className="text-[11px] font-semibold text-secondary">
+            Version 1.0.0 (Build Ready)
+          </Text>
+        </View>
       </ScrollView>
 
       <ThemeSettingsModal

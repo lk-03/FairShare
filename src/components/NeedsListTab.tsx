@@ -143,7 +143,7 @@ export function NeedsListTab({ cohortId }: NeedsListTabProps) {
           shadowOpacity: 0,
         }}
       >
-        <Ionicons name="sparkles" size={18} color={colors.cyan} />
+        <Ionicons name="notifications-outline" size={18} color={colors.cyan} />
         <Text className="flex-1 text-xs font-semibold leading-snug" style={{ color: colors.textMain }}>
           {randomReminder}
         </Text>
@@ -294,7 +294,7 @@ export function NeedsListTab({ cohortId }: NeedsListTabProps) {
                     {enabled ? 'Active notification schedule' : 'Muted for this cohort'}
                   </Text>
                 </View>
-                <Switch value={enabled} onValueChange={setEnabled} trackColor={{ true: '#38BDF8' }} />
+                <Switch value={enabled} onValueChange={setEnabled} trackColor={{ true: colors.cyan }} />
               </View>
 
               {enabled && (
@@ -332,7 +332,7 @@ export function NeedsListTab({ cohortId }: NeedsListTabProps) {
                     <View className="gap-2">
                       <View className="flex-row justify-between items-center">
                         <Text className="section-label">REPEAT EVERY</Text>
-                        <Text className="text-[10px] font-bold text-sky-400">Default: 6 Hours</Text>
+                        <Text className="text-[10px] font-bold" style={{ color: colors.cyan }}>Default: 6 Hours</Text>
                       </View>
                       <View className="flex-row flex-wrap gap-2">
                         {HOUR_OPTIONS.map((h) => (
@@ -416,7 +416,7 @@ export function NeedsListTab({ cohortId }: NeedsListTabProps) {
                         Pop up reminders on app open and alert group when items sit unchecked for 3+ days
                       </Text>
                     </View>
-                    <Switch value={notifyStale} onValueChange={setNotifyStale} trackColor={{ true: '#38BDF8' }} />
+                    <Switch value={notifyStale} onValueChange={setNotifyStale} trackColor={{ true: colors.cyan }} />
                   </View>
                 </>
               )}

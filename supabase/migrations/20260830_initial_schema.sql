@@ -45,6 +45,10 @@ CREATE TABLE IF NOT EXISTS public.cohorts (
     currency TEXT NOT NULL DEFAULT 'INR',
     created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     invite_code TEXT UNIQUE NOT NULL,
+    is_archived BOOLEAN DEFAULT false,
+    archived_at TIMESTAMPTZ,
+    is_deleted BOOLEAN DEFAULT false,
+    deleted_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

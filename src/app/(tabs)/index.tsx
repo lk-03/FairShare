@@ -18,6 +18,7 @@ import { BottomTabInset } from '@/constants/theme';
 import { AddExpenseModal } from '@/components/AddExpenseModal';
 import { ItemizedReceiptModal } from '@/components/ItemizedReceiptModal';
 import { SelectGroupModal } from '@/components/SelectGroupModal';
+import { AppLogo } from '@/components/ui/AppLogo';
 import { CreateGroupModal } from '@/components/CreateGroupModal';
 import { ThemeSettingsModal } from '@/components/ThemeSettingsModal';
 import { ThemeGradientHeader } from '@/components/ui/ThemeGradientHeader';
@@ -26,8 +27,12 @@ import { GroupAvatar } from '@/components/ui/GroupAvatar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { EventCohort, Expense } from '@/types';
 import { Text } from '@/components/ui/Text';
+import { JoinGroupModal } from '@/components/JoinGroupModal';
 import { StaleNeedsReminderModal } from '@/components/StaleNeedsReminderModal';
 import { SplitwiseImportModal } from '@/components/SplitwiseImportModal';
+import { GroupActionModal } from '@/components/GroupActionModal';
+import { QRCodeModal } from '@/components/QRCodeModal';
+import { EditGroupModal } from '@/components/EditGroupModal';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -45,14 +50,20 @@ export default function HomeScreen() {
   const [itemizedReceiptVisible, setItemizedReceiptVisible] = useState(false);
   const [pendingAction, setPendingAction] = useState<'add_expense' | 'scan_receipt'>('add_expense');
   const [createGroupVisible, setCreateGroupVisible] = useState(false);
+  const [joinGroupVisible, setJoinGroupVisible] = useState(false);
   const [themeSettingsVisible, setThemeSettingsVisible] = useState(false);
   const [splitwiseImportVisible, setSplitwiseImportVisible] = useState(false);
+  const [longPressedCohort, setLongPressedCohort] = useState<EventCohort | null>(null);
+  const [groupActionVisible, setGroupActionVisible] = useState(false);
+  const [qrCodeModalVisible, setQrCodeModalVisible] = useState(false);
+  const [editGroupModalVisible, setEditGroupModalVisible] = useState(false);
 
   const {
     cohorts,
     members,
     expenses,
     currentUser,
+    hasCompletedOnboarding,
     isLoading,
     isSyncing,
     error,
@@ -63,50 +74,62 @@ export default function HomeScreen() {
 
   const gradientColors = getThemeGradientColors(themeBase, colorScheme, systemScheme);
 
-  // Bootstrap fetch on mount
+  // Bootstrap fetch on mount & ensure authenticated onboarding
   useEffect(() => {
+    if (!hasCompletedOnboarding) {
+      router.replace('/welcome' as any);
+      return;
+    }
     fetchInitialData();
-  }, []);
+  }, [hasCompletedOnboarding]);
 
-  // Compute Net Balance across all cohorts
+  // Active cohorts visible on the home dashboard (excludes soft-deleted / trash cohorts)
+  const activeCohorts = useMemo(
+    () => cohorts.filter((c) => !c.isDeleted),
+    [cohorts]
+  );
+
+  // Compute Net Balance across active, non-archived cohorts (archived cohorts are muted from totals)
   const { totalOwed, totalOwe, netTotal } = useMemo(() => {
     let owed = 0;
     let owe = 0;
 
-    cohorts.forEach((cohort) => {
-      const res = calculateSimplifiedDebts(
-        cohort.id,
-        members[cohort.id] || [],
-        expenses[cohort.id] || []
-      );
-      const userBal = res.netBalances[currentUser.id] || 0;
-      if (userBal > 0) owed += userBal;
-      else if (userBal < 0) owe += Math.abs(userBal);
-    });
+    activeCohorts
+      .filter((cohort) => !cohort.isArchived)
+      .forEach((cohort) => {
+        const res = calculateSimplifiedDebts(
+          cohort.id,
+          members[cohort.id] || [],
+          expenses[cohort.id] || []
+        );
+        const userBal = res.netBalances[currentUser.id] || 0;
+        if (userBal > 0) owed += userBal;
+        else if (userBal < 0) owe += Math.abs(userBal);
+      });
 
     return {
       totalOwed: owed,
       totalOwe: owe,
       netTotal: owed - owe,
     };
-  }, [cohorts, members, expenses, currentUser.id]);
+  }, [activeCohorts, members, expenses, currentUser.id]);
 
   // Flattened recent expenses across all active cohorts
   const recentExpenses = useMemo(() => {
-    const activeCohortIds = new Set(cohorts.map((c) => c.id));
+    const activeCohortIds = new Set(activeCohorts.map((c) => c.id));
     const allExps: Expense[] = Object.entries(expenses)
       .filter(([cohortId]) => activeCohortIds.has(cohortId))
       .flatMap(([_, exps]) => exps);
     return allExps
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 4);
-  }, [cohorts, expenses]);
+  }, [activeCohorts, expenses]);
 
   const handleOpenAddExpense = () => {
-    if (cohorts.length === 0) {
+    if (activeCohorts.length === 0) {
       setCreateGroupVisible(true);
-    } else if (cohorts.length === 1) {
-      setSelectedCohortId(cohorts[0].id);
+    } else if (activeCohorts.length === 1) {
+      setSelectedCohortId(activeCohorts[0].id);
       setAddExpenseVisible(true);
     } else {
       setPendingAction('add_expense');
@@ -115,10 +138,10 @@ export default function HomeScreen() {
   };
 
   const handleOpenScanReceipt = () => {
-    if (cohorts.length === 0) {
+    if (activeCohorts.length === 0) {
       setCreateGroupVisible(true);
-    } else if (cohorts.length === 1) {
-      setSelectedCohortId(cohorts[0].id);
+    } else if (activeCohorts.length === 1) {
+      setSelectedCohortId(activeCohorts[0].id);
       setItemizedReceiptVisible(true);
     } else {
       setPendingAction('scan_receipt');
@@ -146,8 +169,8 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={isSyncing}
             onRefresh={refreshAll}
-            tintColor="#38BDF8"
-            colors={['#38BDF8', '#2563EB']}
+            tintColor={colors.cyan}
+            colors={[colors.cyan]}
           />
         }
       >
@@ -158,9 +181,12 @@ export default function HomeScreen() {
         >
           {/* Top Bar Header */}
           <View className="flex-row items-center justify-between py-3 mb-4">
-            <Text className="text-2xl font-extrabold text-main tracking-tight">
-              FairShare
-            </Text>
+            <View className="flex-row items-center gap-2.5">
+              <AppLogo size={32} withShadow withGlow />
+              <Text className="text-2xl font-black text-main tracking-tight">
+                FairShare
+              </Text>
+            </View>
 
             {/* User Profile Avatar */}
             <TouchableOpacity
@@ -197,17 +223,29 @@ export default function HomeScreen() {
             </View>
 
             <Text className="text-5xl font-bold text-main tracking-tight my-1">
-              {netTotal >= 0 ? `+₹${netTotal.toFixed(2)}` : `-₹${Math.abs(netTotal).toFixed(2)}`}
+              {netTotal > 0.01
+                ? `+₹${netTotal.toFixed(2)}`
+                : netTotal < -0.01
+                ? `-₹${Math.abs(netTotal).toFixed(2)}`
+                : `₹0.00`}
             </Text>
 
             <View className="flex-row items-center gap-1.5 mt-1">
               <View
                 className={`w-2 h-2 rounded-full ${
-                  netTotal >= 0 ? 'bg-emerald-400' : 'bg-rose-400'
+                  netTotal > 0.01
+                    ? 'bg-emerald-400'
+                    : netTotal < -0.01
+                    ? 'bg-rose-400'
+                    : 'bg-slate-400'
                 }`}
               />
               <Text className="text-xs font-normal text-secondary">
-                {netTotal >= 0 ? 'Total amount you are owed' : 'Total amount you owe'}
+                {netTotal > 0.01
+                  ? 'Total amount you are owed'
+                  : netTotal < -0.01
+                  ? 'Total amount you owe'
+                  : 'You are all settled up'}
               </Text>
             </View>
           </View>
@@ -256,11 +294,11 @@ export default function HomeScreen() {
               <Text className="text-xs font-semibold text-main">Scan Receipt</Text>
             </TouchableOpacity>
 
-            {/* Scan QR */}
+            {/* Join Group */}
             <TouchableOpacity
               activeOpacity={0.75}
               className="items-center gap-2"
-              onPress={() => router.push('/scan' as any)}
+              onPress={() => setJoinGroupVisible(true)}
             >
               <View
                 className="w-14 h-14 rounded-full items-center justify-center"
@@ -272,9 +310,9 @@ export default function HomeScreen() {
                   shadowOpacity: 0,
                 }}
               >
-                <Ionicons name="qr-code-outline" size={22} color={colors.cyan} />
+                <Ionicons name="enter-outline" size={24} color={colors.cyan} />
               </View>
-              <Text className="text-xs font-semibold text-main">Scan QR</Text>
+              <Text className="text-xs font-semibold text-main">Join Group</Text>
             </TouchableOpacity>
 
             {/* New Group */}
@@ -331,7 +369,7 @@ export default function HomeScreen() {
 
                 {cohorts.length > 0 && (
                   <TouchableOpacity onPress={() => router.push('/groups' as any)}>
-                    <Text className="text-xs font-semibold text-sky-400">View All ({cohorts.length})</Text>
+                    <Text className="text-xs font-semibold" style={{ color: colors.cyan }}>View All ({cohorts.length})</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -339,10 +377,10 @@ export default function HomeScreen() {
 
             {isLoading && cohorts.length === 0 ? (
               <View className="card-main p-8 items-center justify-center">
-                <ActivityIndicator size="small" color="#38BDF8" />
+                <ActivityIndicator size="small" color={colors.cyan} />
                 <Text className="text-xs text-secondary mt-3 font-medium">Loading your groups...</Text>
               </View>
-            ) : cohorts.length === 0 ? (
+            ) : activeCohorts.length === 0 ? (
               <EmptyState
                 icon="people-outline"
                 title="No Groups Yet"
@@ -358,7 +396,7 @@ export default function HomeScreen() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerClassName="gap-3.5 pr-5 py-1"
               >
-                {cohorts.map((cohort) => {
+                {activeCohorts.map((cohort) => {
                   const res = calculateSimplifiedDebts(
                     cohort.id,
                     members[cohort.id] || [],
@@ -372,6 +410,10 @@ export default function HomeScreen() {
                       activeOpacity={0.75}
                       className="card-main p-4 w-44 justify-between gap-3"
                       onPress={() => router.push(`/event/${cohort.id}` as any)}
+                      onLongPress={() => {
+                        setLongPressedCohort(cohort);
+                        setGroupActionVisible(true);
+                      }}
                     >
                       <View className="flex-row items-center justify-between">
                         <GroupAvatar
@@ -415,6 +457,16 @@ export default function HomeScreen() {
                         <Text className="text-xs text-secondary mt-0.5" numberOfLines={1}>
                           {(members[cohort.id] || []).length} members
                         </Text>
+                        {cohort.isArchived && (
+                          <View
+                            className="px-1.5 py-0.5 rounded-md mt-1 self-start"
+                            style={{ backgroundColor: colors.accentPill, borderWidth: 1, borderColor: colors.border }}
+                          >
+                            <Text className="text-[9px] font-bold" style={{ color: colors.cyan }}>
+                              Archived (Muted)
+                            </Text>
+                          </View>
+                        )}
                       </View>
                     </TouchableOpacity>
                   );
@@ -429,14 +481,14 @@ export default function HomeScreen() {
               <Text className="section-label">RECENT ACTIVITY</Text>
               {recentExpenses.length > 0 && (
                 <TouchableOpacity onPress={() => router.push('/activity' as any)}>
-                  <Text className="text-xs font-semibold text-sky-400">See All</Text>
+                  <Text className="text-xs font-semibold" style={{ color: colors.cyan }}>See All</Text>
                 </TouchableOpacity>
               )}
             </View>
 
             {isLoading && recentExpenses.length === 0 ? (
               <View className="card-main p-6 items-center justify-center">
-                <ActivityIndicator size="small" color="#38BDF8" />
+                <ActivityIndicator size="small" color={colors.cyan} />
                 <Text className="text-xs text-secondary mt-2 font-medium">Fetching activity...</Text>
               </View>
             ) : recentExpenses.length === 0 ? (
@@ -527,6 +579,13 @@ export default function HomeScreen() {
         onClose={() => setCreateGroupVisible(false)}
       />
 
+      {/* Join Group Modal (Code Entry or QR Scan) */}
+      <JoinGroupModal
+        visible={joinGroupVisible}
+        onClose={() => setJoinGroupVisible(false)}
+        onScanQr={() => router.push('/scan' as any)}
+      />
+
       {/* Splitwise CSV Importer Modal */}
       <SplitwiseImportModal
         visible={splitwiseImportVisible}
@@ -538,6 +597,35 @@ export default function HomeScreen() {
 
       {/* Stale Unbought Items Popup Reminder on App Open */}
       <StaleNeedsReminderModal />
+
+      {/* Group Quick Action Modal */}
+      {longPressedCohort && (
+        <GroupActionModal
+          visible={groupActionVisible}
+          onClose={() => setGroupActionVisible(false)}
+          cohort={longPressedCohort}
+          onInvite={() => setQrCodeModalVisible(true)}
+          onEdit={() => setEditGroupModalVisible(true)}
+        />
+      )}
+
+      {/* QR Code Modal */}
+      {longPressedCohort && (
+        <QRCodeModal
+          visible={qrCodeModalVisible}
+          onClose={() => setQrCodeModalVisible(false)}
+          cohort={longPressedCohort}
+        />
+      )}
+
+      {/* Edit Group Modal */}
+      {longPressedCohort && (
+        <EditGroupModal
+          visible={editGroupModalVisible}
+          onClose={() => setEditGroupModalVisible(false)}
+          cohort={longPressedCohort}
+        />
+      )}
     </View>
   );
 }
