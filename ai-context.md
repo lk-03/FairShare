@@ -250,6 +250,12 @@ FairShare/
 #### `README.md`
 - **Role:** Comprehensive open-source repository documentation featuring live Shields.io star/fork counters configured for `lk-03/FairShare`, tech stack badges, deep feature breakdowns, Mermaid architecture diagrams, installation and Supabase setup steps, test runners, Star History chart, and zero-emoji compliance.
 
+#### `.github/workflows/ci.yml`
+- **Role:** Automated CI pipeline triggered on push/PR running `npx tsc --noEmit` and `npm test` across the full test suite in under 45 seconds.
+
+#### `.github/workflows/build-apk.yml`
+- **Role:** Automated Android APK compilation pipeline triggered via manual `workflow_dispatch` button or release tags (`v*`), executing `expo prebuild`, Gradle release compilation, and uploading `FairShare-Release.apk` as a downloadable GitHub artifact and release asset.
+
 ---
 
 ### Core Algorithms & Utilities (`src/utils/`)
