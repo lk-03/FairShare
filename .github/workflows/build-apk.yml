@@ -31,10 +31,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 18
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
           cache: 'npm'
 
       - name: Setup Java JDK 17
@@ -59,7 +59,7 @@ jobs:
           EOF
 
       - name: Expo Prebuild (Generate Android Project)
-        run: npx expo prebuild --platform android --clean
+        run: npx expo prebuild --platform android --clean --no-install
 
       - name: Make Gradle Wrapper Executable
         run: chmod +x android/gradlew
