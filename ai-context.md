@@ -74,6 +74,12 @@ FairShare/
 - **Role:** Expo Application Configuration manifest.
 - **Details:** Sets app name (`FairShare`), package ID (`com.fairshare.app`), scheme (`fairshare`), splash screen branding (`#0B1220` with `./assets/images/splash-icon.png`), adaptive Android icons (`#0B1220`), and enables experimental features: `typedRoutes` and `reactCompiler`.
 
+#### `eas.json`
+- **Role:** Expo Application Services (EAS) build configuration.
+- **Profiles:**
+  - `preview`: Builds standalone test `.apk` for direct installation on Android devices.
+  - `production`: Builds optimized Google Play Store App Bundle (`.aab`) with auto-incrementing build numbers.
+
 #### `tailwind.config.js`
 - **Role:** Tailwind CSS / NativeWind configuration.
 - **Details:** Scans `./src/**/*.{js,jsx,ts,tsx}` and maps custom CSS theme variables (`--bg-screen`, `--bg-surface`, `--border-surface`, `--text-main`, `--text-secondary`, `--text-positive`, `--text-negative`, `--accent-pill`) to Tailwind utility classes.
