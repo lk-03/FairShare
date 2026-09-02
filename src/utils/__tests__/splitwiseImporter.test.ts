@@ -87,5 +87,9 @@ describe('Splitwise Importer Utility', () => {
     expect(result.preview.memberNames).toEqual(['LK', 'Njj', 'KATTU PUCHI', 'keith james']);
     expect(result.expenses.length).toBeGreaterThan(200);
     expect(result.preview.totalTurnover).toBeGreaterThan(10000);
+
+    // Verify no "Total balance" row exists as an expense
+    const totalBalanceExpense = result.expenses.find((e) => e.title.toLowerCase().includes('total balance'));
+    expect(totalBalanceExpense).toBeUndefined();
   });
 });

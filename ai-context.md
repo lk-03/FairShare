@@ -112,7 +112,7 @@ FairShare/
 
 #### `.github/workflows/build-apk.yml` & `.github/workflows/ci.yml`
 - **Role:** Automated CI and Android APK build pipelines.
-- **Features:** Builds release and debug APKs via `npx expo prebuild --no-install` and `./gradlew assembleRelease` on Ubuntu runners with Node 20, JDK 17, and Android SDK. Uploads APKs to GitHub Artifacts and automatically publishes to **GitHub Releases** (supports manual workflow dispatch with tag input or git tag push).
+- **Features:** Builds release and debug APKs via `npx expo prebuild --no-install` and `./gradlew assembleRelease` on Ubuntu runners with Node 22, JDK 17, 10GB swap allocation, G1GC memory optimization (`--max-workers=2`), and Android SDK. Uploads APKs to GitHub Artifacts and automatically publishes to **GitHub Releases** (supports manual workflow dispatch with tag input or git tag push).
 
 #### Type Declaration Files: `env.d.ts`, `expo-env.d.ts`, `nativewind-env.d.ts`, `src/global.d.ts`
 - **Role:** TypeScript declaration headers providing ambient type references for Expo types, NativeWind className props, and CSS module imports (`*.module.css`).
@@ -265,7 +265,7 @@ FairShare/
 - **Role:** Automated CI pipeline triggered on push/PR running `npx tsc --noEmit` and `npm test` across the full test suite in under 45 seconds.
 
 #### `.github/workflows/build-apk.yml`
-- **Role:** Automated Android APK compilation pipeline triggered via manual `workflow_dispatch` button or release tags (`v*`), executing `expo prebuild`, Gradle release compilation, and uploading `FairShare-Release.apk` as a downloadable GitHub artifact and release asset.
+- **Role:** Automated Android APK compilation pipeline triggered via manual `workflow_dispatch` button or release tags (`v*`), executing `expo prebuild`, 10GB virtual swap provisioning, Gradle release compilation with `--max-workers=2` and G1GC tuning, and uploading `FairShare-Release.apk` as a downloadable GitHub artifact and release asset.
 
 ---
 
@@ -288,10 +288,10 @@ FairShare/
 - **Role:** High-speed CSV parsing, member allocation, and ledger migration engine for Splitwise `export.csv` files.
 - **Functions:**
   - `parseCsvLine`: Robust CSV tokenizer handling quotes, escaped quotes, and commas.
-  - `parseSplitwisePreview`: Extracts transaction count, member names, total turnover, and date range in <5ms.
-  - `parseSplitwiseCsvForCohort`: Imports CSV transactions into an existing cohort, mapping CSV participants to existing members or creating preserved shadow members based on Admin allocations.
+  - `parseSplitwisePreview`: Extracts transaction count, member names, total turnover, and date range in <5ms, cleanly filtering out Splitwise `Total balance` / `Ending balance` summary rows.
+  - `parseSplitwiseCsvForCohort`: Imports CSV transactions into an existing cohort, mapping CSV participants to existing members or creating preserved shadow members based on Admin allocations. Restricts payment detection strictly to `Category === "Payment"` to avoid false positives on regular expenses containing "paid" in the title.
   - `parseSplitwiseCsv`: Backward-compatible standalone cohort creator.
-- **Test Suite:** `src/utils/__tests__/splitwiseImporter.test.ts` (8/8 tests passing, verifying 270 real transactions and multi-roommate shadow allocations).
+- **Test Suite:** `src/utils/__tests__/splitwiseImporter.test.ts` (verifying 270 real transactions, summary row exclusion, and multi-roommate shadow allocations).
 
 #### `src/utils/pdfInvoiceParser.ts`
 - **Role:** Deterministic Digital Tax Invoice & PDF text parser for Indian quick-commerce and corporate bills.

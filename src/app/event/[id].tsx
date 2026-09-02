@@ -435,7 +435,7 @@ export default function EventDetailScreen() {
                     headline = `You owe ${toName}`;
                     subtitle = debt.toProfile?.username ? `@${debt.toProfile.username}` : 'Pending settlement from you';
                     amountClass = 'text-rose-400';
-                    amountPrefix = '-';
+                    amountPrefix = '';
                   } else {
                     headline = `${fromName} owes ${toName}`;
                     subtitle = 'Group settlement';

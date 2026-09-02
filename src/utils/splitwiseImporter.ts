@@ -123,13 +123,26 @@ export function parseSplitwisePreview(csvContent: string): SplitwiseImportPrevie
     if (row.length < 5) continue;
 
     const dateStr = row[0];
-    const category = row[2];
+    const description = (row[1] || '').trim();
+    const descLower = description.toLowerCase();
+    const category = (row[2] || '').trim();
     const cost = Math.abs(parseFloat(row[3]) || 0);
 
-    if (!startDate || dateStr < startDate) startDate = dateStr;
-    if (!endDate || dateStr > endDate) endDate = dateStr;
+    // Skip summary / balance rows and blank rows
+    if (
+      descLower === 'total balance' ||
+      descLower.startsWith('total balance') ||
+      descLower === 'ending balance' ||
+      descLower === 'starting balance' ||
+      (!description && cost === 0)
+    ) {
+      continue;
+    }
 
-    const isPayment = category.toLowerCase() === 'payment' || /paid/i.test(row[1] || '');
+    if (!startDate || (dateStr && dateStr < startDate)) startDate = dateStr;
+    if (!endDate || (dateStr && dateStr > endDate)) endDate = dateStr;
+
+    const isPayment = category.toLowerCase() === 'payment' || category.toLowerCase() === 'payments';
     if (isPayment) {
       totalPaymentsCount++;
     } else {
@@ -235,15 +248,25 @@ export function parseSplitwiseCsvForCohort(
     if (row.length < 5) continue;
 
     const dateStr = row[0];
-    const description = row[1];
-    const category = row[2];
+    const description = (row[1] || '').trim();
+    const descLower = description.toLowerCase();
+    const category = (row[2] || '').trim();
     const cost = Math.abs(parseFloat(row[3]) || 0);
     const rowCurrency = row[4] || 'INR';
 
-    if (cost === 0 && !description) continue;
+    // Skip summary / balance rows and blank rows
+    if (
+      descLower === 'total balance' ||
+      descLower.startsWith('total balance') ||
+      descLower === 'ending balance' ||
+      descLower === 'starting balance' ||
+      (!description && cost === 0)
+    ) {
+      continue;
+    }
 
-    if (!startDate || dateStr < startDate) startDate = dateStr;
-    if (!endDate || dateStr > endDate) endDate = dateStr;
+    if (!startDate || (dateStr && dateStr < startDate)) startDate = dateStr;
+    if (!endDate || (dateStr && dateStr > endDate)) endDate = dateStr;
 
     // Parse member net values
     const memberNetValues: Record<string, number> = {};
@@ -253,9 +276,10 @@ export function parseSplitwiseCsvForCohort(
       memberNetValues[name] = val;
     }
 
-    const isPayment = category.toLowerCase() === 'payment' || /paid/i.test(description);
+    const isPayment = category.toLowerCase() === 'payment' || category.toLowerCase() === 'payments';
 
     if (isPayment) {
+      if (cost === 0) continue;
       totalPaymentsCount++;
       let payerName = memberNames[0];
       let receiverName = memberNames[1] || memberNames[0];
@@ -268,22 +292,24 @@ export function parseSplitwiseCsvForCohort(
       const payerId = memberIdMap[payerName];
       const receiverId = memberIdMap[receiverName];
 
-      expenses.push({
-        id: `exp_sw_${timestamp}_${r}`,
-        cohortId,
-        title: description || `${payerName} paid ${receiverName}`,
-        category: 'Payment',
-        totalAmount: cost,
-        currency: rowCurrency,
-        paidByUserId: payerId,
-        splitType: 'exact',
-        splits: [
-          { userId: receiverId, amount: cost, percentage: 100 },
-        ],
-        notes: `Imported settlement from Splitwise on ${dateStr}`,
-        createdAt: new Date(dateStr || Date.now()).toISOString(),
-        updatedAt: new Date(dateStr || Date.now()).toISOString(),
-      });
+      if (payerId && receiverId && payerId !== receiverId) {
+        expenses.push({
+          id: `exp_sw_${timestamp}_${r}`,
+          cohortId,
+          title: description || `${payerName} paid ${receiverName}`,
+          category: 'Payment',
+          totalAmount: cost,
+          currency: rowCurrency,
+          paidByUserId: payerId,
+          splitType: 'exact',
+          splits: [
+            { userId: receiverId, amount: cost, percentage: 100 },
+          ],
+          notes: `Imported settlement from Splitwise on ${dateStr}`,
+          createdAt: new Date(dateStr || Date.now()).toISOString(),
+          updatedAt: new Date(dateStr || Date.now()).toISOString(),
+        });
+      }
     } else {
       totalExpensesCount++;
       totalTurnover += cost;
