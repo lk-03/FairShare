@@ -65,7 +65,10 @@ export async function signInWithNativeGoogle(): Promise<UserProfile | null> {
           token: idToken,
         });
 
-        if (error) throw error;
+        if (error) {
+          console.warn('[AuthService] Supabase signInWithIdToken error:', error);
+          throw error;
+        }
         if (data.user) {
           const user = data.user;
           const fullName =
@@ -114,14 +117,18 @@ export async function signInWithNativeGoogle(): Promise<UserProfile | null> {
         }
       }
     } catch (nativeErr: any) {
-      console.warn('[AuthService] Native Google Sign-In notice:', nativeErr);
-      if (nativeErr?.code === 'SIGN_IN_CANCELLED' || nativeErr?.message?.includes('cancelled')) {
+      console.warn('[AuthService] Native Google Sign-In error:', nativeErr);
+      if (
+        nativeErr?.code === 'SIGN_IN_CANCELLED' ||
+        nativeErr?.code === '12501' ||
+        nativeErr?.message?.includes('cancelled')
+      ) {
         return null;
       }
     }
   }
 
-  // Seamless fallback to Web OAuth
+  // Fallback to Web OAuth
   return signInWithGoogleOAuth();
 }
 
@@ -130,7 +137,7 @@ export async function signInWithGoogleOAuth(): Promise<UserProfile | null> {
     throw new Error('Supabase is not configured. Please add your credentials to .env.');
   }
 
-  const redirectUrl = Linking.createURL('/welcome');
+  const redirectUrl = Linking.createURL('welcome');
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {

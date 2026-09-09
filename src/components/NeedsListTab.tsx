@@ -14,6 +14,11 @@ import { useThemeStore, getActiveThemeClass, getThemePalette } from '@/store/use
 import { showAlert } from '@/store/useAlertStore';
 import { SharedListItem, PersonalReminderSettings, ReminderFrequencyUnit } from '@/types';
 import { Text } from '@/components/ui/Text';
+import {
+  scheduleNeedsListReminder,
+  cancelNeedsListReminder,
+  requestNotificationPermissions,
+} from '@/services/notifications/notificationService';
 
 interface NeedsListTabProps {
   cohortId: string;
@@ -46,6 +51,7 @@ export function NeedsListTab({ cohortId }: NeedsListTabProps) {
     (colorScheme === 'system' && (systemScheme === 'dark' || !systemScheme));
 
   const {
+    cohorts,
     sharedLists,
     reminderSettings,
     currentUser,
@@ -54,6 +60,9 @@ export function NeedsListTab({ cohortId }: NeedsListTabProps) {
     deleteListItem,
     updateReminderSettings,
   } = useExpenseStore();
+
+  const activeCohort = cohorts.find((c) => c.id === cohortId);
+  const cohortName = activeCohort?.name || 'House';
 
   const [newItemTitle, setNewItemTitle] = useState('');
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -67,6 +76,22 @@ export function NeedsListTab({ cohortId }: NeedsListTabProps) {
     reminderTime: '18:00',
     notifyStaleItems: true,
   };
+
+  const pendingCount = useMemo(
+    () => cohortList.filter((item) => !item.isCompleted).length,
+    [cohortList]
+  );
+
+  // Sync scheduled notification whenever pending items count or enabled status changes
+  React.useEffect(() => {
+    if (currentSettings.enabled) {
+      if (pendingCount > 0) {
+        scheduleNeedsListReminder(cohortId, cohortName, pendingCount, currentSettings);
+      } else {
+        cancelNeedsListReminder(cohortId);
+      }
+    }
+  }, [pendingCount, currentSettings.enabled, cohortId, cohortName]);
 
   // Filter out items checked > 5 days ago (5 days = 5 * 86400000 ms)
   const activeList = useMemo(() => {
@@ -110,20 +135,37 @@ export function NeedsListTab({ cohortId }: NeedsListTabProps) {
   const [reminderTime, setReminderTime] = useState(currentSettings.reminderTime || '18:00');
   const [notifyStale, setNotifyStale] = useState(currentSettings.notifyStaleItems ?? true);
 
-  const handleSaveSettings = () => {
-    updateReminderSettings(cohortId, {
+  const handleSaveSettings = async () => {
+    const newSettings: PersonalReminderSettings = {
       enabled,
       frequencyUnit: unit,
       frequencyHours: freqHours,
       frequencyDays: freqDays,
       reminderTime,
       notifyStaleItems: notifyStale,
-    });
+    };
+
+    updateReminderSettings(cohortId, newSettings);
     setSettingsVisible(false);
 
     if (!enabled) {
+      await cancelNeedsListReminder(cohortId);
       showAlert('Notifications Disabled', 'You will not receive shopping reminders for this house cart.');
-    } else if (unit === 'hours') {
+      return;
+    }
+
+    const hasPermission = await requestNotificationPermissions();
+    if (!hasPermission) {
+      showAlert(
+        'Permission Required',
+        'Notification permissions are not enabled. Please allow notifications in device settings to receive reminders.'
+      );
+      return;
+    }
+
+    await scheduleNeedsListReminder(cohortId, cohortName, pendingCount, newSettings);
+
+    if (unit === 'hours') {
       showAlert('Reminder Settings Saved', `You will be reminded every ${freqHours} hour(s) before grocery runs.`);
     } else {
       showAlert('Reminder Settings Saved', `You will be reminded every ${freqDays} day(s) at ${reminderTime}.`);

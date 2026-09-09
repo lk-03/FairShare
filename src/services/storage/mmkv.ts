@@ -40,3 +40,13 @@ export const zustandMMKVStorage: StateStorage = {
     memoryStorage.delete(name);
   },
 };
+
+export const supabaseMMKVStorage = {
+  getItem: (key: string): string | null => zustandMMKVStorage.getItem(key) as string | null,
+  setItem: (key: string, value: string): void => {
+    zustandMMKVStorage.setItem(key, value);
+  },
+  removeItem: (key: string): void => {
+    zustandMMKVStorage.removeItem(key);
+  },
+};

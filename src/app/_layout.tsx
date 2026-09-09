@@ -64,7 +64,18 @@ export default function RootLayout() {
       if (url) handleDeepLink({ url });
     });
 
-    return () => sub.remove();
+    let authSubscription: { unsubscribe: () => void } | null = null;
+    if (isSupabaseConfigured()) {
+      const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        // Keeps the session synchronized when tokens are refreshed in background
+      });
+      authSubscription = data.subscription;
+    }
+
+    return () => {
+      sub.remove();
+      authSubscription?.unsubscribe();
+    };
   }, []);
 
   return (

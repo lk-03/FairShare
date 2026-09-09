@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { supabaseMMKVStorage } from '../storage/mmkv';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://placeholder-supabase-url.supabase.co';
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key';
@@ -17,6 +18,7 @@ export const isSupabaseConfigured = (): boolean => {
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
+    storage: supabaseMMKVStorage,
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,

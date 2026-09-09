@@ -207,9 +207,21 @@ FairShare/
 - **Role:** Profile fetching and updating operations via Supabase `profiles` table.
 - **Functions:** `fetchProfile`, `updateProfile`, `getCurrentProfile`.
 
+#### `src/services/storage/mmkv.ts`
+- **Role:** High-speed native key-value storage engine backed by `react-native-mmkv` with in-memory fallback.
+- **Exports:** `zustandMMKVStorage` (Zustand state persistence for offline store), `supabaseMMKVStorage` (Supabase `SupportedStorage` adapter ensuring auth JWT session tokens survive app restarts and OS memory termination).
+
+#### `src/services/notifications/notificationService.ts`
+- **Role:** Native local notification scheduling engine powered by `expo-notifications`.
+- **Functions:**
+  - `setupNotificationChannels`: Configures high-priority Android notification channel (`house-cart-reminders`).
+  - `requestNotificationPermissions`: Prompts native Android system runtime permission (`POST_NOTIFICATIONS`).
+  - `scheduleNeedsListReminder`: Schedules repeating local reminders (hourly interval or daily at specific time) based on uncompleted cart items.
+  - `cancelNeedsListReminder`: Cancels active scheduled reminder when cart items are cleared or notifications are disabled.
+
 #### `src/services/supabase/client.ts`
 - **Role:** Supabase JS client initializer and configuration checker.
-- **Details:** Configures client with `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`, auto-refreshing tokens, exports `isSupabaseConfigured()` guard (preventing network error spam when placeholder credentials are used), and exports `signInAsGuest()` for anonymous authentication.
+- **Details:** Configures client with `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`, auto-refreshing tokens, persistent session backed by `supabaseMMKVStorage`, exports `isSupabaseConfigured()` guard (preventing network error spam when placeholder credentials are used), and exports `signInAsGuest()` for anonymous authentication.
 
 #### `src/services/supabase/authService.ts`
 - **Role:** Authentication engine for Supabase Auth, Native Google Play Services (`@react-native-google-signin/google-signin` configured with `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`), Web OAuth PKCE fallback, and Email verification.
