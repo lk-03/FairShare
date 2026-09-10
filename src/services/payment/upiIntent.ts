@@ -1,18 +1,39 @@
 import { Linking, Platform } from 'react-native';
+import QRCode from 'qrcode';
 import { UPIPaymentConfig } from '@/types';
 
 /**
  * Builds standard OS-level UPI intent deep link URI
  * Scheme: upi://pay?pa=...&pn=...&am=...&cu=INR&tn=...
+ * Note is sanitized to alphanumeric characters only to prevent bank risk policy blocks.
  */
 export function buildUPIIntentURL(config: UPIPaymentConfig): string {
   const { vpaId, payeeName, amount, currency = 'INR', note } = config;
 
   const formattedAmount = amount.toFixed(2);
   const encodedName = encodeURIComponent(payeeName.trim());
-  const encodedNote = encodeURIComponent((note || '').trim() || 'FairShare Settlement');
+  const cleanNote = (note || '')
+    .replace(/[^a-zA-Z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim() || 'FairShare';
+  const encodedNote = encodeURIComponent(cleanNote);
 
   return `upi://pay?pa=${vpaId.trim()}&pn=${encodedName}&am=${formattedAmount}&cu=${currency}&tn=${encodedNote}`;
+}
+
+/**
+ * Generates a base64 PNG data URL for a scannable UPI QR code.
+ */
+export async function generateUPIQRCode(config: UPIPaymentConfig): Promise<string> {
+  const url = buildUPIIntentURL(config);
+  return QRCode.toDataURL(url, {
+    width: 256,
+    margin: 1,
+    color: {
+      dark: '#000000',
+      light: '#FFFFFF',
+    },
+  });
 }
 
 /**

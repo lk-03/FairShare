@@ -5,15 +5,17 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
+  Image,
   StatusBar,
   useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
 import { useExpenseStore } from '@/store/useExpenseStore';
 import { useThemeStore, getActiveThemeClass, getThemePalette } from '@/store/useThemeStore';
 import { showAlert } from '@/store/useAlertStore';
 import { DirectDebt } from '@/types';
-import { launchUPIIntent } from '@/services/payment/upiIntent';
+import { launchUPIIntent, generateUPIQRCode } from '@/services/payment/upiIntent';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@/components/ui/Text';
 
@@ -41,11 +43,16 @@ export function SettleUpModal({ visible, onClose, cohortId, debt }: SettleUpModa
 
   const [amountStr, setAmountStr] = useState('');
   const [notes, setNotes] = useState('');
+  const [copiedVpa, setCopiedVpa] = useState(false);
+  const [showQrCode, setShowQrCode] = useState(false);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (visible && debt) {
       setAmountStr(debt.amount.toFixed(2));
       setNotes('');
+      setCopiedVpa(false);
+      setShowQrCode(false);
     }
   }, [visible, debt]);
 
@@ -63,6 +70,28 @@ export function SettleUpModal({ visible, onClose, cohortId, debt }: SettleUpModa
   const payeeHandle = debt.toProfile?.username;
   const payeeVpa = debt.toProfile?.vpaId || `${payeeDisplayName.toLowerCase().replace(/\s+/g, '')}@upi`;
   const hasPayeeVpa = !!debt.toProfile?.vpaId;
+
+  // Generate dynamic QR code matching payee and amount
+  useEffect(() => {
+    if (visible && payeeVpa && currentAmount > 0) {
+      generateUPIQRCode({
+        vpaId: payeeVpa,
+        payeeName: payeeDisplayName,
+        amount: currentAmount,
+        currency: 'INR',
+        note: 'FairShare Settlement',
+      })
+        .then((dataUrl) => setQrCodeDataUrl(dataUrl))
+        .catch((err) => console.warn('[SettleUpModal] QR generation error:', err));
+    }
+  }, [visible, payeeVpa, payeeDisplayName, currentAmount]);
+
+  const handleCopyVpa = async () => {
+    if (!payeeVpa) return;
+    await Clipboard.setStringAsync(payeeVpa);
+    setCopiedVpa(true);
+    setTimeout(() => setCopiedVpa(false), 2500);
+  };
 
   const recordSettlementExpense = async (settleAmount: number, method: string) => {
     const settlementExpense = {
@@ -101,16 +130,21 @@ export function SettleUpModal({ visible, onClose, cohortId, debt }: SettleUpModa
       payeeName: payeeDisplayName,
       amount: currentAmount,
       currency: 'INR',
-      note: `FairShare Settlement - ${cohort?.name || 'Group'}`,
+      note: 'FairShare Settlement',
     });
 
     if (!success) {
       showAlert(
-        'UPI Apps Not Found',
-        `Could not launch UPI app automatically. You can pay ₹${currentAmount.toFixed(2)} to ${payeeVpa} and tap "Record Payment".`,
+        'UPI Launch Notice',
+        `Could not launch UPI app automatically. You can copy the UPI ID (${payeeVpa}) or scan the QR code to pay directly in Paytm or GPay, then tap "Record Payment".`,
         [
+          { text: 'Copy UPI ID', onPress: handleCopyVpa },
+          {
+            text: 'Record Payment',
+            style: 'default',
+            onPress: () => recordSettlementExpense(currentAmount, 'UPI Transfer'),
+          },
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Record Payment', style: 'default', onPress: () => recordSettlementExpense(currentAmount, 'UPI Transfer') },
         ]
       );
     } else {
@@ -207,10 +241,25 @@ export function SettleUpModal({ visible, onClose, cohortId, debt }: SettleUpModa
                       @{payeeHandle}
                     </Text>
                   ) : null}
-                  <View className="flex-row items-center gap-1 mt-0.5">
+                  <View className="flex-row items-center gap-1.5 mt-1">
                     <Text className="text-[11px] font-semibold" style={{ color: colors.textSecondary }}>
                       {payeeVpa}
                     </Text>
+                    <TouchableOpacity
+                      onPress={handleCopyVpa}
+                      activeOpacity={0.7}
+                      className="px-2 py-0.5 rounded-md flex-row items-center gap-1"
+                      style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}
+                    >
+                      <Ionicons
+                        name={copiedVpa ? 'checkmark-circle' : 'copy-outline'}
+                        size={11}
+                        color={copiedVpa ? colors.emerald : colors.cyan}
+                      />
+                      <Text className="text-[10px] font-bold" style={{ color: copiedVpa ? colors.emerald : colors.cyan }}>
+                        {copiedVpa ? 'Copied' : 'Copy'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               </View>
@@ -238,6 +287,50 @@ export function SettleUpModal({ visible, onClose, cohortId, debt }: SettleUpModa
                   />
                 </View>
               </View>
+
+              {/* Dynamic QR Code Section (Guaranteed Bypass for UPI Risk Policy) */}
+              {payeeVpa && qrCodeDataUrl ? (
+                <View
+                  className="rounded-2xl p-4 gap-3"
+                  style={{ backgroundColor: colors.accentPill, borderWidth: 1, borderColor: colors.border }}
+                >
+                  <TouchableOpacity
+                    className="flex-row items-center justify-between"
+                    onPress={() => setShowQrCode(!showQrCode)}
+                    activeOpacity={0.7}
+                  >
+                    <View className="flex-row items-center gap-2 flex-1 pr-2">
+                      <Ionicons name="qr-code-outline" size={18} color={colors.cyan} />
+                      <Text className="text-xs font-bold" style={{ color: colors.textMain }}>
+                        {showQrCode ? 'Hide Scannable UPI QR' : 'Show Scannable UPI QR (Bypasses Bank Risk Policy)'}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={showQrCode ? 'chevron-up' : 'chevron-down'}
+                      size={16}
+                      color={colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+
+                  {showQrCode && (
+                    <View className="items-center justify-center pt-2 pb-1 gap-2.5">
+                      <View className="p-3.5 bg-white rounded-2xl shadow-md">
+                        <Image
+                          source={{ uri: qrCodeDataUrl }}
+                          style={{ width: 170, height: 170 }}
+                          resizeMode="contain"
+                        />
+                      </View>
+                      <Text
+                        className="text-[11px] text-center font-medium leading-relaxed max-w-[260px]"
+                        style={{ color: colors.textSecondary }}
+                      >
+                        Scan with Paytm, GPay, or PhonePe. If your bank limits intent links, screenshot this QR and scan from your UPI app gallery.
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ) : null}
 
               {/* Overpayment Warning / Balance Adjustment Info */}
               {overpayment > 0 && (
