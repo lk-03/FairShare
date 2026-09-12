@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Modal,
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Image,
   StatusBar,
   useColorScheme,
 } from 'react-native';
@@ -15,7 +14,7 @@ import { useExpenseStore } from '@/store/useExpenseStore';
 import { useThemeStore, getActiveThemeClass, getThemePalette } from '@/store/useThemeStore';
 import { showAlert } from '@/store/useAlertStore';
 import { DirectDebt } from '@/types';
-import { launchUPIIntent, generateUPIQRCode } from '@/services/payment/upiIntent';
+import { launchUPIIntent, generateUPIMatrix } from '@/services/payment/upiIntent';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@/components/ui/Text';
 
@@ -45,7 +44,6 @@ export function SettleUpModal({ visible, onClose, cohortId, debt }: SettleUpModa
   const [notes, setNotes] = useState('');
   const [copiedVpa, setCopiedVpa] = useState(false);
   const [showQrCode, setShowQrCode] = useState(false);
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (visible && debt) {
@@ -56,33 +54,58 @@ export function SettleUpModal({ visible, onClose, cohortId, debt }: SettleUpModa
     }
   }, [visible, debt]);
 
+  const creditorMember = useMemo(
+    () => (debt ? cohortMembers.find((m) => m.userId === debt.toUserId) : undefined),
+    [cohortMembers, debt]
+  );
+  const debtorMember = useMemo(
+    () => (debt ? cohortMembers.find((m) => m.userId === debt.fromUserId) : undefined),
+    [cohortMembers, debt]
+  );
+
+  const payeeProfile = debt?.toProfile || creditorMember?.profile;
+  const payerProfile = debt?.fromProfile || debtorMember?.profile;
+
+  const isCurrentUserPayer = debt?.fromUserId === currentUser.id;
+  const payerDisplayName =
+    payerProfile?.nickname ||
+    payerProfile?.fullName ||
+    debtorMember?.originalCsvName ||
+    (isCurrentUserPayer ? 'You' : debt?.fromUserId || 'Payer');
+  const payerHandle = payerProfile?.username;
+
+  const payeeDisplayName =
+    payeeProfile?.nickname ||
+    payeeProfile?.fullName ||
+    creditorMember?.originalCsvName ||
+    (debt?.toUserId === currentUser.id ? 'You' : debt?.toUserId || 'Payee');
+  const payeeHandle = payeeProfile?.username;
+
+  const rawPayeeVpa = payeeProfile?.vpaId || creditorMember?.profile?.vpaId;
+  const fallbackVpa = `${String(payeeDisplayName || 'payee').toLowerCase().replace(/[^a-z0-9]/g, '')}@upi`;
+  const payeeVpa = rawPayeeVpa || fallbackVpa;
+  const hasPayeeVpa = !!rawPayeeVpa;
+
   if (!debt) return null;
 
   const originalDebtAmount = debt.amount;
   const currentAmount = parseFloat(amountStr) || 0;
   const overpayment = Math.max(0, currentAmount - originalDebtAmount);
 
-  const isCurrentUserPayer = debt.fromUserId === currentUser.id;
-  const payerDisplayName = debt.fromProfile?.nickname || debt.fromProfile?.fullName || (isCurrentUserPayer ? 'You' : debt.fromUserId);
-  const payerHandle = debt.fromProfile?.username;
-
-  const payeeDisplayName = debt.toProfile?.nickname || debt.toProfile?.fullName || debt.toUserId;
-  const payeeHandle = debt.toProfile?.username;
-  const payeeVpa = debt.toProfile?.vpaId || `${payeeDisplayName.toLowerCase().replace(/\s+/g, '')}@upi`;
-  const hasPayeeVpa = !!debt.toProfile?.vpaId;
-
-  // Generate dynamic QR code matching payee and amount
-  useEffect(() => {
-    if (visible && payeeVpa && currentAmount > 0) {
-      generateUPIQRCode({
+  // Generate dynamic QR matrix (pure boolean matrix, 100% canvas-free and native-safe)
+  const qrMatrix = useMemo(() => {
+    if (!visible || !payeeVpa || currentAmount <= 0) return null;
+    try {
+      return generateUPIMatrix({
         vpaId: payeeVpa,
         payeeName: payeeDisplayName,
         amount: currentAmount,
         currency: 'INR',
         note: 'FairShare Settlement',
-      })
-        .then((dataUrl) => setQrCodeDataUrl(dataUrl))
-        .catch((err) => console.warn('[SettleUpModal] QR generation error:', err));
+      });
+    } catch (err) {
+      console.warn('[SettleUpModal] QR matrix generation error:', err);
+      return null;
     }
   }, [visible, payeeVpa, payeeDisplayName, currentAmount]);
 
@@ -125,7 +148,7 @@ export function SettleUpModal({ visible, onClose, cohortId, debt }: SettleUpModa
       return;
     }
 
-    const success = await launchUPIIntent({
+    const res = await launchUPIIntent({
       vpaId: payeeVpa,
       payeeName: payeeDisplayName,
       amount: currentAmount,
@@ -133,7 +156,7 @@ export function SettleUpModal({ visible, onClose, cohortId, debt }: SettleUpModa
       note: 'FairShare Settlement',
     });
 
-    if (!success) {
+    if (!res || !res.success) {
       showAlert(
         'UPI Launch Notice',
         `Could not launch UPI app automatically. You can copy the UPI ID (${payeeVpa}) or scan the QR code to pay directly in Paytm or GPay, then tap "Record Payment".`,
@@ -289,7 +312,7 @@ export function SettleUpModal({ visible, onClose, cohortId, debt }: SettleUpModa
               </View>
 
               {/* Dynamic QR Code Section (Guaranteed Bypass for UPI Risk Policy) */}
-              {payeeVpa && qrCodeDataUrl ? (
+              {payeeVpa && qrMatrix ? (
                 <View
                   className="rounded-2xl p-4 gap-3"
                   style={{ backgroundColor: colors.accentPill, borderWidth: 1, borderColor: colors.border }}
@@ -314,12 +337,19 @@ export function SettleUpModal({ visible, onClose, cohortId, debt }: SettleUpModa
 
                   {showQrCode && (
                     <View className="items-center justify-center pt-2 pb-1 gap-2.5">
-                      <View className="p-3.5 bg-white rounded-2xl shadow-md">
-                        <Image
-                          source={{ uri: qrCodeDataUrl }}
-                          style={{ width: 170, height: 170 }}
-                          resizeMode="contain"
-                        />
+                      <View className="p-3.5 bg-white rounded-2xl shadow-md items-center justify-center">
+                        <View className="w-[170px] h-[170px] flex-col">
+                          {qrMatrix.matrix.map((row, rIdx) => (
+                            <View key={rIdx} className="flex-1 flex-row">
+                              {row.map((isDarkPixel, cIdx) => (
+                                <View
+                                  key={cIdx}
+                                  className={`flex-1 ${isDarkPixel ? 'bg-slate-900' : 'bg-white'}`}
+                                />
+                              ))}
+                            </View>
+                          ))}
+                        </View>
                       </View>
                       <Text
                         className="text-[11px] text-center font-medium leading-relaxed max-w-[260px]"

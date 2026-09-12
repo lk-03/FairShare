@@ -1,4 +1,4 @@
-import { buildUPIIntentURL, generateUPIQRCode } from '../upiIntent';
+import { buildUPIIntentURL, generateUPIQRCode, generateUPIMatrix } from '../upiIntent';
 
 describe('UPI Intent URL Builder', () => {
   it('should format upi://pay URI correctly', () => {
@@ -23,6 +23,20 @@ describe('UPI Intent URL Builder', () => {
     });
 
     expect(url).toBe('upi://pay?pa=test@upi&pn=Sam&am=27.50&cu=INR&tn=FairShare%20Settlement%20House%20Cart');
+  });
+
+  it('should generate pure boolean matrix for React Native native rendering', () => {
+    const result = generateUPIMatrix({
+      vpaId: 'test@upi',
+      payeeName: 'Sam',
+      amount: 27.5,
+      currency: 'INR',
+    });
+
+    expect(result.moduleSize).toBeGreaterThan(0);
+    expect(result.matrix.length).toBe(result.moduleSize);
+    expect(result.matrix[0].length).toBe(result.moduleSize);
+    expect(typeof result.matrix[0][0]).toBe('boolean');
   });
 
   it('should generate scannable QR code data URL', async () => {

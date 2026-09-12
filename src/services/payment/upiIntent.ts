@@ -8,21 +8,44 @@ import { UPIPaymentConfig } from '@/types';
  * Note is sanitized to alphanumeric characters only to prevent bank risk policy blocks.
  */
 export function buildUPIIntentURL(config: UPIPaymentConfig): string {
-  const { vpaId, payeeName, amount, currency = 'INR', note } = config;
+  const { vpaId = '', payeeName = '', amount = 0, currency = 'INR', note = '' } = config;
 
-  const formattedAmount = amount.toFixed(2);
-  const encodedName = encodeURIComponent(payeeName.trim());
-  const cleanNote = (note || '')
+  const formattedAmount = Number(amount || 0).toFixed(2);
+  const cleanName = String(payeeName || 'Payee').trim();
+  const encodedName = encodeURIComponent(cleanName);
+  const cleanNote = String(note || 'FairShare')
     .replace(/[^a-zA-Z0-9 ]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim() || 'FairShare';
   const encodedNote = encodeURIComponent(cleanNote);
+  const cleanVpa = String(vpaId || '').trim();
 
-  return `upi://pay?pa=${vpaId.trim()}&pn=${encodedName}&am=${formattedAmount}&cu=${currency}&tn=${encodedNote}`;
+  return `upi://pay?pa=${cleanVpa}&pn=${encodedName}&am=${formattedAmount}&cu=${currency}&tn=${encodedNote}`;
 }
 
 /**
- * Generates a base64 PNG data URL for a scannable UPI QR code.
+ * Generates a pure boolean matrix for rendering UPI QR codes natively in React Native
+ * without any HTML canvas or DOM dependencies.
+ */
+export function generateUPIMatrix(config: UPIPaymentConfig): { matrix: boolean[][]; moduleSize: number } {
+  const url = buildUPIIntentURL(config);
+  const qr = QRCode.create(url, { errorCorrectionLevel: 'M' });
+  const moduleSize = qr.modules.size;
+  const data = qr.modules.data;
+  const matrix: boolean[][] = [];
+
+  for (let r = 0; r < moduleSize; r++) {
+    const row: boolean[] = [];
+    for (let c = 0; c < moduleSize; c++) {
+      row.push(Boolean(data[r * moduleSize + c]));
+    }
+    matrix.push(row);
+  }
+  return { matrix, moduleSize };
+}
+
+/**
+ * Generates a base64 PNG data URL for a scannable UPI QR code (Node / Web environments).
  */
 export async function generateUPIQRCode(config: UPIPaymentConfig): Promise<string> {
   const url = buildUPIIntentURL(config);
