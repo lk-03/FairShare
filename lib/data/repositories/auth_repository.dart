@@ -41,7 +41,8 @@ class AuthRepository {
   User? get currentAuthUser =>
       supabaseService.isConfigured ? supabaseService.client.auth.currentUser : null;
 
-  UserProfile? get currentCachedUser => cacheService.getCurrentUser();
+  /// Signs in using native Google Play Services authentication
+  Future<UserProfile?> signInWithNativeGoogle() => signInWithGoogle();
 
   /// Signs in using native Google Play Services authentication
   Future<UserProfile?> signInWithGoogle() async {

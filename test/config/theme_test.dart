@@ -10,16 +10,16 @@ void main() {
       final dark = AppPalettes.getColors(Brightness.dark);
       final light = AppPalettes.getColors(Brightness.light);
 
-      expect(dark.screen, const Color(0xFF080C14));
-      expect(dark.surface, const Color(0xFF0F172A));
+      expect(dark.screen, const Color(0xFF0D131A));
+      expect(dark.surface, const Color(0xFF121A23));
       expect(dark.cyan, const Color(0xFF38BDF8));
-      expect(dark.gradStart, const Color(0xFF2563EB));
+      expect(dark.gradStart, const Color(0xFF2B3E50));
       expect(dark.chartColors.length, 8);
 
-      expect(light.screen, const Color(0xFFF8FAFF));
+      expect(light.screen, const Color(0xFFF8FAFC));
       expect(light.surface, const Color(0xFFFFFFFF));
-      expect(light.cyan, const Color(0xFF2563EB));
-      expect(light.gradStart, const Color(0xFFDBEAFE));
+      expect(light.cyan, const Color(0xFF0284C7));
+      expect(light.gradStart, const Color(0xFFDCE7F0));
       expect(light.chartColors.length, 8);
     });
 

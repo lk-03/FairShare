@@ -51,6 +51,20 @@ class ProfileRepository {
   }
 
   /// Updates or upserts profile in Supabase & local cache
+  Future<UserProfile> upsertProfile(UserProfile profile) async {
+    return updateProfile(
+      profile.id,
+      fullName: profile.fullName,
+      nickname: profile.nickname,
+      username: profile.username,
+      avatarUrl: profile.avatarUrl,
+      vpaId: profile.vpaId,
+      phoneNumber: profile.phoneNumber,
+      isGuest: profile.isGuest,
+      authProvider: profile.authProvider,
+    );
+  }
+
   Future<UserProfile> updateProfile(
     String userId, {
     String? fullName,

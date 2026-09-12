@@ -63,6 +63,14 @@ class CurrentUserNotifier extends Notifier<UserProfile?> {
     state = user;
   }
 
+  Future<void> saveProfile(UserProfile profile) async {
+    final cache = ref.read(localCacheServiceProvider);
+    await cache.saveCurrentUser(profile);
+    final profileRepo = ref.read(profileRepositoryProvider);
+    await profileRepo.upsertProfile(profile);
+    state = profile;
+  }
+
   Future<void> updateProfile({
     String? fullName,
     String? nickname,
