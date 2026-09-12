@@ -4,9 +4,25 @@ import 'config/theme/app_colors.dart';
 import 'config/theme/theme_provider.dart';
 import 'core/widgets/theme_gradient_header.dart';
 
-void main() {
+import 'package:shared_preferences/shared_preferences.dart';
+import 'core/config/app_config.dart';
+import 'data/providers/auth_provider.dart';
+import 'data/services/supabase_service.dart';
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ProviderScope(child: FairShareApp()));
+  await AppConfig.initialize();
+  final prefs = await SharedPreferences.getInstance();
+  await SupabaseService.initialize();
+
+  runApp(
+    ProviderScope(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
+      child: const FairShareApp(),
+    ),
+  );
 }
 
 class FairShareApp extends ConsumerWidget {
