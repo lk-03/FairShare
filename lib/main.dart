@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'config/theme/app_colors.dart';
-import 'config/theme/theme_palettes.dart';
 import 'config/theme/theme_provider.dart';
 import 'core/widgets/theme_gradient_header.dart';
 
@@ -15,15 +14,15 @@ class FairShareApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final themeState = ref.watch(themeNotifierProvider);
-    final themeNotifier = ref.watch(themeNotifierProvider.notifier);
+    final themeMode = ref.watch(themeModeProvider);
+    final themeNotifier = ref.watch(themeModeProvider.notifier);
 
     return MaterialApp(
       title: 'FairShare',
       debugShowCheckedModeBanner: false,
       theme: themeNotifier.lightTheme,
       darkTheme: themeNotifier.darkTheme,
-      themeMode: themeState.mode,
+      themeMode: themeMode,
       home: const FairShareHomeScreen(),
     );
   }
@@ -35,8 +34,8 @@ class FairShareHomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
-    final themeState = ref.watch(themeNotifierProvider);
-    final themeNotifier = ref.read(themeNotifierProvider.notifier);
+    final themeMode = ref.watch(themeModeProvider);
+    final themeNotifier = ref.read(themeModeProvider.notifier);
 
     return Scaffold(
       body: Column(
@@ -68,7 +67,7 @@ class FairShareHomeScreen extends ConsumerWidget {
                         border: Border.all(color: colors.borderSubtle),
                       ),
                       child: Text(
-                        themeState.palette.name,
+                        'Electric Blue',
                         style: TextStyle(
                           color: colors.accentPillText,
                           fontSize: 12,
@@ -95,49 +94,6 @@ class FairShareHomeScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(20),
               children: [
                 Text(
-                  'THEME PALETTE',
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: ThemePalette.values.map((palette) {
-                    final isSelected = themeState.palette == palette;
-                    return Expanded(
-                      child: GestureDetector(
-                        onTap: () => themeNotifier.setPalette(palette),
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: palette.previewColor,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: isSelected ? colors.cyan : Colors.transparent,
-                              width: 2,
-                            ),
-                          ),
-                          child: Center(
-                            child: Text(
-                              palette.name.split(' ').first,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 24),
-                Text(
                   'APPEARANCE',
                   style: TextStyle(
                     color: colors.textSecondary,
@@ -159,21 +115,21 @@ class FairShareHomeScreen extends ConsumerWidget {
                         context: context,
                         label: 'Light',
                         icon: Icons.light_mode_outlined,
-                        isActive: themeState.mode == ThemeMode.light,
+                        isActive: themeMode == ThemeMode.light,
                         onTap: () => themeNotifier.setMode(ThemeMode.light),
                       ),
                       _buildModeButton(
                         context: context,
                         label: 'Dark',
                         icon: Icons.dark_mode_outlined,
-                        isActive: themeState.mode == ThemeMode.dark,
+                        isActive: themeMode == ThemeMode.dark,
                         onTap: () => themeNotifier.setMode(ThemeMode.dark),
                       ),
                       _buildModeButton(
                         context: context,
                         label: 'System',
                         icon: Icons.brightness_auto_outlined,
-                        isActive: themeState.mode == ThemeMode.system,
+                        isActive: themeMode == ThemeMode.system,
                         onTap: () => themeNotifier.setMode(ThemeMode.system),
                       ),
                     ],

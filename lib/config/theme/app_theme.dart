@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'theme_palettes.dart';
 
-/// AppTheme builds complete Material 3 [ThemeData] configured with FairShare's
-/// Revolut-inspired neo-fintech visual language.
+/// AppTheme builds Material 3 [ThemeData] configured with FairShare's
+/// signature Electric Cobalt / Royal Blue neo-fintech visual language.
 class AppTheme {
   static ThemeData buildTheme({
-    required ThemePalette palette,
     required Brightness brightness,
   }) {
-    final colors = AppPalettes.getColors(palette, brightness);
+    final colors = AppPalettes.getColors(brightness);
     final isDark = brightness == Brightness.dark;
 
     final colorScheme = ColorScheme(

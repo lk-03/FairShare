@@ -8,7 +8,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('FairShareApp smoke test renders brand and theme controls',
+  testWidgets('FairShareApp smoke test renders brand and appearance controls',
       (WidgetTester tester) async {
     await tester.pumpWidget(
       const ProviderScope(
@@ -18,7 +18,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('FairShare'), findsOneWidget);
-    expect(find.text('THEME PALETTE'), findsOneWidget);
+    expect(find.text('Electric Blue'), findsOneWidget);
     expect(find.text('APPEARANCE'), findsOneWidget);
     expect(find.text('Light'), findsOneWidget);
     expect(find.text('Dark'), findsOneWidget);
