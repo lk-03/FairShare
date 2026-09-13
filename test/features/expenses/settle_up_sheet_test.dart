@@ -118,9 +118,22 @@ void main() {
     expect(find.text('Payee UPI ID (VPA)'), findsOneWidget);
     expect(find.text('alex@okaxis'), findsOneWidget);
 
+    // Verify Paytm Policy Notice
+    expect(find.text('Paytm Intent Policy Notice'), findsOneWidget);
+
     // Verify Action Buttons
     expect(find.textContaining('Pay with UPI App'), findsOneWidget);
+    expect(find.text('Show Settlement QR Code'), findsOneWidget);
     expect(find.text('Record as Settled (Cash / Paid)'), findsOneWidget);
+
+    // Toggle QR Code on and off
+    await tester.tap(find.text('Show Settlement QR Code'));
+    await tester.pumpAndSettle();
+    expect(find.text('Hide Settlement QR Code'), findsOneWidget);
+
+    await tester.tap(find.text('Hide Settlement QR Code'));
+    await tester.pumpAndSettle();
+    expect(find.text('Show Settlement QR Code'), findsOneWidget);
 
     // Tap Record as Settled
     await tester.tap(find.text('Record as Settled (Cash / Paid)'));

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../core/models/direct_debt.dart';
 import '../../../../core/models/expense.dart';
@@ -45,6 +46,7 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
   late final TextEditingController _amountController;
   bool _isLoading = false;
   bool _copiedVpa = false;
+  bool _showQr = false;
 
   @override
   void initState() {
@@ -67,9 +69,9 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
     setState(() => _copiedVpa = true);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('UPI ID "$vpa" copied to clipboard!'),
+        content: Text('UPI ID "$vpa" copied! Open GPay, PhonePe, or Paytm to pay safely.'),
         behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
+        duration: const Duration(seconds: 3),
       ),
     );
     Future.delayed(const Duration(seconds: 2), () {
@@ -114,8 +116,9 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Opening UPI App... Record settlement once payment succeeds!'),
+            content: Text('Opening UPI App... (Tip: If Paytm blocks with "risk policy", use Google Pay / PhonePe or copy UPI ID)'),
             behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 4),
           ),
         );
       }
@@ -181,6 +184,7 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final currentUser = ref.watch(currentUserProvider);
     final members = ref.watch(groupMembersProvider(widget.cohortId));
 
@@ -214,10 +218,11 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
         24,
         MediaQuery.of(context).viewInsets.bottom + 28,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
           // Drag Handle
           Center(
             child: Container(
@@ -455,7 +460,49 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+
+          // Paytm & Bank Risk Notice Banner
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colors.amber.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: colors.amber.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.warning_amber_rounded, size: 18, color: colors.amber),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Paytm Intent Policy Notice',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: colors.amber,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Paytm blocks third-party app intents ("Payment failed as per UPI risk policy"). For a smooth payment, select Google Pay / PhonePe, scan the QR code below, or copy the UPI ID.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: colors.textSecondary,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
 
           // Primary: Launch UPI Payment Intent
           SizedBox(
@@ -483,6 +530,73 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
               ),
             ),
           ),
+          const SizedBox(height: 12),
+
+          // QR Code Toggle Button
+          OutlinedButton.icon(
+            onPressed: () => setState(() => _showQr = !_showQr),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: colors.accentPill,
+              side: BorderSide(color: colors.border),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+            icon: Icon(
+              _showQr ? Icons.qr_code_rounded : Icons.qr_code_scanner_rounded,
+              size: 18,
+              color: colors.cyan,
+            ),
+            label: Text(
+              _showQr ? 'Hide Settlement QR Code' : 'Show Settlement QR Code',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: colors.textMain,
+              ),
+            ),
+          ),
+          if (_showQr) ...[
+            const SizedBox(height: 14),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: QrImageView(
+                  data: UPIIntentHelper.buildUPIIntentURL(
+                    UPIPaymentConfig(
+                      vpaId: payeeVpa,
+                      payeeName: payeeDisplayName,
+                      amount: _currentAmount > 0 ? _currentAmount : widget.debt.amount,
+                    ),
+                  ),
+                  version: QrVersions.auto,
+                  size: 180,
+                  backgroundColor: Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Scan directly or screenshot & scan from gallery in Paytm/GPay to bypass intent blocks.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                color: colors.textSecondary,
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
 
           // Secondary: Record as Settled (Cash / Bank Transfer)
@@ -516,6 +630,7 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }
