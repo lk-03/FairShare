@@ -105,6 +105,68 @@ final userNetBalanceProvider =
   return expenses.fold(0.0, (sum, e) => sum + e.userNetBalance(currentUser.id));
 });
 
+/// Net balance totals across all active, non-archived groups for current user
+class OverallNetBalance {
+  final double totalOwed;
+  final double totalOwe;
+  final double netTotal;
+
+  const OverallNetBalance({
+    this.totalOwed = 0.0,
+    this.totalOwe = 0.0,
+    this.netTotal = 0.0,
+  });
+}
+
+final overallNetBalanceProvider = Provider<OverallNetBalance>((ref) {
+  final currentUser = ref.watch(currentUserProvider);
+  if (currentUser == null) return const OverallNetBalance();
+
+  final groups = ref.watch(groupsProvider).value ?? [];
+  final activeCohorts =
+      groups.where((c) => !c.isDeleted && !c.isArchived).toList();
+
+  double owed = 0.0;
+  double owe = 0.0;
+
+  for (final cohort in activeCohorts) {
+    final expenses = ref.watch(groupExpensesProvider(cohort.id)).value ?? [];
+    final members = ref.watch(groupMembersProvider(cohort.id));
+    final res = DebtSimplifier.calculateSimplifiedDebts(
+      cohortId: cohort.id,
+      members: members,
+      expenses: expenses,
+    );
+    final userBal = res.netBalances[currentUser.id] ?? 0.0;
+    if (userBal > 0.01) {
+      owed += userBal;
+    } else if (userBal < -0.01) {
+      owe += userBal.abs();
+    }
+  }
+
+  return OverallNetBalance(
+    totalOwed: owed,
+    totalOwe: owe,
+    netTotal: owed - owe,
+  );
+});
+
+/// Recent expenses gathered and sorted across all active cohorts
+final allRecentExpensesProvider = Provider<List<Expense>>((ref) {
+  final groups = ref.watch(groupsProvider).value ?? [];
+  final activeCohorts = groups.where((c) => !c.isDeleted).toList();
+
+  final List<Expense> all = [];
+  for (final cohort in activeCohorts) {
+    final exps = ref.watch(groupExpensesProvider(cohort.id)).value ?? [];
+    all.addAll(exps);
+  }
+
+  all.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  return all.take(5).toList();
+});
+
 // --- Expense Comments ---
 
 class ExpenseCommentsNotifier

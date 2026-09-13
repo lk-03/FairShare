@@ -48,8 +48,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('FairShare'), findsOneWidget);
-    expect(find.text('Nordic Steel • Neo-Fintech Ledger'), findsOneWidget);
-    expect(find.text('APPEARANCE (NORDIC STEEL)'), findsOneWidget);
-    expect(find.text('ACTIVE COHORT'), findsOneWidget);
+    expect(find.text('PERSONAL • NET BALANCE'), findsOneWidget);
+    expect(find.text('Groups'), findsNWidgets(2));
+    expect(find.text('RECENT ACTIVITY'), findsOneWidget);
+    expect(find.text('Home'), findsOneWidget);
+    expect(find.text('Profile'), findsOneWidget);
   });
 }

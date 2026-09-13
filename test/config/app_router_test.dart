@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,7 +13,6 @@ void main() {
       () async {
     final prefs = await SharedPreferences.getInstance();
 
-    // Read router
     final router = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
@@ -43,13 +41,28 @@ void main() {
     router.go('/home');
     expect(router.routeInformationProvider.value.uri.path, '/home');
   });
-}
 
-class RootWidget extends StatelessWidget {
-  const RootWidget({super.key});
+  test('Router navigates across bottom tabs (/groups, /activity, /profile)',
+      () async {
+    SharedPreferences.setMockInitialValues({
+      'fairshare_onboarding_completed': true,
+      'fairshare_app_tour_seen': true,
+    });
+    final prefs = await SharedPreferences.getInstance();
 
-  @override
-  Widget build(BuildContext context) {
-    return const SizedBox.shrink();
-  }
+    final router = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
+    ).read(appRouterProvider);
+
+    router.go('/groups');
+    expect(router.routeInformationProvider.value.uri.path, '/groups');
+
+    router.go('/activity');
+    expect(router.routeInformationProvider.value.uri.path, '/activity');
+
+    router.go('/profile');
+    expect(router.routeInformationProvider.value.uri.path, '/profile');
+  });
 }
