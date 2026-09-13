@@ -1,7 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/models/expense.dart';
+import '../../core/models/group.dart';
+import '../../core/models/group_member.dart';
 import '../../core/models/profile.dart';
+import '../../core/models/split.dart';
 import '../local/local_cache_service.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/profile_repository.dart';
@@ -124,6 +128,87 @@ class CurrentUserNotifier extends Notifier<UserProfile?> {
     final authRepo = ref.read(authRepositoryProvider);
     final user = await authRepo.signInAsGuest();
     state = user;
+  }
+
+  /// One-tap demo / test login that prepares a rich test profile and seeds sample ledger data
+  Future<void> signInAsDemoUser() async {
+    final authRepo = ref.read(authRepositoryProvider);
+    final user = await authRepo.signInAsGuest();
+    final demoProfile = UserProfile(
+      id: user.id,
+      email: 'alex.vance@fairshare.app',
+      fullName: 'Alex Vance',
+      nickname: 'Alex',
+      username: 'alexv',
+      vpaId: 'alex@okaxis',
+      avatarUrl: 'https://api.dicebear.com/7.x/bottts/png?seed=Alex',
+      isGuest: true,
+      authProvider: 'demo',
+      createdAt: DateTime.now(),
+    );
+    final cache = ref.read(localCacheServiceProvider);
+    await cache.saveCurrentUser(demoProfile);
+    state = demoProfile;
+
+    // Seed sample group & expenses if local cache is empty
+    final cachedGroups = cache.getCachedGroups();
+    if (cachedGroups.isEmpty) {
+      final sampleGroup = Group(
+        id: 'cohort_demo_402',
+        name: 'Flat 402 - Bangalore',
+        description: 'Roommates monthly split & groceries',
+        category: 'house',
+        currency: 'INR',
+        createdBy: demoProfile.id,
+        inviteCode: 'FLAT402',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        members: [
+          GroupMember(
+            id: 'gm_demo_1',
+            cohortId: 'cohort_demo_402',
+            userId: demoProfile.id,
+            role: 'admin',
+            joinedAt: DateTime.now(),
+            profile: demoProfile,
+          ),
+          GroupMember(
+            id: 'gm_demo_2',
+            cohortId: 'cohort_demo_402',
+            userId: 'user_sam_demo',
+            role: 'member',
+            joinedAt: DateTime.now(),
+            profile: UserProfile(
+              id: 'user_sam_demo',
+              fullName: 'Sam Altman',
+              email: 'sam@fairshare.app',
+              vpaId: 'sam@okhdfcbank',
+              createdAt: DateTime.now(),
+            ),
+          ),
+        ],
+      );
+
+      final sampleExpense = Expense(
+        id: 'exp_demo_1',
+        cohortId: 'cohort_demo_402',
+        title: 'Weekly Groceries & Supplies',
+        category: 'dining',
+        totalAmount: 1200.0,
+        paidByUserId: demoProfile.id,
+        paidByName: demoProfile.fullName,
+        currency: 'INR',
+        splits: [
+          ExpenseSplit(userId: demoProfile.id, amount: 600.0),
+          ExpenseSplit(userId: 'user_sam_demo', amount: 600.0),
+        ],
+        createdAt: DateTime.now().subtract(const Duration(hours: 3)),
+        updatedAt: DateTime.now().subtract(const Duration(hours: 3)),
+      );
+
+      await cache.saveGroups([sampleGroup]);
+      await cache.saveExpenses('cohort_demo_402', [sampleExpense]);
+    }
   }
 
   Future<void> signOut() async {

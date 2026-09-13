@@ -106,4 +106,31 @@ void main() {
     expect(find.text('Welcome to FairShare'), findsOneWidget);
     expect(find.text('Continue as Guest'), findsNothing);
   });
+
+  testWidgets('AuthScreen tapping Demo Login signs in and triggers onAuthenticated',
+      (tester) async {
+    final prefs = await SharedPreferences.getInstance();
+    AuthSuccessData? authResult;
+
+    await tester.pumpWidget(
+      buildTestWidget(
+        initialMode: AuthMode.options,
+        prefs: prefs,
+        onAuthenticated: (data) => authResult = data,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final demoButton = find.byKey(const Key('demo_login_button'));
+    expect(demoButton, findsOneWidget);
+    expect(find.text('One-Tap Demo Login (Testing)'), findsOneWidget);
+
+    await tester.tap(demoButton);
+    await tester.pumpAndSettle();
+
+    expect(authResult, isNotNull);
+    expect(authResult!.provider, 'demo');
+    expect(authResult!.fullName, 'Alex Vance');
+    expect(authResult!.isNewUser, isFalse);
+  });
 }
