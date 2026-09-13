@@ -14,7 +14,7 @@ enum WelcomeStep {
 
 /// WelcomeScreen orchestrates the first-time user onboarding journey:
 /// 1. Interactive 5-slide feature carousel.
-/// 2. Multi-provider authentication (Google, Email, Guest).
+/// 2. Authentication (Google, Email).
 /// 3. Profile customization (avatar, nickname, @username, UPI VPA).
 ///
 /// Also supports `mode=tour` to replay the carousel without forcing authentication.

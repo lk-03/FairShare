@@ -29,8 +29,8 @@ class AuthSuccessData {
   });
 }
 
-/// AuthScreen handles multiple authentication modes: Google Sign-In, Email/Password
-/// authentication, email verification countdown, and zero-friction Guest mode.
+/// AuthScreen handles authentication modes: Google Sign-In, Email/Password
+/// authentication, and email verification countdown.
 class AuthScreen extends ConsumerStatefulWidget {
   final AuthMode initialMode;
   final ValueChanged<AuthSuccessData>? onAuthenticated;
@@ -113,7 +113,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     setState(() => _isLoading = true);
     try {
       final authRepo = ref.read(authRepositoryProvider);
-      final profile = await authRepo.signInWithNativeGoogle();
+      final profile = await authRepo.signInWithGoogle();
       if (!mounted) return;
       setState(() => _isLoading = false);
 
@@ -121,7 +121,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         widget.onAuthenticated?.call(
           AuthSuccessData(
             provider: 'google',
-            email: profile.email ?? 'user@gmail.com',
+            email: profile.email ?? '',
             fullName: profile.fullName,
             isNewUser: false,
             userProfile: profile,
@@ -135,30 +135,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         'Google Sign-In Notice',
         e.toString().replaceAll('Exception: ', ''),
       );
-    }
-  }
-
-  Future<void> _handleGuestAuth() async {
-    setState(() => _isLoading = true);
-    try {
-      final authRepo = ref.read(authRepositoryProvider);
-      final profile = await authRepo.signInAsGuest();
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-
-      widget.onAuthenticated?.call(
-        AuthSuccessData(
-          provider: 'guest',
-          email: profile.email ?? 'guest@fairshare.app',
-          fullName: profile.fullName,
-          isNewUser: true,
-          userProfile: profile,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      _showMessage('Guest Entry Notice', e.toString());
     }
   }
 
@@ -560,48 +536,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 12),
-
-        // 3: Continue as Guest Button (Zero friction)
-        SizedBox(
-          width: double.infinity,
-          height: 50,
-          child: OutlinedButton(
-            onPressed: _isLoading ? null : _handleGuestAuth,
-            style: OutlinedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              side: BorderSide(
-                color: colors.borderSubtle,
-                width: 1,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.person_outline_rounded,
-                  size: 18,
-                  color: colors.textSecondary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Continue as Guest',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: colors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
         const SizedBox(height: 16),
 
-        // 4: Create Account Switcher
+        // 3: Create Account Switcher
         TextButton(
           onPressed: () => setState(() => _mode = AuthMode.emailSignUp),
           child: Text(

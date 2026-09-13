@@ -47,7 +47,7 @@ void main() {
     expect(find.text('Welcome to FairShare'), findsOneWidget);
     expect(find.text('Continue with Google'), findsOneWidget);
     expect(find.text('Continue with Email'), findsOneWidget);
-    expect(find.text('Continue as Guest'), findsOneWidget);
+    expect(find.text('Continue as Guest'), findsNothing);
     expect(find.text('New to FairShare? Create an Account'), findsOneWidget);
 
     // Tap Continue with Email
@@ -85,25 +85,25 @@ void main() {
     expect(find.text('Create Account'), findsOneWidget);
   });
 
-  testWidgets('AuthScreen Continue as Guest triggers guest authentication callback',
+  testWidgets('AuthScreen back button returns to options from email sign in',
       (tester) async {
     final prefs = await SharedPreferences.getInstance();
-    AuthSuccessData? successData;
 
     await tester.pumpWidget(
       buildTestWidget(
-        initialMode: AuthMode.options,
-        onAuthenticated: (data) => successData = data,
+        initialMode: AuthMode.emailSignIn,
         prefs: prefs,
       ),
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Continue as Guest'));
+    expect(find.text('Sign in with Email'), findsOneWidget);
+
+    // Tap back icon button
+    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
     await tester.pumpAndSettle();
 
-    expect(successData, isNotNull);
-    expect(successData?.provider, 'guest');
-    expect(successData?.isNewUser, isTrue);
+    expect(find.text('Welcome to FairShare'), findsOneWidget);
+    expect(find.text('Continue as Guest'), findsNothing);
   });
 }
