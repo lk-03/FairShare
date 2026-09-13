@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../core/models/expense.dart';
 import '../../../../core/models/group.dart';
 import '../../../../data/providers/expenses_provider.dart';
 import '../../../../data/providers/groups_provider.dart';
+import '../../../expenses/presentation/widgets/add_expense_sheet.dart';
+import '../../../expenses/presentation/widgets/expense_details_sheet.dart';
 import '../widgets/create_group_sheet.dart';
 import '../widgets/home_groups_section.dart';
 import '../widgets/home_header.dart';
@@ -85,12 +88,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _openAddExpenseForGroup(Group group) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Add expense for "${group.name}" selected.'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    AddExpenseSheet.show(context, cohortId: group.id);
   }
 
   void _openScanReceiptForGroup(Group group) {
@@ -130,20 +128,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _handleGroupTap(Group cohort) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Opening group: ${cohort.name}'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    context.push('/groups/${cohort.id}');
   }
 
   void _handleExpenseTap(Expense expense) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Expense: ${expense.title}'),
-        behavior: SnackBarBehavior.floating,
-      ),
+    ExpenseDetailsSheet.show(
+      context,
+      expense: expense,
+      cohortId: expense.cohortId,
     );
   }
 

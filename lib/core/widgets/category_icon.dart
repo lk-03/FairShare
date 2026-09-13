@@ -211,6 +211,15 @@ class CategoryIcon extends StatelessWidget {
     this.variant = CategoryIconVariant.solid,
   });
 
+  const CategoryIcon.withVariant({
+    super.key,
+    required this.category,
+    this.customIcon,
+    this.size = 48.0,
+    this.color,
+    bool isSolid = true,
+  }) : variant = isSolid ? CategoryIconVariant.solid : CategoryIconVariant.light;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;

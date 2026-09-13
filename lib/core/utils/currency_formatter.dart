@@ -40,6 +40,14 @@ class CurrencyFormatter {
     return formatted;
   }
 
+  /// Alias for format(amount) standard in Indian Rupee
+  static String formatINR(
+    double amount, {
+    bool showSign = false,
+    bool showDecimals = true,
+  }) =>
+      format(amount, showSign: showSign, showDecimals: showDecimals);
+
   /// Compact representation for charts or small badges (e.g. "₹12.5k", "₹1.4L")
   static String formatCompact(double amount) {
     final abs = amount.abs();

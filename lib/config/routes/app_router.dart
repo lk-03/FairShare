@@ -6,6 +6,7 @@ import '../../core/widgets/fairshare_bottom_nav.dart';
 import '../../data/providers/auth_provider.dart';
 import '../../features/activity/presentation/screens/activity_tab_placeholder_screen.dart';
 import '../../features/auth/presentation/screens/auth_screen.dart';
+import '../../features/groups/presentation/screens/group_detail_screen.dart';
 import '../../features/groups/presentation/screens/groups_tab_placeholder_screen.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/onboarding/presentation/screens/welcome_screen.dart';
@@ -95,6 +96,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           },
           onBack: () => context.go('/welcome'),
         ),
+      ),
+      GoRoute(
+        path: '/groups/:id',
+        name: 'group-detail',
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return GroupDetailScreen(groupId: id);
+        },
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {

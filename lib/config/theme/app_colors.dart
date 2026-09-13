@@ -45,6 +45,7 @@ class AppThemeColors extends ThemeExtension<AppThemeColors> {
 
   Color get textPositive => emerald;
   Color get textNegative => red;
+  Color get crimson => red;
 
   @override
   AppThemeColors copyWith({
