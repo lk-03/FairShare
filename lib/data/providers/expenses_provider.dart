@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/algorithms/debt_simplifier.dart';
+import '../../core/models/activity_item.dart';
 import '../../core/models/comment.dart';
 import '../../core/models/direct_debt.dart';
 import '../../core/models/expense.dart';
@@ -165,6 +166,85 @@ final allRecentExpensesProvider = Provider<List<Expense>>((ref) {
 
   all.sort((a, b) => b.createdAt.compareTo(a.createdAt));
   return all.take(5).toList();
+});
+
+/// Aggregated activity feed gathered across all active cohorts where user is involved
+final activityFeedProvider = Provider<List<ActivityItem>>((ref) {
+  final groups = ref.watch(groupsProvider).value ?? [];
+  final activeCohorts = groups.where((c) => !c.isDeleted).toList();
+  final currentUser = ref.watch(currentUserProvider);
+
+  final List<ActivityItem> feed = [];
+
+  for (final cohort in activeCohorts) {
+    final members = ref.watch(groupMembersProvider(cohort.id));
+    final exps = ref.watch(groupExpensesProvider(cohort.id)).value ?? [];
+
+    for (final exp in exps) {
+      final isPayer = currentUser != null && exp.paidByUserId == currentUser.id;
+      final isSplitter = currentUser != null &&
+          exp.splits.any((s) => s.userId == currentUser.id);
+
+      // Include if user is involved, or if currentUser is null (preview/mock mode)
+      if (currentUser == null || isPayer || isSplitter) {
+        final payerMember =
+            members.where((m) => m.userId == exp.paidByUserId).firstOrNull;
+        final payerName = (currentUser != null && exp.paidByUserId == currentUser.id)
+            ? 'You'
+            : (payerMember?.profile?.displayName ?? exp.paidByName ?? 'Member');
+
+        feed.add(ActivityItem(
+          id: 'exp_${exp.id}',
+          type: ActivityType.expense,
+          timestamp: exp.createdAt,
+          cohortId: cohort.id,
+          cohortName: cohort.name,
+          title: exp.title,
+          amount: exp.totalAmount,
+          meta: '$payerName added a new expense',
+          category: exp.category,
+          customIcon: exp.customIcon,
+          rawExpense: exp,
+        ));
+      }
+
+      // Check comments for this expense
+      final comments =
+          ref.watch(expenseCommentsProvider(exp.id)).value ?? [];
+      for (final comment in comments) {
+        final isUserComment =
+            currentUser != null && comment.userId == currentUser.id;
+        if (currentUser == null || isUserComment || isPayer || isSplitter) {
+          final commenterMember =
+              members.where((m) => m.userId == comment.userId).firstOrNull;
+          final commenterName =
+              (currentUser != null && comment.userId == currentUser.id)
+                  ? 'You'
+                  : (commenterMember?.profile?.displayName ??
+                      comment.profile?.displayName ??
+                      'Member');
+
+          feed.add(ActivityItem(
+            id: 'com_${comment.id}',
+            type: ActivityType.comment,
+            timestamp: comment.createdAt,
+            cohortId: cohort.id,
+            cohortName: cohort.name,
+            title: exp.title,
+            amount: null,
+            meta: '$commenterName commented: "${comment.content}"',
+            category: 'comment',
+            rawExpense: exp,
+            commentId: comment.id,
+            commentContent: comment.content,
+          ));
+        }
+      }
+    }
+  }
+
+  feed.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+  return feed;
 });
 
 // --- Expense Comments ---

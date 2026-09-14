@@ -9,6 +9,7 @@ import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/expenses_provider.dart';
 import '../../../../data/providers/groups_provider.dart';
 import 'add_expense_sheet.dart';
+import 'transaction_comments_section.dart';
 
 class ExpenseDetailsSheet extends ConsumerWidget {
   final Expense expense;
@@ -323,6 +324,13 @@ class ExpenseDetailsSheet extends ConsumerWidget {
                 );
               },
             ),
+          ),
+          const SizedBox(height: 24),
+
+          // Discussion & Notes Audit Section
+          TransactionCommentsSection(
+            expenseId: expense.id,
+            cohortId: cohortId,
           ),
         ],
       ),

@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/models/profile.dart';
 import '../../core/widgets/fairshare_bottom_nav.dart';
 import '../../data/providers/auth_provider.dart';
-import '../../features/activity/presentation/screens/activity_tab_placeholder_screen.dart';
+import '../../features/activity/presentation/screens/activity_screen.dart';
 import '../../features/auth/presentation/screens/auth_screen.dart';
 import '../../features/groups/presentation/screens/group_detail_screen.dart';
 import '../../features/groups/presentation/screens/groups_screen.dart';
@@ -146,7 +146,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: '/activity',
                 name: 'activity',
                 builder: (context, state) =>
-                    const ActivityTabPlaceholderScreen(),
+                    const ActivityScreen(),
               ),
             ],
           ),
