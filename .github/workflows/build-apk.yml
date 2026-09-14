@@ -46,10 +46,10 @@ jobs:
       - name: Configure Environment Variables
         run: |
           cat << 'EOF' > .env
-          SUPABASE_URL=${{ secrets.EXPO_PUBLIC_SUPABASE_URL || secrets.SUPABASE_URL || 'https://axjmjggkqbwnibgkosaw.supabase.co' }}
-          SUPABASE_ANON_KEY=${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY || 'sb_publishable_b42lq6WD2QGAFMVQmMgg2A_ZhmR0man' }}
+          SUPABASE_URL=${{ secrets.EXPO_PUBLIC_SUPABASE_URL || secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY=${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
           GEMINI_API_KEY=${{ secrets.EXPO_PUBLIC_GEMINI_API_KEY || secrets.GEMINI_API_KEY }}
-          GOOGLE_WEB_CLIENT_ID=${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || secrets.GOOGLE_WEB_CLIENT_ID || '256502909999-si4tkiianf71fhdgon0f1d2oa79pn688.apps.googleusercontent.com' }}
+          GOOGLE_WEB_CLIENT_ID=${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || secrets.GOOGLE_WEB_CLIENT_ID }}
           EOF
 
       - name: Install Dependencies

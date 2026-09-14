@@ -2,12 +2,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// AppConfig centralizes all environmental variables and backend endpoints
 class AppConfig {
-  static const String defaultSupabaseUrl =
-      'https://axjmjggkqbwnibgkosaw.supabase.co';
-  static const String defaultSupabaseAnonKey =
-      'sb_publishable_b42lq6WD2QGAFMVQmMgg2A_ZhmR0man';
-  static const String defaultGoogleWebClientId =
-      '256502909999-si4tkiianf71fhdgon0f1d2oa79pn688.apps.googleusercontent.com';
+  static const String defaultSupabaseUrl = '';
+  static const String defaultSupabaseAnonKey = '';
+  static const String defaultGoogleWebClientId = '';
   static const String defaultGeminiApiKey = '';
 
   static Future<void> initialize() async {
@@ -59,7 +56,7 @@ class AppConfig {
           dotenv.env['EXPO_PUBLIC_GEMINI_API_KEY'];
       if (key != null && key.isNotEmpty) return key;
     }
-    return defaultGeminiApiKey;
+    return defaultGeminiApiKey.isNotEmpty ? defaultGeminiApiKey : null;
   }
 
   static bool get isSupabaseConfigured {
