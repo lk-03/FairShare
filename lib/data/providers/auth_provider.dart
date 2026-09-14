@@ -252,6 +252,15 @@ class OnboardingNotifier
       hasSeenAppTour: true,
     );
   }
+
+  Future<void> resetOnboarding() async {
+    final cache = ref.read(localCacheServiceProvider);
+    await cache.setOnboardingCompleted(false);
+    state = (
+      hasCompletedOnboarding: false,
+      hasSeenAppTour: state.hasSeenAppTour,
+    );
+  }
 }
 
 final onboardingProvider = NotifierProvider<OnboardingNotifier,

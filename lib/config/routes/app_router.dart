@@ -10,7 +10,7 @@ import '../../features/groups/presentation/screens/group_detail_screen.dart';
 import '../../features/groups/presentation/screens/groups_screen.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/onboarding/presentation/screens/welcome_screen.dart';
-import '../../features/profile/presentation/screens/profile_tab_placeholder_screen.dart';
+import '../../features/profile/presentation/screens/profile_screen.dart';
 
 /// RouterNotifier bridges Riverpod state changes to GoRouter's refreshListenable.
 class RouterNotifier extends ChangeNotifier {
@@ -156,7 +156,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: '/profile',
                 name: 'profile',
                 builder: (context, state) =>
-                    const ProfileTabPlaceholderScreen(),
+                    const ProfileScreen(),
               ),
             ],
           ),

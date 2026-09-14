@@ -104,8 +104,28 @@ class UserProfile {
       identical(this, other) ||
       other is UserProfile &&
           runtimeType == other.runtimeType &&
-          id == other.id;
+          id == other.id &&
+          email == other.email &&
+          fullName == other.fullName &&
+          nickname == other.nickname &&
+          username == other.username &&
+          avatarUrl == other.avatarUrl &&
+          vpaId == other.vpaId &&
+          phoneNumber == other.phoneNumber &&
+          isGuest == other.isGuest &&
+          authProvider == other.authProvider;
 
   @override
-  int get hashCode => id.hashCode;
+  int get hashCode => Object.hash(
+        id,
+        email,
+        fullName,
+        nickname,
+        username,
+        avatarUrl,
+        vpaId,
+        phoneNumber,
+        isGuest,
+        authProvider,
+      );
 }
