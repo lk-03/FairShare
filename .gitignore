@@ -78,6 +78,7 @@ logo.jpeg
 stitch*
 
 # AI Assistants, Rules & Agent Artifacts
+.misc/
 .claude/
 .claude*
 CLAUDE.md
