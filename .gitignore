@@ -74,12 +74,15 @@ coverage/
 *.swo
 *.zip
 export.csv
+logo.jpeg
+stitch*
 
 # AI Assistants, Rules & Agent Artifacts
 .claude/
 .claude*
 CLAUDE.md
 CLAUDE*.md
+project-claude*
 ai-rules*
 ai-context*
 AGENTS.md
