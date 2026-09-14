@@ -150,3 +150,20 @@ extension ThemeContextExtension on BuildContext {
         ],
       );
 }
+
+/// Standalone visual design tokens matching the Stitch Precision Midnight design system.
+class AppColors {
+  static const Color surfaceDim = Color(0xFF0A0C10);
+  static const Color surface = Color(0xFF12161C);
+  static const Color surfaceCard = Color(0xFF181D26);
+  static const Color borderSubtle = Color(0xFF1E2530);
+  static const Color borderFocus = Color(0xFF384154);
+  static const Color primaryTeal = Color(0xFF00D2FF); // Electric Cyan from Stitch
+  static const Color textPrimary = Color(0xFFF1F5F9);
+  static const Color textSecondary = Color(0xFF94A3B8);
+  static const Color textMuted = Color(0xFF475569);
+  static const Color emerald = Color(0xFF34D399);
+  static const Color amber = Color(0xFFFBBF24);
+  static const Color rose = Color(0xFFF87171);
+}
+

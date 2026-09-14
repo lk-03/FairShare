@@ -17,10 +17,13 @@ import '../../../../data/providers/groups_provider.dart';
 import '../../../../data/providers/needs_provider.dart';
 import '../../../expenses/presentation/widgets/add_expense_sheet.dart';
 import '../../../expenses/presentation/widgets/expense_details_sheet.dart';
+import '../../../expenses/presentation/widgets/itemized_receipt_sheet.dart';
 import '../../../expenses/presentation/widgets/settle_up_sheet.dart';
 import '../../../needs/presentation/widgets/needs_list_view.dart';
 import '../widgets/edit_group_sheet.dart';
 import '../widgets/group_qr_sheet.dart';
+import '../widgets/member_profile_sheet.dart';
+import '../widgets/monthly_spendings_tab.dart';
 
 class GroupDetailScreen extends ConsumerStatefulWidget {
   final String groupId;
@@ -142,11 +145,11 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                 onRefresh: _refresh,
                 color: colors.cyan,
                 backgroundColor: colors.surface,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: _selectedTab == 0
-                      ? Column(
+                child: _selectedTab == 0
+                    ? SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             // Group Net Balance Hero Card
@@ -154,7 +157,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                             const SizedBox(height: 20),
 
                             // Horizontal Member Rail
-                            _buildMemberRail(members, currentUser?.id, colors),
+                            _buildMemberRail(members, group, currentUser?.id, colors),
                             const SizedBox(height: 24),
 
                             // Debts to Settle Section
@@ -165,15 +168,26 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                             _buildExpensesSection(expenses, currentUser?.id, colors),
                             const SizedBox(height: 80), // Padding for floating button
                           ],
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            NeedsListView(cohortId: widget.groupId),
-                            const SizedBox(height: 40),
-                          ],
                         ),
-                ),
+                      )
+                    : _selectedTab == 1
+                        ? MonthlySpendingsTab(
+                            cohort: group,
+                            expenses: expenses,
+                            members: members,
+                            currentUserId: currentUser?.id ?? '',
+                          )
+                        : SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                NeedsListView(cohortId: widget.groupId),
+                                const SizedBox(height: 40),
+                              ],
+                            ),
+                          ),
               ),
             ),
           ],
@@ -221,11 +235,21 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           const SizedBox(width: 4),
           Expanded(
             child: _buildSubTabItem(
+              title: 'Spendings',
+              icon: Icons.pie_chart_outline_rounded,
+              isSelected: _selectedTab == 1,
+              onTap: () => setState(() => _selectedTab = 1),
+              colors: colors,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: _buildSubTabItem(
               title: 'House Cart',
               icon: Icons.shopping_cart_outlined,
               badgeCount: pendingNeeds,
-              isSelected: _selectedTab == 1,
-              onTap: () => setState(() => _selectedTab = 1),
+              isSelected: _selectedTab == 2,
+              onTap: () => setState(() => _selectedTab = 2),
               colors: colors,
             ),
           ),
@@ -366,6 +390,11 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                 ),
               ],
             ),
+          ),
+          IconButton(
+            onPressed: () => ItemizedReceiptSheet.show(context),
+            icon: Icon(Icons.document_scanner_rounded, color: colors.cyan),
+            tooltip: 'Scan Receipt',
           ),
           IconButton(
             onPressed: () => _handleShowQR(group),
@@ -519,6 +548,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
 
   Widget _buildMemberRail(
     List<GroupMember> members,
+    Group group,
     String? currentUserId,
     AppThemeColors colors,
   ) {
@@ -548,69 +578,73 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               final name = isMe ? 'You' : (m.profile?.displayName ?? 'Member');
               final isAdmin = m.role == 'admin';
 
-              return Container(
-                width: 90,
-                margin: const EdgeInsets.only(right: 12),
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: colors.border),
-                ),
-                child: Column(
-                  children: [
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        CircleAvatar(
-                          radius: 20,
-                          backgroundColor: colors.accentPill,
-                          child: Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : '?',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: colors.cyan,
-                            ),
-                          ),
-                        ),
-                        if (isAdmin)
-                          Positioned(
-                            top: -4,
-                            right: -4,
-                            child: Container(
-                              padding: const EdgeInsets.all(2),
-                              decoration: BoxDecoration(
-                                color: colors.amber,
-                                shape: BoxShape.circle,
+              return InkWell(
+                onTap: () => MemberProfileSheet.show(context, member: m, cohort: group),
+                borderRadius: BorderRadius.circular(18),
+                child: Container(
+                  width: 90,
+                  margin: const EdgeInsets.only(right: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: colors.border),
+                  ),
+                  child: Column(
+                    children: [
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: colors.accentPill,
+                            child: Text(
+                              name.isNotEmpty ? name[0].toUpperCase() : '?',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: colors.cyan,
                               ),
-                              child: const Icon(Icons.star_rounded, size: 10, color: Colors.white),
                             ),
                           ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: colors.textMain,
+                          if (isAdmin)
+                            Positioned(
+                              top: -4,
+                              right: -4,
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: BoxDecoration(
+                                  color: colors.amber,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.star_rounded, size: 10, color: Colors.white),
+                              ),
+                            ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      isAdmin ? 'Admin' : 'Member',
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textSecondary,
+                      const SizedBox(height: 8),
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: colors.textMain,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Text(
+                        isAdmin ? 'Admin' : 'Member',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             }).toList(),

@@ -61,7 +61,7 @@ void main() {
     members: [memberAlex, memberSam],
   );
 
-  testWidgets('AddExpenseSheet renders form and allows entering expense details',
+  testWidgets('AddExpenseSheet renders minimal uncluttered form and allows entering expense details',
       (tester) async {
     tester.view.physicalSize = const Size(800, 1200);
     tester.view.devicePixelRatio = 1.0;
@@ -92,19 +92,17 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // Verify title and headers
-    expect(find.text('Add Expense'), findsOneWidget);
-    expect(find.text('EXPENSE TITLE'), findsOneWidget);
-    expect(find.text('SPLIT METHOD'), findsOneWidget);
-
-    // Verify split mode chips
-    expect(find.text('Equal (=)'), findsOneWidget);
-    expect(find.text('Exact (₹)'), findsOneWidget);
-    expect(find.text('Percent (%)'), findsOneWidget);
-    expect(find.text('Shares (x:y)'), findsOneWidget);
+    // Verify minimal uncluttered headers and elements
+    expect(find.text('Add an expense'), findsOneWidget);
+    expect(find.text('With '), findsOneWidget);
+    expect(find.text('Flat 402 - Bangalore'), findsOneWidget);
+    expect(find.text('Paid by '), findsOneWidget);
+    expect(find.text('you'), findsOneWidget);
+    expect(find.text(' and split '), findsOneWidget);
+    expect(find.text('equally'), findsOneWidget);
 
     // Enter title
-    final titleField = find.widgetWithText(TextField, 'e.g. Dinner, Groceries, Fuel');
+    final titleField = find.widgetWithText(TextField, 'Enter a description');
     await tester.enterText(titleField, 'Dinner Party');
 
     // Enter amount
@@ -121,7 +119,7 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('AddExpenseSheet switches between split modes', (tester) async {
+  testWidgets('AddExpenseSheet opens payer and split sub-sheets', (tester) async {
     tester.view.physicalSize = const Size(800, 1200);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -151,20 +149,34 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // Switch to Exact split
-    await tester.tap(find.text('Exact (₹)'));
+    // Enter amount first so splits and payer have a base
+    final amountField = find.widgetWithText(TextField, '0.00');
+    await tester.enterText(amountField, '1000');
     await tester.pumpAndSettle();
-    expect(find.text('EXACT AMOUNTS'), findsOneWidget);
 
-    // Switch to Percentage split
-    await tester.tap(find.text('Percent (%)'));
+    // Tap 'you' to open PayerSelectionSheet
+    await tester.tap(find.text('you'));
     await tester.pumpAndSettle();
-    expect(find.text('PERCENTAGES'), findsOneWidget);
 
-    // Switch to Shares split
-    await tester.tap(find.text('Shares (x:y)'));
+    expect(find.text('Who paid?'), findsOneWidget);
+    expect(find.text('Multiple People'), findsOneWidget);
+
+    // Close payer sheet
+    await tester.tap(find.byIcon(Icons.close_rounded).last);
     await tester.pumpAndSettle();
-    expect(find.text('SHARES ALLOCATION'), findsOneWidget);
+
+    // Tap 'equally' to open AdjustSplitSheet
+    await tester.tap(find.text('equally'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Adjust split'), findsOneWidget);
+    expect(find.text('Unequally'), findsOneWidget);
+    expect(find.text('Percent'), findsOneWidget);
+    expect(find.text('Shares'), findsOneWidget);
+
+    // Close split sheet
+    await tester.tap(find.byIcon(Icons.close_rounded).last);
+    await tester.pumpAndSettle();
   });
 }
 

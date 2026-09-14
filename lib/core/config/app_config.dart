@@ -8,6 +8,7 @@ class AppConfig {
       'sb_publishable_b42lq6WD2QGAFMVQmMgg2A_ZhmR0man';
   static const String defaultGoogleWebClientId =
       '256502909999-si4tkiianf71fhdgon0f1d2oa79pn688.apps.googleusercontent.com';
+  static const String defaultGeminiApiKey = '';
 
   static Future<void> initialize() async {
     try {
@@ -54,10 +55,11 @@ class AppConfig {
     const envKey = String.fromEnvironment('GEMINI_API_KEY');
     if (envKey.isNotEmpty) return envKey;
     if (dotenv.isInitialized) {
-      return dotenv.env['GEMINI_API_KEY'] ??
+      final key = dotenv.env['GEMINI_API_KEY'] ??
           dotenv.env['EXPO_PUBLIC_GEMINI_API_KEY'];
+      if (key != null && key.isNotEmpty) return key;
     }
-    return null;
+    return defaultGeminiApiKey;
   }
 
   static bool get isSupabaseConfigured {

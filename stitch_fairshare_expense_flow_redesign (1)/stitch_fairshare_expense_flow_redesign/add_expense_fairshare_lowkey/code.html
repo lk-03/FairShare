@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Geist:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            surface: "#121212",
+            "surface-container-lowest": "#0c0c0c",
+            "surface-container-low": "#181818",
+            "surface-container": "#1e1e1e",
+            "surface-container-high": "#282828",
+            "surface-container-highest": "#333333",
+            "border-subtle": "#282828",
+            "border-focus": "#3e3e3e",
+            primary: "#1cc29f",
+            "primary-hover": "#17a88a",
+            "on-primary": "#0c2821",
+            secondary: "#9e9e9e",
+            "on-surface": "#f0f0f0",
+            "on-surface-variant": "#8e8e93",
+            outline: "#48484a",
+            error: "#eb5757"
+          },
+          fontFamily: {
+            sans: ["Hanken Grotesk", "-apple-system", "sans-serif"],
+            mono: ["Geist", "monospace"],
+            label: ["Geist", "sans-serif"]
+          }
+        }
+      }
+    };
+  </script>
+<style>
+    @layer base {
+      html, body {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        background-color: #121212;
+        color: #f0f0f0;
+        font-family: 'Hanken Grotesk', -apple-system, sans-serif;
+      }
+      body {
+        overscroll-behavior-y: none;
+        min-height: 100vh;
+      }
+      .pb-safe { padding-bottom: max(env(safe-area-inset-bottom, 16px), 16px); }
+      .pt-safe { padding-top: max(env(safe-area-inset-top, 0px), 0px); }
+    }
+    ::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    body { min-height: max(884px, 100dvh); }
+  </style>
+</head>
+<body class="bg-surface text-on-surface flex flex-col min-h-screen antialiased selection:bg-primary/20">
+<!-- Minimal Header (Splitwise Style) -->
+<header class="fixed top-0 w-full z-40 bg-[#121212]/90 backdrop-blur-md pt-safe border-b border-white/[0.06]">
+<div class="h-14 px-4 flex items-center justify-between">
+<button aria-label="Go back" class="w-10 h-10 -ml-2 flex items-center justify-center rounded-full text-neutral-300 hover:text-white hover:bg-white/5 active:scale-95 transition-all" onclick="history.back()">
+<span class="material-symbols-outlined text-[22px]">arrow_back</span>
+</button>
+<h1 class="text-[16px] text-neutral-200 font-medium tracking-tight">Add an expense</h1>
+<!-- Splitwise signature top-right quick save checkmark -->
+<button aria-label="Save expense" class="w-10 h-10 -mr-2 flex items-center justify-center rounded-full text-primary hover:text-primary-hover active:scale-90 transition-all font-semibold" id="top-save-btn">
+<span class="material-symbols-outlined text-[24px]">check</span>
+</button>
+</div>
+</header>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col w-full max-w-md mx-auto px-5 pt-20 pb-safe bg-surface">
+<div class="flex-1 flex flex-col pt-3">
+<!-- Group Indicator Pill (Calm & Subtle) -->
+<div class="flex items-center justify-center mb-8">
+<button class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container-low border border-white/[0.08] hover:border-white/20 text-neutral-400 hover:text-neutral-200 transition-all text-xs" type="button">
+<span class="text-neutral-500 font-normal">With</span>
+<span class="font-medium text-neutral-200">Goa Trip 2025</span>
+<span class="material-symbols-outlined text-[15px] text-neutral-500">expand_more</span>
+</button>
+</div>
+<!-- Description & Category Row (Minimal inline Splitwise aesthetic) -->
+<div class="flex items-center gap-3.5 pb-3 border-b border-white/[0.08] mb-6">
+<!-- Minimal Category Icon Button -->
+<button aria-haspopup="dialog" aria-label="Open category selector" class="w-11 h-11 shrink-0 rounded-xl bg-surface-container-low border border-white/[0.08] hover:border-white/20 active:scale-95 transition-all flex items-center justify-center text-neutral-300 hover:text-white" id="open-cat-sheet-btn" type="button">
+<span class="material-symbols-outlined text-[22px]" id="category-icon">restaurant</span>
+</button>
+<div class="flex-1 min-w-0">
+<input class="w-full bg-transparent text-[17px] font-medium text-neutral-100 placeholder:text-neutral-500 focus:outline-none tracking-normal" id="expense-title" placeholder="Enter a description" type="text" value="Fisherman's Wharf Feast"/>
+<button class="text-[12px] text-neutral-400 hover:text-neutral-300 flex items-center gap-1 mt-0.5" id="change-cat-link" type="button">
+<span class="text-neutral-400 font-normal" id="active-cat-label">Dining</span>
+<span class="material-symbols-outlined text-[13px] text-neutral-500">expand_more</span>
+</button>
+</div>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg text-neutral-500 hover:text-neutral-300 transition-colors" title="Add tags" type="button">
+<span class="material-symbols-outlined text-[19px]">local_offer</span>
+</button>
+</div>
+<!-- Amount Input (Clean, Minimal Splitwise style) -->
+<div class="flex items-center justify-center py-4 mb-8 border-b border-white/[0.08]">
+<span class="text-3xl text-neutral-400 font-light select-none mr-2 font-mono">₹</span>
+<input class="bg-transparent text-left text-4xl sm:text-5xl font-semibold text-neutral-100 placeholder:text-neutral-600 focus:outline-none w-auto max-w-[240px] tracking-tight font-sans" id="expense-amount" inputmode="decimal" placeholder="0.00" type="text" value="1,450.00"/>
+</div>
+<!-- Paid By & Split Sentence Box (Natural Splitwise language, lowkey) -->
+<div class="bg-surface-container-low border border-white/[0.06] rounded-xl p-4 mb-6 transition-colors">
+<div class="text-center text-sm text-neutral-300 leading-relaxed">
+          Paid by 
+          <button class="inline-flex items-center font-medium text-neutral-100 underline decoration-white/20 underline-offset-4 hover:decoration-primary transition-colors mx-1" type="button">
+            you
+          </button>
+          and split 
+          <button class="inline-flex items-center font-medium text-neutral-100 underline decoration-white/20 underline-offset-4 hover:decoration-primary transition-colors mx-1" type="button">
+            equally
+          </button>
+</div>
+<div class="mt-2.5 pt-2.5 border-t border-white/[0.04] flex items-center justify-between text-xs text-neutral-400">
+<span>4 people (₹362.50 / person)</span>
+<a class="text-primary hover:underline text-xs font-medium" href="#customize-split">
+            Change split
+          </a>
+</div>
+</div>
+<!-- Lowkey Metadata / Utility Strip -->
+<div class="flex items-center justify-around py-2 border-y border-white/[0.05] text-xs text-neutral-400 mb-6">
+<button class="flex items-center gap-1.5 py-1.5 px-3 rounded-lg hover:text-neutral-200 hover:bg-white/5 transition-colors" type="button">
+<span class="material-symbols-outlined text-[17px] text-neutral-400">calendar_today</span>
+<span>Today</span>
+</button>
+<span class="h-3 w-px bg-white/10"></span>
+<button class="flex items-center gap-1.5 py-1.5 px-3 rounded-lg hover:text-neutral-200 hover:bg-white/5 transition-colors" type="button">
+<span class="material-symbols-outlined text-[17px] text-neutral-400">sticky_note_2</span>
+<span>Add notes</span>
+</button>
+<span class="h-3 w-px bg-white/10"></span>
+<button class="flex items-center gap-1.5 py-1.5 px-3 rounded-lg hover:text-neutral-200 hover:bg-white/5 transition-colors" type="button">
+<span class="material-symbols-outlined text-[17px] text-neutral-400">photo_camera</span>
+<span>Receipt</span>
+</button>
+</div>
+<!-- Attached Receipt (Quiet & Compact) -->
+<div class="flex items-center justify-between px-3 py-2.5 rounded-lg bg-surface-container-low/60 border border-white/[0.05] mb-6">
+<div class="flex items-center gap-2.5 min-w-0">
+<div class="w-8 h-8 rounded shrink-0 overflow-hidden bg-surface-container border border-white/10">
+<img class="w-full h-full object-cover opacity-75" data-alt="Receipt preview thumbnail" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAtR3IPzC7DnqMC6VOzWBW6E1SqQ2sCFch4dnv6mKOoiHPJE96Z5J0hdu6zXiBJ25AjfUh9_JJ23M3KslPxhzzOZ9iWMgzgBO_B33H0d94R1QfA5wgqqOUmhTr46_BcMExja0rRQpURv1ilPwTzaNYGkLLImwcXQiWjwWOVjnowVomnKWSkIBSf57mwb3d7Bg82FGkmILWcdZ-Jl-X1ePYeEtlsPr5qxaqrYTnNgd9pjcUw7ms6GCyvcw"/>
+</div>
+<span class="text-xs text-neutral-400 truncate">Receipt_Wharf_Oct24.jpg</span>
+</div>
+<button aria-label="Remove attachment" class="w-6 h-6 flex items-center justify-center text-neutral-500 hover:text-neutral-300 transition-colors" type="button">
+<span class="material-symbols-outlined text-[15px]">close</span>
+</button>
+</div>
+<!-- Minimal Bottom CTA (Calm Teal/Mint or neutral Save) -->
+<div class="mt-auto pt-4 flex flex-col gap-2">
+<button class="w-full h-12 rounded-xl bg-primary hover:bg-primary-hover text-surface font-sans text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.99] transition-all cursor-pointer" id="save-expense-btn" type="button">
+<span>Save</span>
+</button>
+</div>
+</div>
+</main>
+<!-- Clean, Lowkey Category Selector Bottom Sheet Modal -->
+<div aria-modal="true" class="fixed inset-0 z-50 flex flex-col justify-end transition-opacity duration-200 pointer-events-none opacity-0" id="category-modal" role="dialog">
+<!-- Neutral dark backdrop -->
+<div class="absolute inset-0 bg-black/60 backdrop-blur-xs transition-opacity" id="category-modal-backdrop"></div>
+<!-- Bottom Sheet Container -->
+<div class="relative w-full max-w-md mx-auto bg-[#181818] border-t border-white/10 rounded-t-2xl p-5 pt-3 pb-safe shadow-xl transform translate-y-full transition-transform duration-200 ease-out z-10 flex flex-col max-h-[80vh]">
+<!-- Drag handle bar -->
+<div class="w-9 h-1 rounded-full bg-neutral-600 mx-auto mb-3 cursor-grab"></div>
+<!-- Modal Header -->
+<div class="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+<h2 class="text-sm font-medium text-neutral-200 tracking-normal">Select category</h2>
+<button aria-label="Close category selector" class="w-7 h-7 rounded-full text-neutral-400 hover:text-white flex items-center justify-center transition-colors" id="close-modal-btn" type="button">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<!-- Minimal Category Grid (Calm neutral aesthetic) -->
+<div class="grid grid-cols-2 gap-2 py-3 overflow-y-auto max-h-[50vh]" id="modal-category-grid">
+<!-- Dining -->
+<button class="cat-modal-option flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/5 text-left transition-all active:scale-[0.98]" data-category="Dining" data-icon="restaurant" type="button">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-neutral-300">
+<span class="material-symbols-outlined text-[18px]">restaurant</span>
+</div>
+<span class="text-xs text-neutral-200 font-medium truncate">Dining</span>
+</button>
+<!-- Groceries -->
+<button class="cat-modal-option flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/5 text-left transition-all active:scale-[0.98]" data-category="Groceries" data-icon="shopping_basket" type="button">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-neutral-300">
+<span class="material-symbols-outlined text-[18px]">shopping_basket</span>
+</div>
+<span class="text-xs text-neutral-200 font-medium truncate">Groceries</span>
+</button>
+<!-- Drinks -->
+<button class="cat-modal-option flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/5 text-left transition-all active:scale-[0.98]" data-category="Drinks" data-icon="local_bar" type="button">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-neutral-300">
+<span class="material-symbols-outlined text-[18px]">local_bar</span>
+</div>
+<span class="text-xs text-neutral-200 font-medium truncate">Drinks</span>
+</button>
+<!-- Transit -->
+<button class="cat-modal-option flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/5 text-left transition-all active:scale-[0.98]" data-category="Transit" data-icon="directions_car" type="button">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-neutral-300">
+<span class="material-symbols-outlined text-[18px]">directions_car</span>
+</div>
+<span class="text-xs text-neutral-200 font-medium truncate">Transit / Cab</span>
+</button>
+<!-- Flights -->
+<button class="cat-modal-option flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/5 text-left transition-all active:scale-[0.98]" data-category="Flights" data-icon="flight" type="button">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-neutral-300">
+<span class="material-symbols-outlined text-[18px]">flight</span>
+</div>
+<span class="text-xs text-neutral-200 font-medium truncate">Flights</span>
+</button>
+<!-- Accommodation -->
+<button class="cat-modal-option flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/5 text-left transition-all active:scale-[0.98]" data-category="Stay" data-icon="hotel" type="button">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-neutral-300">
+<span class="material-symbols-outlined text-[18px]">hotel</span>
+</div>
+<span class="text-xs text-neutral-200 font-medium truncate">Accommodation</span>
+</button>
+<!-- Entertainment -->
+<button class="cat-modal-option flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/5 text-left transition-all active:scale-[0.98]" data-category="Entertainment" data-icon="attractions" type="button">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-neutral-300">
+<span class="material-symbols-outlined text-[18px]">attractions</span>
+</div>
+<span class="text-xs text-neutral-200 font-medium truncate">Entertainment</span>
+</button>
+<!-- General -->
+<button class="cat-modal-option flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/5 text-left transition-all active:scale-[0.98]" data-category="General" data-icon="category" type="button">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-neutral-300">
+<span class="material-symbols-outlined text-[18px]">category</span>
+</div>
+<span class="text-xs text-neutral-200 font-medium truncate">General</span>
+</button>
+</div>
+</div>
+</div>
+<script>
+    (function () {
+      const amountInput = document.getElementById('expense-amount');
+      const categoryIcon = document.getElementById('category-icon');
+      const activeCatLabel = document.getElementById('active-cat-label');
+      const saveBtn = document.getElementById('save-expense-btn');
+      const topSaveBtn = document.getElementById('top-save-btn');
+      
+      const catModal = document.getElementById('category-modal');
+      const catBackdrop = document.getElementById('category-modal-backdrop');
+      const closeModalBtn = document.getElementById('close-modal-btn');
+      const openModalBtn = document.getElementById('open-cat-sheet-btn');
+      const changeCatLink = document.getElementById('change-cat-link');
+      const modalSheet = catModal.querySelector('.transform');
+      
+      const catModalOptions = document.querySelectorAll('.cat-modal-option');
+
+      function openModal() {
+        catModal.classList.remove('pointer-events-none', 'opacity-0');
+        catModal.classList.add('opacity-100');
+        modalSheet.classList.remove('translate-y-full');
+        modalSheet.classList.add('translate-y-0');
+        document.body.style.overflow = 'hidden';
+      }
+
+      function closeModal() {
+        modalSheet.classList.remove('translate-y-0');
+        modalSheet.classList.add('translate-y-full');
+        catModal.classList.remove('opacity-100');
+        catModal.classList.add('opacity-0');
+        setTimeout(() => {
+          catModal.classList.add('pointer-events-none');
+          document.body.style.overflow = '';
+        }, 200);
+      }
+
+      if (openModalBtn) openModalBtn.addEventListener('click', openModal);
+      if (changeCatLink) changeCatLink.addEventListener('click', openModal);
+      if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+      if (catBackdrop) catBackdrop.addEventListener('click', closeModal);
+
+      function applyCategory(name, icon) {
+        if (categoryIcon && icon) {
+          categoryIcon.textContent = icon;
+        }
+        if (activeCatLabel && name) {
+          activeCatLabel.textContent = name;
+        }
+      }
+
+      catModalOptions.forEach(opt => {
+        opt.addEventListener('click', () => {
+          const cat = opt.getAttribute('data-category');
+          const icon = opt.getAttribute('data-icon');
+          applyCategory(cat, icon);
+          closeModal();
+        });
+      });
+
+      if (amountInput) {
+        amountInput.addEventListener('focus', function() {
+          if (this.value === '0.00') this.value = '';
+        });
+        amountInput.addEventListener('blur', function() {
+          if (this.value.trim() === '') this.value = '0.00';
+        });
+      }
+
+      function triggerSave(btn) {
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = `<span class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>`;
+        setTimeout(() => {
+          btn.innerHTML = `<span class="material-symbols-outlined text-[18px]">check</span>`;
+          setTimeout(() => {
+            btn.innerHTML = originalContent;
+          }, 1000);
+        }, 600);
+      }
+
+      if (saveBtn) saveBtn.addEventListener('click', () => triggerSave(saveBtn));
+      if (topSaveBtn) topSaveBtn.addEventListener('click', () => triggerSave(topSaveBtn));
+    })();
+  </script>
+</body></html>

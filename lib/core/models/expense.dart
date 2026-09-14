@@ -1,3 +1,4 @@
+import 'expense_payer.dart';
 import 'split.dart';
 
 class Expense {
@@ -9,6 +10,7 @@ class Expense {
   final double totalAmount;
   final String currency;
   final String paidByUserId;
+  final List<ExpensePayer> payers;
   final SplitType splitType;
   final List<ExpenseSplit> splits;
   final String? receiptUrl;
@@ -27,6 +29,7 @@ class Expense {
     required this.totalAmount,
     this.currency = 'INR',
     required this.paidByUserId,
+    this.payers = const [],
     this.splitType = SplitType.equal,
     this.splits = const [],
     this.receiptUrl,
@@ -45,11 +48,20 @@ class Expense {
     return 0.0;
   }
 
+  /// Calculates how much a given user contributed upfront towards paying this expense
+  double userPaid(String userId) {
+    if (payers.isNotEmpty) {
+      for (final p in payers) {
+        if (p.userId == userId) return p.amount;
+      }
+      return 0.0;
+    }
+    return paidByUserId == userId ? totalAmount : 0.0;
+  }
+
   /// Calculates net impact on the user (+ money they are owed, - money they owe)
   double userNetBalance(String userId) {
-    final paid = paidByUserId == userId ? totalAmount : 0.0;
-    final share = userShare(userId);
-    return paid - share;
+    return userPaid(userId) - userShare(userId);
   }
 
   factory Expense.fromJson(Map<String, dynamic> json) {
@@ -62,19 +74,37 @@ class Expense {
           .toList();
     }
 
+    var rawPayers = json['payers'] ?? json['expense_payers'];
+    List<ExpensePayer> parsedPayers = [];
+    if (rawPayers != null && rawPayers is List) {
+      parsedPayers = rawPayers
+          .whereType<Map<String, dynamic>>()
+          .map((p) => ExpensePayer.fromJson(p))
+          .toList();
+    }
+
+    final totalAmt = (json['total_amount'] as num?)?.toDouble() ??
+        (json['totalAmount'] as num?)?.toDouble() ??
+        0.0;
+    final primaryPayerId = json['paid_by_user_id'] as String? ??
+        json['paidByUserId'] as String? ??
+        '';
+
+    // If payers list is empty but primary payer exists, initialize default single payer
+    if (parsedPayers.isEmpty && primaryPayerId.isNotEmpty && totalAmt > 0) {
+      parsedPayers = [ExpensePayer(userId: primaryPayerId, amount: totalAmt)];
+    }
+
     return Expense(
       id: json['id'] as String,
       cohortId: json['cohort_id'] as String? ?? json['cohortId'] as String? ?? '',
       title: json['title'] as String? ?? '',
       category: json['category'] as String? ?? 'dining',
       customIcon: json['custom_icon'] as String? ?? json['customIcon'] as String?,
-      totalAmount: (json['total_amount'] as num?)?.toDouble() ??
-          (json['totalAmount'] as num?)?.toDouble() ??
-          0.0,
+      totalAmount: totalAmt,
       currency: json['currency'] as String? ?? 'INR',
-      paidByUserId: json['paid_by_user_id'] as String? ??
-          json['paidByUserId'] as String? ??
-          '',
+      paidByUserId: primaryPayerId,
+      payers: parsedPayers,
       splitType: SplitType.fromString(
         json['split_type'] as String? ?? json['splitType'] as String?,
       ),
@@ -106,6 +136,7 @@ class Expense {
       'total_amount': totalAmount,
       'currency': currency,
       'paid_by_user_id': paidByUserId,
+      if (payers.isNotEmpty) 'payers': payers.map((p) => p.toJson()).toList(),
       'split_type': splitType.toDbString(),
       'splits': splits.map((s) => s.toJson()).toList(),
       if (receiptUrl != null) 'receipt_url': receiptUrl,
@@ -125,6 +156,7 @@ class Expense {
     double? totalAmount,
     String? currency,
     String? paidByUserId,
+    List<ExpensePayer>? payers,
     SplitType? splitType,
     List<ExpenseSplit>? splits,
     String? receiptUrl,
@@ -143,6 +175,7 @@ class Expense {
       totalAmount: totalAmount ?? this.totalAmount,
       currency: currency ?? this.currency,
       paidByUserId: paidByUserId ?? this.paidByUserId,
+      payers: payers ?? this.payers,
       splitType: splitType ?? this.splitType,
       splits: splits ?? this.splits,
       receiptUrl: receiptUrl ?? this.receiptUrl,

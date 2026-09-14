@@ -37,8 +37,15 @@ class DebtSimplifier {
       final paidBy = expense.paidByUserId;
       final totalAmount = expense.totalAmount;
 
-      // Credit the payer
-      netBalances[paidBy] = (netBalances[paidBy] ?? 0.0) + totalAmount;
+      // Credit the payer(s)
+      if (expense.payers.isNotEmpty) {
+        for (final payer in expense.payers) {
+          netBalances[payer.userId] =
+              (netBalances[payer.userId] ?? 0.0) + payer.amount;
+        }
+      } else {
+        netBalances[paidBy] = (netBalances[paidBy] ?? 0.0) + totalAmount;
+      }
 
       // Debit participants according to split amounts
       final splits = expense.splits.isNotEmpty
