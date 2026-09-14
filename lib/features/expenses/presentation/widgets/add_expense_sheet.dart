@@ -32,6 +32,7 @@ class AddExpenseSheet extends ConsumerStatefulWidget {
     return showModalBottomSheet<Expense>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => AddExpenseSheet(
         cohortId: cohortId,
@@ -168,6 +169,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
   void _openCategoryPicker() {
     showModalBottomSheet(
       context: context,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => Container(
         decoration: const BoxDecoration(
@@ -433,10 +435,14 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
         ? _totalAmount / participantCount
         : 0.0;
 
+    final topPadding = MediaQuery.of(context).padding.top;
+    final availableHeight = MediaQuery.of(context).size.height - topPadding;
+
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.94,
+        maxHeight: availableHeight * 0.88,
       ),
+      margin: const EdgeInsets.only(top: 8),
       decoration: const BoxDecoration(
         color: AppColors.surfaceDim,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),

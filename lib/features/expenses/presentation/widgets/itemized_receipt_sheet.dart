@@ -14,6 +14,7 @@ class ItemizedReceiptSheet extends ConsumerStatefulWidget {
     return showModalBottomSheet<ParsedReceiptData>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => const ItemizedReceiptSheet(),
     );
@@ -80,10 +81,14 @@ class _ItemizedReceiptSheetState extends ConsumerState<ItemizedReceiptSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final availableHeight = mediaQuery.size.height - mediaQuery.padding.top;
+
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.90,
+        maxHeight: availableHeight * 0.88,
       ),
+      margin: const EdgeInsets.only(top: 8),
       decoration: const BoxDecoration(
         color: AppColors.surfaceDim,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),

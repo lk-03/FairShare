@@ -18,6 +18,7 @@ class StaleNeedsReminderSheet extends ConsumerWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => StaleNeedsReminderSheet(cohortId: cohortId),
     );
@@ -55,22 +56,26 @@ class StaleNeedsReminderSheet extends ConsumerWidget {
       }
     }
 
+    final mediaQuery = MediaQuery.of(context);
+    final availableHeight = mediaQuery.size.height - mediaQuery.padding.top;
+
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         border: Border.all(color: colors.border, width: 1),
       ),
+      margin: const EdgeInsets.only(top: 8),
       padding: EdgeInsets.only(
         top: 16,
         left: 20,
         right: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom +
-            MediaQuery.of(context).padding.bottom +
+        bottom: mediaQuery.viewInsets.bottom +
+            mediaQuery.padding.bottom +
             20,
       ),
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.8,
+        maxHeight: availableHeight * 0.85,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

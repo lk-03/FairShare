@@ -30,6 +30,7 @@ class SetUpiSheet extends ConsumerStatefulWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => SetUpiSheet(user: user),
     );
@@ -152,7 +153,14 @@ class _SetUpiSheetState extends ConsumerState<SetUpiSheet> {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final isPaytm = _sanitizedVpa.endsWith('@paytm');
 
+    final mediaQuery = MediaQuery.of(context);
+    final availableHeight = mediaQuery.size.height - mediaQuery.padding.top;
+
     return Container(
+      constraints: BoxConstraints(
+        maxHeight: availableHeight * 0.88,
+      ),
+      margin: const EdgeInsets.only(top: 8),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),

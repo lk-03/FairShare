@@ -29,6 +29,7 @@ class ExpenseDetailsSheet extends ConsumerWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => ExpenseDetailsSheet(
         expense: expense,
@@ -105,17 +106,30 @@ class ExpenseDetailsSheet extends ConsumerWidget {
 
     final formattedDate = DateFormat('EEEE, MMM d, y • h:mm a').format(expense.createdAt);
 
+    final mediaQuery = MediaQuery.of(context);
+    final availableHeight = mediaQuery.size.height - mediaQuery.padding.top;
+
     return Container(
+      constraints: BoxConstraints(
+        maxHeight: availableHeight * 0.88,
+      ),
+      margin: const EdgeInsets.only(top: 8),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         border: Border(top: BorderSide(color: colors.border, width: 1)),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+      padding: EdgeInsets.fromLTRB(
+        20,
+        16,
+        20,
+        mediaQuery.viewInsets.bottom + 32,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
           // Drag Handle
           Center(
             child: Container(
@@ -334,6 +348,7 @@ class ExpenseDetailsSheet extends ConsumerWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }

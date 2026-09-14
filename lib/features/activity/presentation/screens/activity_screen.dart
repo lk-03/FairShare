@@ -78,6 +78,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
 
     showModalBottomSheet(
       context: context,
+      useSafeArea: true,
       backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),

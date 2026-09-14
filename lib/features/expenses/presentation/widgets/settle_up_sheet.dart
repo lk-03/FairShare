@@ -30,6 +30,7 @@ class SettleUpSheet extends ConsumerStatefulWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => SettleUpSheet(
         cohortId: cohortId,
@@ -206,7 +207,14 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
     final fallbackVpa = '${payeeDisplayName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '')}@upi';
     final payeeVpa = (rawVpa != null && rawVpa.isNotEmpty) ? rawVpa : fallbackVpa;
 
+    final mediaQuery = MediaQuery.of(context);
+    final availableHeight = mediaQuery.size.height - mediaQuery.padding.top;
+
     return Container(
+      constraints: BoxConstraints(
+        maxHeight: availableHeight * 0.88,
+      ),
+      margin: const EdgeInsets.only(top: 8),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
@@ -216,7 +224,7 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
         24,
         16,
         24,
-        MediaQuery.of(context).viewInsets.bottom + 28,
+        mediaQuery.viewInsets.bottom + 28,
       ),
       child: SingleChildScrollView(
         child: Column(

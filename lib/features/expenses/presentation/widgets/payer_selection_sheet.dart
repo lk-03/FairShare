@@ -38,6 +38,7 @@ class PayerSelectionSheet extends StatefulWidget {
     return showModalBottomSheet<PayerSelectionResult>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => PayerSelectionSheet(
         members: members,
@@ -187,10 +188,14 @@ class _PayerSelectionSheetState extends State<PayerSelectionSheet> {
     final discrepancy = widget.totalAmount - multiSum;
     final isSettled = discrepancy.abs() <= 0.05;
 
+    final mediaQuery = MediaQuery.of(context);
+    final availableHeight = mediaQuery.size.height - mediaQuery.padding.top;
+
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.88,
+        maxHeight: availableHeight * 0.88,
       ),
+      margin: const EdgeInsets.only(top: 8),
       decoration: const BoxDecoration(
         color: AppColors.surfaceDim,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),

@@ -16,6 +16,7 @@ class GroupQrSheet extends StatefulWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => GroupQrSheet(group: group),
     );
@@ -51,7 +52,14 @@ class _GroupQrSheetState extends State<GroupQrSheet> {
     final colors = context.colors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final mediaQuery = MediaQuery.of(context);
+    final availableHeight = mediaQuery.size.height - mediaQuery.padding.top;
+
     return Container(
+      constraints: BoxConstraints(
+        maxHeight: availableHeight * 0.88,
+      ),
+      margin: const EdgeInsets.only(top: 8),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),

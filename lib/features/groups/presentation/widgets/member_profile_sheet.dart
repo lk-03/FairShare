@@ -28,6 +28,7 @@ class MemberProfileSheet extends ConsumerWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => MemberProfileSheet(
         member: member,
@@ -61,10 +62,14 @@ class MemberProfileSheet extends ConsumerWidget {
     final hasDebt = debtAmount > 0.01;
     final vpa = member.profile?.vpaId;
 
+    final mediaQuery = MediaQuery.of(context);
+    final availableHeight = mediaQuery.size.height - mediaQuery.padding.top;
+
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.75,
+        maxHeight: availableHeight * 0.88,
       ),
+      margin: const EdgeInsets.only(top: 8),
       decoration: const BoxDecoration(
         color: AppColors.surfaceDim,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),

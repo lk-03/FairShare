@@ -22,6 +22,7 @@ class JoinGroupSheet extends ConsumerStatefulWidget {
     return showModalBottomSheet<Group>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => JoinGroupSheet(onScanQr: onScanQr),
     );
@@ -101,7 +102,14 @@ class _JoinGroupSheetState extends ConsumerState<JoinGroupSheet> {
     final colors = context.colors;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
+    final mediaQuery = MediaQuery.of(context);
+    final availableHeight = mediaQuery.size.height - mediaQuery.padding.top;
+
     return Container(
+      constraints: BoxConstraints(
+        maxHeight: availableHeight * 0.88,
+      ),
+      margin: const EdgeInsets.only(top: 8),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),

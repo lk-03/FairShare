@@ -29,6 +29,7 @@ class GroupActionSheet extends ConsumerWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => GroupActionSheet(
         group: group,
@@ -48,7 +49,14 @@ class GroupActionSheet extends ConsumerWidget {
         group.createdBy == currentUser.id ||
         members.any((m) => m.userId == currentUser.id && m.role == 'admin');
 
+    final mediaQuery = MediaQuery.of(context);
+    final availableHeight = mediaQuery.size.height - mediaQuery.padding.top;
+
     return Container(
+      constraints: BoxConstraints(
+        maxHeight: availableHeight * 0.88,
+      ),
+      margin: const EdgeInsets.only(top: 8),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
@@ -58,14 +66,15 @@ class GroupActionSheet extends ConsumerWidget {
         top: 16,
         left: 20,
         right: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom +
-            MediaQuery.of(context).padding.bottom +
+        bottom: mediaQuery.viewInsets.bottom +
+            mediaQuery.padding.bottom +
             24,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
           // Drag handle
           Center(
             child: Container(
@@ -241,6 +250,7 @@ class GroupActionSheet extends ConsumerWidget {
           ],
         ],
       ),
+    ),
     );
   }
 

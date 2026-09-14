@@ -22,6 +22,7 @@ class SelectGroupSheet extends ConsumerWidget {
     return showModalBottomSheet<Group>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => SelectGroupSheet(
         onSelectGroup: (g) => Navigator.of(ctx).pop(g),
@@ -37,10 +38,14 @@ class SelectGroupSheet extends ConsumerWidget {
     final allGroups = groupsAsync.value ?? [];
     final activeCohorts = allGroups.where((c) => !c.isDeleted).toList();
 
+    final mediaQuery = MediaQuery.of(context);
+    final availableHeight = mediaQuery.size.height - mediaQuery.padding.top;
+
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.75,
+        maxHeight: availableHeight * 0.75,
       ),
+      margin: const EdgeInsets.only(top: 8),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
