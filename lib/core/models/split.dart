@@ -47,6 +47,7 @@ class ExpenseSplit {
   final double amount;
   final double? percentage;
   final double? shares;
+  final double? adjustment;
   final List<String>? lineItemIds;
 
   const ExpenseSplit({
@@ -54,6 +55,7 @@ class ExpenseSplit {
     required this.amount,
     this.percentage,
     this.shares,
+    this.adjustment,
     this.lineItemIds,
   });
 
@@ -63,6 +65,7 @@ class ExpenseSplit {
       amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
       percentage: (json['percentage'] as num?)?.toDouble(),
       shares: (json['shares'] as num?)?.toDouble(),
+      adjustment: (json['adjustment'] as num?)?.toDouble(),
       lineItemIds: json['line_item_ids'] != null
           ? List<String>.from(json['line_item_ids'] as List)
           : (json['lineItemIds'] != null
@@ -77,6 +80,7 @@ class ExpenseSplit {
       'amount': amount,
       if (percentage != null) 'percentage': percentage,
       if (shares != null) 'shares': shares,
+      if (adjustment != null) 'adjustment': adjustment,
       if (lineItemIds != null) 'line_item_ids': lineItemIds,
     };
   }
@@ -86,6 +90,7 @@ class ExpenseSplit {
     double? amount,
     double? percentage,
     double? shares,
+    double? adjustment,
     List<String>? lineItemIds,
   }) {
     return ExpenseSplit(
@@ -93,6 +98,7 @@ class ExpenseSplit {
       amount: amount ?? this.amount,
       percentage: percentage ?? this.percentage,
       shares: shares ?? this.shares,
+      adjustment: adjustment ?? this.adjustment,
       lineItemIds: lineItemIds ?? this.lineItemIds,
     );
   }
@@ -103,8 +109,9 @@ class ExpenseSplit {
       other is ExpenseSplit &&
           runtimeType == other.runtimeType &&
           userId == other.userId &&
-          amount == other.amount;
+          amount == other.amount &&
+          adjustment == other.adjustment;
 
   @override
-  int get hashCode => Object.hash(userId, amount);
+  int get hashCode => Object.hash(userId, amount, adjustment);
 }

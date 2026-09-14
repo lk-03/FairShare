@@ -420,7 +420,14 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
 
     _ensureSplits(members);
     final payerLabel = _getPayerLabel(members, currentUserId);
-    final splitLabel = _splitType == SplitType.equal ? 'equally' : _splitType.name;
+    final splitLabel = switch (_splitType) {
+      SplitType.equal => 'equally',
+      SplitType.exact => 'unequally',
+      SplitType.percentage => 'by percentage',
+      SplitType.shares => 'by shares',
+      SplitType.adjustment => 'by adjustment',
+      SplitType.itemized => 'itemized',
+    };
     final participantCount = _splits.isNotEmpty ? _splits.length : members.length;
     final perPerson = participantCount > 0 && _totalAmount > 0
         ? _totalAmount / participantCount

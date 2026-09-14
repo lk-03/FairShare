@@ -67,6 +67,9 @@ class _AdjustSplitSheetState extends State<AdjustSplitSheet> {
   // Mode 4: Shares
   final Map<String, int> _shares = {};
 
+  // Mode 5: Adjustments
+  final Map<String, TextEditingController> _adjustmentControllers = {};
+
   @override
   void initState() {
     super.initState();
@@ -91,6 +94,11 @@ class _AdjustSplitSheetState extends State<AdjustSplitSheet> {
       _percentControllers[m.userId] = TextEditingController(
         text: pct > 0 ? pct.toStringAsFixed(1) : '',
       );
+
+      final adj = existing.adjustment ?? 0.0;
+      _adjustmentControllers[m.userId] = TextEditingController(
+        text: adj > 0 ? (adj % 1 == 0 ? adj.toInt().toString() : adj.toStringAsFixed(2)) : '',
+      );
     }
 
     if (widget.initialSplits.isNotEmpty && _currentType == SplitType.equal) {
@@ -107,6 +115,9 @@ class _AdjustSplitSheetState extends State<AdjustSplitSheet> {
       c.dispose();
     }
     for (final c in _percentControllers.values) {
+      c.dispose();
+    }
+    for (final c in _adjustmentControllers.values) {
       c.dispose();
     }
     super.dispose();
@@ -135,6 +146,23 @@ class _AdjustSplitSheetState extends State<AdjustSplitSheet> {
       s += v;
     }
     return s;
+  }
+
+  double get _adjustmentSum {
+    double s = 0.0;
+    for (final c in _adjustmentControllers.values) {
+      s += double.tryParse(c.text.trim()) ?? 0.0;
+    }
+    return s;
+  }
+
+  double _calculateMemberAdjustmentTotal(String userId) {
+    if (widget.members.isEmpty) return 0.0;
+    final adjSum = _adjustmentSum;
+    final remainder = widget.totalAmount - adjSum;
+    final base = remainder > 0 ? remainder / widget.members.length : 0.0;
+    final myAdj = double.tryParse(_adjustmentControllers[userId]?.text.trim() ?? '') ?? 0.0;
+    return base + myAdj;
   }
 
   void _toggleAllEqual(bool selectAll) {
@@ -242,8 +270,42 @@ class _AdjustSplitSheetState extends State<AdjustSplitSheet> {
         break;
 
       case SplitType.adjustment:
+        final adjSum = _adjustmentSum;
+        if (adjSum > widget.totalAmount + 0.01) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Adjustments exceed total amount by ${CurrencyFormatter.format(adjSum - widget.totalAmount)}.',
+              ),
+              backgroundColor: AppColors.rose,
+            ),
+          );
+          return;
+        }
+
+        final count = widget.members.length;
+        if (count == 0) return;
+
+        final remainder = widget.totalAmount - adjSum;
+        final baseCents = ((remainder / count) * 100).floor() / 100.0;
+        final distributedRemainder = baseCents * count;
+        final pennyRemainder = double.parse((remainder - distributedRemainder).toStringAsFixed(2));
+
+        for (var i = 0; i < widget.members.length; i++) {
+          final m = widget.members[i];
+          final adj = double.tryParse(_adjustmentControllers[m.userId]?.text.trim() ?? '') ?? 0.0;
+          final extraCent = (i == 0 && pennyRemainder > 0) ? pennyRemainder : 0.0;
+          final amt = double.parse((baseCents + extraCent + adj).toStringAsFixed(2));
+          splits.add(ExpenseSplit(
+            userId: m.userId,
+            amount: amt,
+            adjustment: adj > 0 ? adj : null,
+          ));
+        }
+        break;
+
       case SplitType.itemized:
-        // Itemized and adjustment fallback to equal or exact
+        // Itemized fallback to equal
         for (final m in widget.members) {
           splits.add(ExpenseSplit(userId: m.userId, amount: widget.totalAmount / widget.members.length));
         }
@@ -321,7 +383,7 @@ class _AdjustSplitSheetState extends State<AdjustSplitSheet> {
               ),
             ),
 
-            // Tab bar for Splitwise-style 4 modes
+            // Tab bar for Splitwise-style 5 modes
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
               padding: const EdgeInsets.all(3),
@@ -336,24 +398,92 @@ class _AdjustSplitSheetState extends State<AdjustSplitSheet> {
                   _buildTabItem(SplitType.exact, 'Unequally', '₹'),
                   _buildTabItem(SplitType.percentage, 'Percent', '%'),
                   _buildTabItem(SplitType.shares, 'Shares', 'x:y'),
+                  _buildTabItem(SplitType.adjustment, 'Adjust', '+'),
                 ],
               ),
             ),
 
-            // Explanatory Mode Description
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  _getModeDescription(),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
+            // Explanatory Mode Description / Adjustment Header Card
+            if (_currentType == SplitType.adjustment)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceCard,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.borderSubtle),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryTeal.withValues(alpha: 0.15),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.tune_rounded,
+                              color: AppColors.primaryTeal,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: AppColors.emerald.withValues(alpha: 0.15),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.balance_rounded,
+                              color: AppColors.emerald,
+                              size: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Split by adjustment',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Enter adjustments to reflect who owes extra; FairShare will distribute the remainder equally.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                          height: 1.3,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _getModeDescription(),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
               ),
-            ),
 
             // Member list with mode-specific controls
             Expanded(
@@ -388,15 +518,32 @@ class _AdjustSplitSheetState extends State<AdjustSplitSheet> {
                         ),
                         const SizedBox(width: 12),
 
-                        // Name
+                        // Name and calculated total share in adjustment mode
                         Expanded(
-                          child: Text(
-                            member.displayName,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                member.displayName,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              if (_currentType == SplitType.adjustment) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  CurrencyFormatter.format(_calculateMemberAdjustmentTotal(member.userId)),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
 
@@ -468,7 +615,7 @@ class _AdjustSplitSheetState extends State<AdjustSplitSheet> {
       case SplitType.shares:
         return 'Enter the number of shares each person owes.';
       case SplitType.adjustment:
-        return 'Split by adjustment.';
+        return 'Enter adjustments to reflect who owes extra; FairShare will distribute the remainder equally.';
       case SplitType.itemized:
         return 'Itemized split.';
     }
@@ -596,6 +743,47 @@ class _AdjustSplitSheetState extends State<AdjustSplitSheet> {
         );
 
       case SplitType.adjustment:
+        return SizedBox(
+          width: 105,
+          child: TextField(
+            controller: _adjustmentControllers[member.userId],
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              prefixText: '+ ',
+              prefixStyle: const TextStyle(
+                color: AppColors.primaryTeal,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+              hintText: '0.00',
+              hintStyle: const TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              isDense: true,
+              filled: true,
+              fillColor: AppColors.surfaceCard,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.borderSubtle),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.primaryTeal, width: 1.5),
+              ),
+            ),
+          ),
+        );
+
       case SplitType.itemized:
         return const SizedBox.shrink();
     }
@@ -769,6 +957,64 @@ class _AdjustSplitSheetState extends State<AdjustSplitSheet> {
         );
 
       case SplitType.adjustment:
+        final adjSum = _adjustmentSum;
+        final remainder = widget.totalAmount - adjSum;
+        final isOver = adjSum > widget.totalAmount + 0.01;
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          decoration: const BoxDecoration(
+            color: AppColors.surface,
+            border: Border(top: BorderSide(color: AppColors.borderSubtle)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${CurrencyFormatter.format(adjSum)} in adjustments',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      'of ${CurrencyFormatter.format(widget.totalAmount)} total',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  isOver
+                      ? '${CurrencyFormatter.format(adjSum - widget.totalAmount)} over'
+                      : '✓ Remainder ${CurrencyFormatter.format(remainder)}',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: isOver ? AppColors.rose : AppColors.emerald,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        );
+
       case SplitType.itemized:
         return const SizedBox.shrink();
     }
