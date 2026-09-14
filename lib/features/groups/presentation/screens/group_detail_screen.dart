@@ -14,9 +14,11 @@ import '../../../../core/widgets/group_avatar.dart';
 import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/expenses_provider.dart';
 import '../../../../data/providers/groups_provider.dart';
+import '../../../../data/providers/needs_provider.dart';
 import '../../../expenses/presentation/widgets/add_expense_sheet.dart';
 import '../../../expenses/presentation/widgets/expense_details_sheet.dart';
 import '../../../expenses/presentation/widgets/settle_up_sheet.dart';
+import '../../../needs/presentation/widgets/needs_list_view.dart';
 import '../widgets/edit_group_sheet.dart';
 import '../widgets/group_qr_sheet.dart';
 
@@ -33,16 +35,22 @@ class GroupDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
+  int _selectedTab = 0; // 0: Ledger, 1: House Cart
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(groupExpensesProvider(widget.groupId).notifier).loadExpenses();
+      ref.read(groupNeedsProvider(widget.groupId).notifier).loadNeeds();
     });
   }
 
   Future<void> _refresh() async {
-    await ref.read(groupExpensesProvider(widget.groupId).notifier).loadExpenses();
+    await Future.wait([
+      ref.read(groupExpensesProvider(widget.groupId).notifier).loadExpenses(),
+      ref.read(groupNeedsProvider(widget.groupId).notifier).loadNeeds(),
+    ]);
   }
 
   void _handleAddExpense() {
@@ -114,6 +122,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     final totalSpent = ref.watch(groupTotalSpendingProvider(widget.groupId));
     final currentUser = ref.watch(currentUserProvider);
 
+    final needs = ref.watch(groupNeedsProvider(widget.groupId)).value ?? [];
+    final pendingNeeds = needs.where((n) => !n.isCompleted).length;
+
     return Scaffold(
       backgroundColor: colors.screen,
       body: SafeArea(
@@ -121,6 +132,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           children: [
             // Top App Bar
             _buildTopBar(group, colors),
+
+            // Segmented Sub-Tab Switcher
+            _buildSubTabSelector(colors, pendingNeeds),
 
             // Scrollable Content
             Expanded(
@@ -131,44 +145,154 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Group Net Balance Hero Card
-                      _buildBalanceHero(group, userBalance, totalSpent, colors),
-                      const SizedBox(height: 20),
+                  child: _selectedTab == 0
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Group Net Balance Hero Card
+                            _buildBalanceHero(group, userBalance, totalSpent, colors),
+                            const SizedBox(height: 20),
 
-                      // Horizontal Member Rail
-                      _buildMemberRail(members, currentUser?.id, colors),
-                      const SizedBox(height: 24),
+                            // Horizontal Member Rail
+                            _buildMemberRail(members, currentUser?.id, colors),
+                            const SizedBox(height: 24),
 
-                      // Debts to Settle Section
-                      _buildDebtsSection(debts, currentUser?.id, colors),
-                      const SizedBox(height: 24),
+                            // Debts to Settle Section
+                            _buildDebtsSection(debts, currentUser?.id, colors),
+                            const SizedBox(height: 24),
 
-                      // Chronological Expenses Section
-                      _buildExpensesSection(expenses, currentUser?.id, colors),
-                      const SizedBox(height: 80), // Padding for floating button
-                    ],
-                  ),
+                            // Chronological Expenses Section
+                            _buildExpensesSection(expenses, currentUser?.id, colors),
+                            const SizedBox(height: 80), // Padding for floating button
+                          ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            NeedsListView(cohortId: widget.groupId),
+                            const SizedBox(height: 40),
+                          ],
+                        ),
                 ),
               ),
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _handleAddExpense,
-        backgroundColor: colors.cyan,
-        foregroundColor: const Color(0xFF0F172A),
-        icon: const Icon(Icons.add_rounded, size: 22),
-        label: const Text(
-          'Add Expense',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.2,
+      floatingActionButton: _selectedTab == 0
+          ? FloatingActionButton.extended(
+              onPressed: _handleAddExpense,
+              backgroundColor: colors.cyan,
+              foregroundColor: const Color(0xFF0F172A),
+              icon: const Icon(Icons.add_rounded, size: 22),
+              label: const Text(
+                'Add Expense',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildSubTabSelector(AppThemeColors colors, int pendingNeeds) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 8, 20, 6),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildSubTabItem(
+              title: 'General Ledger',
+              icon: Icons.receipt_long_rounded,
+              isSelected: _selectedTab == 0,
+              onTap: () => setState(() => _selectedTab = 0),
+              colors: colors,
+            ),
           ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: _buildSubTabItem(
+              title: 'House Cart',
+              icon: Icons.shopping_cart_outlined,
+              badgeCount: pendingNeeds,
+              isSelected: _selectedTab == 1,
+              onTap: () => setState(() => _selectedTab = 1),
+              colors: colors,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubTabItem({
+    required String title,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required AppThemeColors colors,
+    int? badgeCount,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? colors.cyan.withValues(alpha: 0.18)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: isSelected
+              ? Border.all(color: colors.cyan.withValues(alpha: 0.4))
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? colors.cyan : colors.textSecondary,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? colors.cyan : colors.textSecondary,
+              ),
+            ),
+            if (badgeCount != null && badgeCount > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: isSelected ? colors.cyan : colors.accentPill,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$badgeCount',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: isSelected ? Colors.white : colors.cyan,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
