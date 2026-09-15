@@ -102,3 +102,6 @@ scratch/
 ai-temp/
 *.prompt
 *.prompt.md
+
+# Supabase CLI temp files
+supabase/.temp/
