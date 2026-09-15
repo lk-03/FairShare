@@ -22,10 +22,34 @@ expo-env.d.ts
 *.mobileprovision
 *.keystore
 credentials/
+**/google-services.json
 
-# Native Build Outputs
-/android/
-/ios/
+# Flutter & Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+*.iml
+
+# Flutter Native Build Outputs & Ephemeral Files
+**/android/.gradle/
+**/android/local.properties
+**/android/app/build/
+**/android/**/GeneratedPluginRegistrant.java
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/ephemeral/
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/ios/Pods/
+**/ios/.symlinks/
+
+# Legacy React Native native build outputs
+legacy-rn/android/
+legacy-rn/node_modules/
+legacy-rn/.expo/
 .kotlin/
 *.orig.*
 
@@ -51,12 +75,16 @@ coverage/
 *.swo
 *.zip
 export.csv
+logo.jpeg
+stitch*
 
 # AI Assistants, Rules & Agent Artifacts
+.misc/
 .claude/
 .claude*
 CLAUDE.md
 CLAUDE*.md
+project-claude*
 ai-rules*
 ai-context*
 AGENTS.md
@@ -75,3 +103,6 @@ scratch/
 ai-temp/
 *.prompt
 *.prompt.md
+
+# Supabase CLI temp files
+supabase/.temp/
