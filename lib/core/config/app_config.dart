@@ -2,9 +2,12 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// AppConfig centralizes all environmental variables and backend endpoints
 class AppConfig {
-  static const String defaultSupabaseUrl = '';
-  static const String defaultSupabaseAnonKey = '';
-  static const String defaultGoogleWebClientId = '';
+  static const String defaultSupabaseUrl =
+      'https://axjmjggkqbwnibgkosaw.supabase.co';
+  static const String defaultSupabaseAnonKey =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4am1qZ2drcWJ3bmliZ2tvc2F3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwOTc2NTMsImV4cCI6MjEwMzY3MzY1M30.A2cZ3uhEcBotUB6XHposrbKDgWjDTn_xOxsjmatIj4o';
+  static const String defaultGoogleWebClientId =
+      '256502909999-si4tkiianf71fhdgon0f1d2oa79pn688.apps.googleusercontent.com';
   static const String defaultGeminiApiKey = '';
 
   static Future<void> initialize() async {
