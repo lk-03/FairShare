@@ -5,6 +5,7 @@ import '../../../../config/theme/app_colors.dart';
 import '../../../../core/models/profile.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../data/providers/auth_provider.dart';
+import '../../../../data/repositories/auth_repository.dart';
 
 enum AuthMode {
   options,
@@ -109,6 +110,126 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     );
   }
 
+  void _showCapacityReachedModal() {
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final mediaQuery = MediaQuery.of(ctx);
+        final availableHeight = mediaQuery.size.height - mediaQuery.padding.top;
+
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: availableHeight * 0.85,
+          ),
+          margin: const EdgeInsets.only(top: 8),
+          decoration: BoxDecoration(
+            color: ctx.colors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border.all(color: ctx.colors.border),
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: ctx.colors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryTeal.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.primaryTeal.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.rocket_launch_rounded,
+                    color: AppColors.primaryTeal,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Early Access Full (150/150)',
+                  style: TextStyle(
+                    color: ctx.colors.textMain,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'FairShare has reached its 150-user private beta limit. '
+                  'New registrations are temporarily paused while we scale our infrastructure for public release.\n\n'
+                  'If you already have an account, please sign in below.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: ctx.colors.textSecondary,
+                    fontSize: 14,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryTeal,
+                      foregroundColor: AppColors.surfaceDim,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      setState(() {
+                        _mode = AuthMode.emailSignIn;
+                      });
+                    },
+                    child: const Text(
+                      'Already have an account? Sign In',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(
+                    'Dismiss',
+                    style: TextStyle(
+                      color: ctx.colors.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _handleGoogleAuth() async {
     setState(() => _isLoading = true);
     try {
@@ -131,6 +252,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
+      if (e is UserCapacityReachedException ||
+          e.toString().contains('CAPACITY_REACHED') ||
+          e.toString().contains('150-user')) {
+        _showCapacityReachedModal();
+        return;
+      }
       _showMessage(
         'Google Sign-In Notice',
         e.toString().replaceAll('Exception: ', ''),
@@ -241,6 +368,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
+      if (e is UserCapacityReachedException ||
+          e.toString().contains('CAPACITY_REACHED') ||
+          e.toString().contains('150-user')) {
+        _showCapacityReachedModal();
+        return;
+      }
       _showMessage(
         _mode == AuthMode.emailSignUp ? 'Sign Up Failed' : 'Sign In Failed',
         e.toString().replaceAll('Exception: ', ''),

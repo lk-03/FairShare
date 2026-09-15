@@ -3,7 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fairshare/config/theme/app_theme.dart';
+import 'package:fairshare/core/models/profile.dart';
+import 'package:fairshare/data/local/local_cache_service.dart';
 import 'package:fairshare/data/providers/auth_provider.dart';
+import 'package:fairshare/data/repositories/auth_repository.dart';
+import 'package:fairshare/data/repositories/profile_repository.dart';
+import 'package:fairshare/data/services/supabase_service.dart';
 import 'package:fairshare/features/auth/presentation/screens/auth_screen.dart';
 
 void main() {
@@ -133,4 +138,74 @@ void main() {
     expect(authResult!.fullName, 'Alex Vance');
     expect(authResult!.isNewUser, isFalse);
   });
+
+  testWidgets('AuthScreen displays Early Access Full modal when capacity is reached',
+      (tester) async {
+    final prefs = await SharedPreferences.getInstance();
+    MockCapacityReachedAuthRepo.fakePrefs = prefs;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          authRepositoryProvider.overrideWithValue(MockCapacityReachedAuthRepo()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.buildTheme(brightness: Brightness.dark),
+          home: const AuthScreen(initialMode: AuthMode.options),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Tap Continue with Google
+    await tester.tap(find.text('Continue with Google'));
+    await tester.pumpAndSettle();
+
+    // Verify Early Access Full modal appears
+    expect(find.text('Early Access Full (150/150)'), findsOneWidget);
+    expect(
+      find.text(
+        'FairShare has reached its 150-user private beta limit. '
+        'New registrations are temporarily paused while we scale our infrastructure for public release.\n\n'
+        'If you already have an account, please sign in below.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Already have an account? Sign In'), findsOneWidget);
+
+    // Tap "Already have an account? Sign In" -> switches to emailSignIn mode
+    await tester.tap(find.text('Already have an account? Sign In'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sign in with Email'), findsOneWidget);
+  });
+}
+
+class MockCapacityReachedAuthRepo extends AuthRepository {
+  static late SharedPreferences fakePrefs;
+
+  MockCapacityReachedAuthRepo()
+      : super(
+          supabaseService: SupabaseService(),
+          profileRepository: ProfileRepository(
+            supabaseService: SupabaseService(),
+            cacheService: LocalCacheService(fakePrefs),
+          ),
+          cacheService: LocalCacheService(fakePrefs),
+        );
+
+  @override
+  Future<UserProfile?> signInWithGoogle() async {
+    throw const UserCapacityReachedException();
+  }
+
+  @override
+  Future<({UserProfile? user, bool requiresEmailConfirmation})> signUpWithEmail(
+    String email,
+    String password,
+    String fullName,
+  ) async {
+    throw const UserCapacityReachedException();
+  }
 }

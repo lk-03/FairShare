@@ -6,6 +6,18 @@ import '../local/local_cache_service.dart';
 import '../services/supabase_service.dart';
 import 'profile_repository.dart';
 
+/// Thrown when FairShare's registration hard cap (150 users) is reached
+class UserCapacityReachedException implements Exception {
+  final String message;
+  const UserCapacityReachedException([
+    this.message =
+        'FairShare has reached its early-access limit of 150 users. Registration is temporarily paused while we scale our infrastructure.',
+  ]);
+
+  @override
+  String toString() => message;
+}
+
 class AuthRepository {
   final SupabaseService supabaseService;
   final ProfileRepository profileRepository;
@@ -116,6 +128,11 @@ class AuthRepository {
       return updatedProfile;
     } catch (e) {
       final err = e.toString();
+      if (err.contains('CAPACITY_REACHED') ||
+          err.contains('early access limit') ||
+          err.contains('150-user')) {
+        throw const UserCapacityReachedException();
+      }
       if (err.contains('account reauth failed') || err.contains('[16]')) {
         throw Exception(
           'Google Sign-In failed (Account reauth failed). '
@@ -230,6 +247,12 @@ class AuthRepository {
       await cacheService.saveCurrentUser(profile);
       return (user: profile, requiresEmailConfirmation: requiresConfirmation);
     } catch (e) {
+      final err = e.toString();
+      if (err.contains('CAPACITY_REACHED') ||
+          err.contains('early access limit') ||
+          err.contains('150-user')) {
+        throw const UserCapacityReachedException();
+      }
       rethrow;
     }
   }
