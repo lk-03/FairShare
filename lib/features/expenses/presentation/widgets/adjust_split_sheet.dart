@@ -408,87 +408,8 @@ class _AdjustSplitSheetState extends State<AdjustSplitSheet> {
               ),
             ),
 
-            // Explanatory Mode Description / Adjustment Header Card
-            if (_currentType == SplitType.adjustment)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceCard,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.borderSubtle),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryTeal.withValues(alpha: 0.15),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.tune_rounded,
-                              color: AppColors.primaryTeal,
-                              size: 18,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: AppColors.emerald.withValues(alpha: 0.15),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.balance_rounded,
-                              color: AppColors.emerald,
-                              size: 18,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Split by adjustment',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Enter adjustments to reflect who owes extra; FairShare will distribute the remainder equally.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                          height: 1.3,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    _getModeDescription(),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ),
-              ),
+            // Explanatory Mode Description Card for all split modes
+            _buildExplanationCard(),
 
             // Member list with mode-specific controls
             Expanded(
@@ -609,21 +530,121 @@ class _AdjustSplitSheetState extends State<AdjustSplitSheet> {
     );
   }
 
-  String _getModeDescription() {
+  Widget _buildExplanationCard() {
+    final IconData icon1;
+    final IconData icon2;
+    final String title;
+    final String description;
+
     switch (_currentType) {
       case SplitType.equal:
-        return 'Select which people owe an equal share.';
+        icon1 = Icons.drag_handle_rounded;
+        icon2 = Icons.balance_rounded;
+        title = 'Split equally';
+        description =
+            'Everyone pays an equal share of the total bill. Toggle members to include or exclude them.';
+        break;
       case SplitType.exact:
-        return 'Specify exactly how much each person owes.';
+        icon1 = Icons.currency_rupee_rounded;
+        icon2 = Icons.edit_note_rounded;
+        title = 'Split by exact amounts';
+        description =
+            'Specify exactly how much each person owes. The sum of all shares must match the total bill.';
+        break;
       case SplitType.percentage:
-        return 'Enter the percentage split that is right for each person.';
+        icon1 = Icons.percent_rounded;
+        icon2 = Icons.pie_chart_outline_rounded;
+        title = 'Split by percentages';
+        description =
+            'Enter the percentage split for each person. Total percentages must add up to 100%.';
+        break;
       case SplitType.shares:
-        return 'Enter the number of shares each person owes.';
+        icon1 = Icons.pie_chart_rounded;
+        icon2 = Icons.call_split_rounded;
+        title = 'Split by shares';
+        description =
+            'Enter the number of shares each person owes. FairShare will divide the bill proportionally.';
+        break;
       case SplitType.adjustment:
-        return 'Enter adjustments to reflect who owes extra; FairShare will distribute the remainder equally.';
+        icon1 = Icons.tune_rounded;
+        icon2 = Icons.balance_rounded;
+        title = 'Split by adjustment';
+        description =
+            'Enter adjustments to reflect who owes extra; FairShare will distribute the remainder equally.';
+        break;
       case SplitType.itemized:
-        return 'Itemized split.';
+        icon1 = Icons.receipt_long_rounded;
+        icon2 = Icons.checklist_rounded;
+        title = 'Itemized split';
+        description = 'Items and taxes are split according to receipt line items.';
+        break;
     }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.borderSubtle),
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryTeal.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon1,
+                    color: AppColors.primaryTeal,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.emerald.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon2,
+                    color: AppColors.emerald,
+                    size: 18,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              description,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+                height: 1.3,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildMemberControl(GroupMember member) {

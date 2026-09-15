@@ -307,4 +307,79 @@ void main() {
     expect(result, isNull);
     expect(find.text('Adjustments exceed total amount by ₹10.00.'), findsOneWidget);
   });
+
+  testWidgets('AdjustSplitSheet displays explanation card for each split mode', (tester) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.buildTheme(brightness: Brightness.dark),
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () async {
+                await AdjustSplitSheet.show(
+                  context,
+                  members: [member1, member2],
+                  totalAmount: 100.0,
+                  initialSplitType: SplitType.equal,
+                  initialSplits: const [],
+                );
+              },
+              child: const Text('Open Split Sheet'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open Split Sheet'));
+    await tester.pumpAndSettle();
+
+    // 1. Equal mode
+    expect(find.text('Split equally'), findsOneWidget);
+    expect(
+      find.text('Everyone pays an equal share of the total bill. Toggle members to include or exclude them.'),
+      findsOneWidget,
+    );
+
+    // 2. Unequal / Exact mode
+    await tester.tap(find.text('Unequally'));
+    await tester.pumpAndSettle();
+    expect(find.text('Split by exact amounts'), findsOneWidget);
+    expect(
+      find.text('Specify exactly how much each person owes. The sum of all shares must match the total bill.'),
+      findsOneWidget,
+    );
+
+    // 3. Percent mode
+    await tester.tap(find.text('Percent'));
+    await tester.pumpAndSettle();
+    expect(find.text('Split by percentages'), findsOneWidget);
+    expect(
+      find.text('Enter the percentage split for each person. Total percentages must add up to 100%.'),
+      findsOneWidget,
+    );
+
+    // 4. Shares mode
+    await tester.tap(find.text('Shares'));
+    await tester.pumpAndSettle();
+    expect(find.text('Split by shares'), findsOneWidget);
+    expect(
+      find.text('Enter the number of shares each person owes. FairShare will divide the bill proportionally.'),
+      findsOneWidget,
+    );
+
+    // 5. Adjust mode
+    await tester.tap(find.text('Adjust'));
+    await tester.pumpAndSettle();
+    expect(find.text('Split by adjustment'), findsOneWidget);
+    expect(
+      find.text('Enter adjustments to reflect who owes extra; FairShare will distribute the remainder equally.'),
+      findsOneWidget,
+    );
+  });
 }

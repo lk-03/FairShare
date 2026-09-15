@@ -115,6 +115,13 @@ class AuthRepository {
       await cacheService.saveCurrentUser(updatedProfile);
       return updatedProfile;
     } catch (e) {
+      final err = e.toString();
+      if (err.contains('account reauth failed') || err.contains('[16]')) {
+        throw Exception(
+          'Google Sign-In failed (Account reauth failed). '
+          'This happens when your Android app SHA-1 fingerprint is not registered under an Android OAuth Client ID in Google Cloud Console for package com.fairshare.app.',
+        );
+      }
       rethrow;
     }
   }
