@@ -5,6 +5,7 @@ import 'config/routes/app_router.dart';
 import 'config/theme/theme_provider.dart';
 import 'core/config/app_config.dart';
 import 'data/providers/auth_provider.dart';
+import 'data/services/push_notification_service.dart';
 import 'data/services/supabase_service.dart';
 
 void main() async {
@@ -12,6 +13,7 @@ void main() async {
   await AppConfig.initialize();
   final prefs = await SharedPreferences.getInstance();
   await SupabaseService.initialize();
+  await PushNotificationService.initialize();
 
   runApp(
     ProviderScope(

@@ -9,6 +9,7 @@ import '../../core/models/split.dart';
 import '../local/local_cache_service.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/profile_repository.dart';
+import '../services/push_notification_service.dart';
 import '../services/supabase_service.dart';
 
 /// Overridden in main.dart once SharedPreferences.getInstance() completes
@@ -52,19 +53,25 @@ class CurrentUserNotifier extends Notifier<UserProfile?> {
   @override
   UserProfile? build() {
     final cache = ref.watch(localCacheServiceProvider);
-    return cache.getCurrentUser();
+    final user = cache.getCurrentUser();
+    if (user != null) {
+      PushNotificationService.syncDeviceToken(user.id);
+    }
+    return user;
   }
 
   Future<void> refresh() async {
     final profileRepo = ref.read(profileRepositoryProvider);
     final user = await profileRepo.getCurrentProfile();
     state = user;
+    PushNotificationService.syncDeviceToken(user.id);
   }
 
   Future<void> setUser(UserProfile user) async {
     final cache = ref.read(localCacheServiceProvider);
     await cache.saveCurrentUser(user);
     state = user;
+    PushNotificationService.syncDeviceToken(user.id);
   }
 
   Future<void> saveProfile(UserProfile profile) async {
@@ -73,6 +80,7 @@ class CurrentUserNotifier extends Notifier<UserProfile?> {
     final profileRepo = ref.read(profileRepositoryProvider);
     await profileRepo.upsertProfile(profile);
     state = profile;
+    PushNotificationService.syncDeviceToken(profile.id);
   }
 
   Future<void> updateProfile({
@@ -95,6 +103,7 @@ class CurrentUserNotifier extends Notifier<UserProfile?> {
       phoneNumber: phoneNumber,
     );
     state = updated;
+    PushNotificationService.syncDeviceToken(updated.id);
   }
 
   Future<void> signInWithGoogle() async {
@@ -102,6 +111,7 @@ class CurrentUserNotifier extends Notifier<UserProfile?> {
     final user = await authRepo.signInWithGoogle();
     if (user != null) {
       state = user;
+      PushNotificationService.syncDeviceToken(user.id);
     }
   }
 
@@ -109,6 +119,7 @@ class CurrentUserNotifier extends Notifier<UserProfile?> {
     final authRepo = ref.read(authRepositoryProvider);
     final user = await authRepo.signInWithEmail(email, password);
     state = user;
+    PushNotificationService.syncDeviceToken(user.id);
   }
 
   Future<({UserProfile? user, bool requiresEmailConfirmation})> signUpWithEmail(
@@ -212,6 +223,10 @@ class CurrentUserNotifier extends Notifier<UserProfile?> {
   }
 
   Future<void> signOut() async {
+    final currentId = state?.id;
+    if (currentId != null) {
+      await PushNotificationService.clearDeviceToken(currentId);
+    }
     final authRepo = ref.read(authRepositoryProvider);
     await authRepo.signOut();
     state = null;

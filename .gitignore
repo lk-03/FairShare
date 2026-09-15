@@ -22,6 +22,7 @@ expo-env.d.ts
 *.mobileprovision
 *.keystore
 credentials/
+**/google-services.json
 
 # Flutter & Dart
 .dart_tool/
