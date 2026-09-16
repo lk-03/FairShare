@@ -23,6 +23,8 @@ expo-env.d.ts
 *.keystore
 credentials/
 **/google-services.json
+*-firebase-adminsdk-*.json
+*firebase-adminsdk*.json
 
 # Flutter & Dart
 .dart_tool/
