@@ -185,9 +185,11 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                                     )
                                   : null,
                               border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
-                                vertical: 12,
+                                vertical: 14,
                               ),
                             ),
                           ),

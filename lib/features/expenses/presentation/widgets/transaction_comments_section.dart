@@ -400,6 +400,8 @@ class _TransactionCommentsSectionState
                             color: colors.textSecondary,
                           ),
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
                           isDense: true,
                           contentPadding:
                               const EdgeInsets.symmetric(vertical: 12),

@@ -126,6 +126,54 @@ void main() {
     expect(find.text('Weekly Groceries & Supplies'), findsOneWidget);
     expect(find.text('Add Expense'), findsOneWidget);
   });
+
+  testWidgets('GroupDetailScreen allows swiping horizontally across tabs',
+      (tester) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cacheService = LocalCacheService(prefs);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          localCacheServiceProvider.overrideWithValue(cacheService),
+          currentUserProvider.overrideWith(() => _MockCurrentUser(testUser)),
+          groupsProvider.overrideWith(() => _MockGroups([testGroup])),
+          groupExpensesProvider('cohort_test_1')
+              .overrideWith(() => _MockExpenses('cohort_test_1', [testExpense])),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.buildTheme(brightness: Brightness.dark),
+          home: const GroupDetailScreen(groupId: 'cohort_test_1'),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Verify Tab 0 is initially visible
+    expect(find.text('YOUR GROUP BALANCE'), findsOneWidget);
+
+    // Swipe left to go to Tab 1 (Spendings)
+    await tester.drag(find.byType(PageView), const Offset(-500, 0));
+    await tester.pumpAndSettle();
+
+    // Tab 1 (Spendings) should now be active
+    expect(find.text('GROUP SPENDINGS OVERVIEW'), findsOneWidget);
+
+    // Swipe left again to go to Tab 2 (House Cart)
+    await tester.drag(find.byType(PageView), const Offset(-500, 0));
+    await tester.pumpAndSettle();
+
+    // Tab 2 (House Cart) should now be active
+    expect(find.text('Add needed item (e.g. Milk, Bread)...'), findsOneWidget);
+
+    // Swipe right to go back to Tab 1
+    await tester.drag(find.byType(PageView), const Offset(500, 0));
+    await tester.pumpAndSettle();
+
+    expect(find.text('GROUP SPENDINGS OVERVIEW'), findsOneWidget);
+  });
 }
 
 class _MockCurrentUser extends CurrentUserNotifier {

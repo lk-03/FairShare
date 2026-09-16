@@ -38,15 +38,33 @@ class GroupDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
-  int _selectedTab = 0; // 0: Ledger, 1: House Cart
+  int _selectedTab = 0; // 0: Ledger, 1: Spendings, 2: House Cart
+  late final PageController _pageController;
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _selectedTab);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(groupExpensesProvider(widget.groupId).notifier).loadExpenses();
       ref.read(groupNeedsProvider(widget.groupId).notifier).loadNeeds();
     });
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onTabTapped(int index) {
+    if (_selectedTab == index) return;
+    setState(() => _selectedTab = index);
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOutCubic,
+    );
   }
 
   Future<void> _refresh() async {
@@ -139,55 +157,78 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
             // Segmented Sub-Tab Switcher
             _buildSubTabSelector(colors, pendingNeeds),
 
-            // Scrollable Content
+            // Swipeable Content
             Expanded(
-              child: RefreshIndicator(
-                onRefresh: _refresh,
-                color: colors.cyan,
-                backgroundColor: colors.surface,
-                child: _selectedTab == 0
-                    ? SingleChildScrollView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // Group Net Balance Hero Card
-                            _buildBalanceHero(group, userBalance, totalSpent, colors),
-                            const SizedBox(height: 20),
+              child: PageView(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  setState(() {
+                    _selectedTab = index;
+                  });
+                },
+                children: [
+                  // Tab 0: General Ledger
+                  RefreshIndicator(
+                    onRefresh: _refresh,
+                    color: colors.cyan,
+                    backgroundColor: colors.surface,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Group Net Balance Hero Card
+                          _buildBalanceHero(group, userBalance, totalSpent, colors),
+                          const SizedBox(height: 20),
 
-                            // Horizontal Member Rail
-                            _buildMemberRail(members, group, currentUser?.id, colors),
-                            const SizedBox(height: 24),
+                          // Horizontal Member Rail
+                          _buildMemberRail(members, group, currentUser?.id, colors),
+                          const SizedBox(height: 24),
 
-                            // Debts to Settle Section
-                            _buildDebtsSection(debts, currentUser?.id, colors),
-                            const SizedBox(height: 24),
+                          // Debts to Settle Section
+                          _buildDebtsSection(debts, currentUser?.id, colors),
+                          const SizedBox(height: 24),
 
-                            // Chronological Expenses Section
-                            _buildExpensesSection(expenses, currentUser?.id, colors),
-                            const SizedBox(height: 80), // Padding for floating button
-                          ],
-                        ),
-                      )
-                    : _selectedTab == 1
-                        ? MonthlySpendingsTab(
-                            cohort: group,
-                            expenses: expenses,
-                            members: members,
-                            currentUserId: currentUser?.id ?? '',
-                          )
-                        : SingleChildScrollView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                NeedsListView(cohortId: widget.groupId),
-                                const SizedBox(height: 40),
-                              ],
-                            ),
-                          ),
+                          // Chronological Expenses Section
+                          _buildExpensesSection(expenses, currentUser?.id, colors),
+                          const SizedBox(height: 80), // Padding for floating button
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Tab 1: Spendings
+                  RefreshIndicator(
+                    onRefresh: _refresh,
+                    color: colors.cyan,
+                    backgroundColor: colors.surface,
+                    child: MonthlySpendingsTab(
+                      cohort: group,
+                      expenses: expenses,
+                      members: members,
+                      currentUserId: currentUser?.id ?? '',
+                    ),
+                  ),
+
+                  // Tab 2: House Cart
+                  RefreshIndicator(
+                    onRefresh: _refresh,
+                    color: colors.cyan,
+                    backgroundColor: colors.surface,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          NeedsListView(cohortId: widget.groupId),
+                          const SizedBox(height: 40),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -228,7 +269,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               title: 'General Ledger',
               icon: Icons.receipt_long_rounded,
               isSelected: _selectedTab == 0,
-              onTap: () => setState(() => _selectedTab = 0),
+              onTap: () => _onTabTapped(0),
               colors: colors,
             ),
           ),
@@ -238,7 +279,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               title: 'Spendings',
               icon: Icons.pie_chart_outline_rounded,
               isSelected: _selectedTab == 1,
-              onTap: () => setState(() => _selectedTab = 1),
+              onTap: () => _onTabTapped(1),
               colors: colors,
             ),
           ),
@@ -249,7 +290,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               icon: Icons.shopping_cart_outlined,
               badgeCount: pendingNeeds,
               isSelected: _selectedTab == 2,
-              onTap: () => setState(() => _selectedTab = 2),
+              onTap: () => _onTabTapped(2),
               colors: colors,
             ),
           ),

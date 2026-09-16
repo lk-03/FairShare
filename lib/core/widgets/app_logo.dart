@@ -57,7 +57,7 @@ class AppLogo extends StatelessWidget {
               width: size,
               height: size,
               fit: BoxFit.contain,
-              color: accentColor,
+              color: color,
               errorBuilder: (context, error, stackTrace) {
                 return Icon(
                   Icons.account_balance_wallet_rounded,

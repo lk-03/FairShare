@@ -259,9 +259,24 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
           controller: _notesController,
           maxLines: 3,
           style: const TextStyle(color: AppColors.textPrimary),
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: 'Enter expense notes or details...',
-            hintStyle: TextStyle(color: AppColors.textMuted),
+            hintStyle: const TextStyle(color: AppColors.textMuted),
+            filled: true,
+            fillColor: AppColors.surface,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: AppColors.borderSubtle),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: AppColors.borderSubtle),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: context.colors.cyan, width: 1.5),
+            ),
           ),
         ),
         actions: [
@@ -546,13 +561,13 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
                         children: [
                           InkWell(
                             onTap: _openCategoryPicker,
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(16),
                             child: Container(
-                              width: 48,
-                              height: 48,
+                              width: 50,
+                              height: 50,
                               decoration: BoxDecoration(
                                 color: AppColors.surfaceCard,
-                                borderRadius: BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(16),
                                 border: Border.all(color: AppColors.borderSubtle),
                               ),
                               child: Center(
@@ -560,35 +575,66 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 14),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: TextField(
                               controller: _titleController,
                               style: const TextStyle(
-                                fontSize: 17,
+                                fontSize: 16,
                                 fontWeight: FontWeight.w600,
                                 color: AppColors.textPrimary,
                               ),
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 hintText: 'Enter a description',
-                                hintStyle: TextStyle(
+                                hintStyle: const TextStyle(
                                   color: AppColors.textMuted,
                                   fontWeight: FontWeight.normal,
+                                  fontSize: 15,
                                 ),
-                                border: InputBorder.none,
-                                isDense: true,
-                                contentPadding: EdgeInsets.symmetric(vertical: 8),
+                                filled: true,
+                                fillColor: AppColors.surfaceCard,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: const BorderSide(color: AppColors.borderSubtle),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: const BorderSide(color: AppColors.borderSubtle),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide(
+                                    color: context.colors.cyan,
+                                    width: 1.5,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.document_scanner_rounded,
-                              color: AppColors.primaryTeal,
-                              size: 22,
+                          const SizedBox(width: 10),
+                          InkWell(
+                            onTap: _openReceiptScanner,
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              width: 50,
+                              height: 50,
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceCard,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: AppColors.borderSubtle),
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.document_scanner_rounded,
+                                  color: AppColors.primaryTeal,
+                                  size: 22,
+                                ),
+                              ),
                             ),
-                            tooltip: 'Scan Receipt',
-                            onPressed: _openReceiptScanner,
                           ),
                         ],
                       ),
@@ -632,6 +678,8 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
                                         fontWeight: FontWeight.w800,
                                       ),
                                       border: InputBorder.none,
+                                      enabledBorder: InputBorder.none,
+                                      focusedBorder: InputBorder.none,
                                       isDense: true,
                                     ),
                                   ),

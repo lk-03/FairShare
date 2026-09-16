@@ -331,9 +331,11 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                                 )
                               : null,
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
+                            horizontal: 16,
+                            vertical: 14,
                           ),
                         ),
                       ),
