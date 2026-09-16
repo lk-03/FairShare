@@ -218,6 +218,7 @@ class AuthRepository {
         email: email.trim(),
         password: password,
         data: {'full_name': fullName.trim()},
+        emailRedirectTo: 'fairshare://login-callback',
       );
 
       final user = res.user;
@@ -301,7 +302,8 @@ class AuthRepository {
     if (!supabaseService.isConfigured) return;
     await supabaseService.client.auth.resend(
       type: OtpType.signup,
-      email: email,
+      email: email.trim(),
+      emailRedirectTo: 'fairshare://login-callback',
     );
   }
 

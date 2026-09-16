@@ -67,8 +67,13 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   Future<void> _handleAuthenticated(AuthSuccessData data) async {
     _authData = data;
 
-    if (data.isNewUser == false) {
-      // Existing user: mark onboarding complete and route to home
+    final profile = data.userProfile;
+    final hasCompletedProfile = profile != null &&
+        profile.username != null &&
+        profile.username!.isNotEmpty;
+
+    if (!data.isNewUser && hasCompletedProfile) {
+      // Existing user with complete profile: mark onboarding complete and route to home
       await ref.read(onboardingProvider.notifier).completeOnboarding();
       await ref.read(onboardingProvider.notifier).markAppTourSeen();
       if (!mounted) return;
@@ -85,7 +90,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       return;
     }
 
-    // New user: proceed to first time profile setup
+    // New user or incomplete profile: proceed to first time profile setup
     setState(() => _step = WelcomeStep.setup);
   }
 

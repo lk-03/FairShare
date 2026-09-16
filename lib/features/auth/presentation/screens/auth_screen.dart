@@ -239,12 +239,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       setState(() => _isLoading = false);
 
       if (profile != null) {
+        final isNew = profile.username == null || profile.username!.isEmpty;
         widget.onAuthenticated?.call(
           AuthSuccessData(
             provider: 'google',
             email: profile.email ?? '',
             fullName: profile.fullName,
-            isNewUser: false,
+            isNewUser: isNew,
             userProfile: profile,
           ),
         );
@@ -260,35 +261,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       }
       _showMessage(
         'Google Sign-In Notice',
-        e.toString().replaceAll('Exception: ', ''),
-      );
-    }
-  }
-
-  Future<void> _handleDemoTestLogin() async {
-    setState(() => _isLoading = true);
-    try {
-      await ref.read(currentUserProvider.notifier).signInAsDemoUser();
-      final demoProfile = ref.read(currentUserProvider);
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-
-      if (demoProfile != null) {
-        widget.onAuthenticated?.call(
-          AuthSuccessData(
-            provider: 'demo',
-            email: demoProfile.email ?? 'alex.vance@fairshare.app',
-            fullName: demoProfile.fullName,
-            isNewUser: false,
-            userProfile: demoProfile,
-          ),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      _showMessage(
-        'Demo Login Notice',
         e.toString().replaceAll('Exception: ', ''),
       );
     }
@@ -353,6 +325,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         if (!mounted) return;
         setState(() => _isLoading = false);
 
+        final isNew = profile.username == null || profile.username!.isEmpty;
         widget.onAuthenticated?.call(
           AuthSuccessData(
             provider: 'email',
@@ -360,7 +333,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             fullName: profile.fullName.isNotEmpty
                 ? profile.fullName
                 : email.split('@')[0],
-            isNewUser: false,
+            isNewUser: isNew,
             userProfile: profile,
           ),
         );
@@ -712,55 +685,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 12),
-
-        // 4: Demo / Testing Mode Divider & Button
-        Row(
-          children: [
-            Expanded(child: Divider(color: colors.border)),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text(
-                'TESTING & PREVIEW',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.0,
-                  color: colors.textSecondary,
-                ),
-              ),
-            ),
-            Expanded(child: Divider(color: colors.border)),
-          ],
-        ),
-        const SizedBox(height: 14),
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: OutlinedButton.icon(
-            key: const Key('demo_login_button'),
-            onPressed: _isLoading ? null : _handleDemoTestLogin,
-            style: OutlinedButton.styleFrom(
-              backgroundColor: colors.accentPill,
-              side: BorderSide(
-                color: colors.cyan.withValues(alpha: 0.4),
-                width: 1,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-            icon: Icon(Icons.science_outlined, size: 18, color: colors.cyan),
-            label: Text(
-              'One-Tap Demo Login (Testing)',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: colors.cyan,
-              ),
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -1020,23 +944,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: colors.textSecondary,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-
-        // Direct demo entry for testing
-        Center(
-          child: TextButton.icon(
-            onPressed: _isLoading ? null : _handleDemoTestLogin,
-            icon: Icon(Icons.science_outlined, size: 14, color: colors.cyan),
-            label: Text(
-              'Skip Login: Enter as Demo User',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: colors.cyan,
               ),
             ),
           ),
