@@ -1,31 +1,37 @@
-name: FairShare CI
+name: FairShare Flutter CI
 
 on:
   push:
-    branches: [ main, dev ]
+    branches: [ main, dev, flutter-migration ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, flutter-migration ]
 
 jobs:
-  test-and-lint:
-    name: Typecheck & Unit Tests
+  test-and-analyze:
+    name: Flutter Analyze & Unit Tests
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v4
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
         with:
-          node-version: 22
-          cache: 'npm'
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
 
       - name: Install Dependencies
-        run: npm install --legacy-peer-deps
+        run: flutter pub get
 
-      - name: TypeScript Static Typecheck
-        run: npx tsc --noEmit
+      - name: Static Code Analysis
+        run: flutter analyze --no-fatal-infos
 
-      - name: Run Jest Test Suite
-        run: npm test -- --ci --coverage
+      - name: Run Unit & Widget Tests
+        run: flutter test --coverage
