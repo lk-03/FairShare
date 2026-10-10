@@ -46,6 +46,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     super.initState();
     _pageController = PageController(initialPage: _selectedTab);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(groupsProvider.notifier).loadUserGroups();
       ref.read(groupExpensesProvider(widget.groupId).notifier).loadExpenses();
       ref.read(groupNeedsProvider(widget.groupId).notifier).loadNeeds();
     });
@@ -69,6 +70,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
 
   Future<void> _refresh() async {
     await Future.wait([
+      ref.read(groupsProvider.notifier).loadUserGroups(),
       ref.read(groupExpensesProvider(widget.groupId).notifier).loadExpenses(),
       ref.read(groupNeedsProvider(widget.groupId).notifier).loadNeeds(),
     ]);

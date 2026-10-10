@@ -23,12 +23,40 @@ class GroupMember {
 
   bool get isAdmin => role == 'admin';
 
-  String get displayName =>
-      profile?.displayName ?? originalCsvName ?? 'Member';
+  String get displayName {
+    final pName = profile?.displayName;
+    if (pName != null && pName.trim().isNotEmpty && pName != 'Member') {
+      return pName.trim();
+    }
+    if (originalCsvName != null && originalCsvName!.trim().isNotEmpty) {
+      return originalCsvName!.trim();
+    }
+    if (profile?.fullName != null && profile!.fullName.trim().isNotEmpty) {
+      return profile!.fullName.trim();
+    }
+    if (profile?.username != null && profile!.username!.trim().isNotEmpty) {
+      return profile!.username!.trim();
+    }
+    if (profile?.email != null && profile!.email!.isNotEmpty) {
+      return profile!.email!.split('@').first;
+    }
+    return 'Member';
+  }
 
   factory GroupMember.fromJson(Map<String, dynamic> json) {
+    UserProfile? profile;
+    final rawProfile = json['profiles'] ?? json['profile'];
+    if (rawProfile is Map<String, dynamic>) {
+      profile = UserProfile.fromJson(rawProfile);
+    } else if (rawProfile is List && rawProfile.isNotEmpty) {
+      final first = rawProfile.first;
+      if (first is Map<String, dynamic>) {
+        profile = UserProfile.fromJson(first);
+      }
+    }
+
     return GroupMember(
-      id: json['id'] as String,
+      id: json['id'] as String? ?? '',
       cohortId: json['cohort_id'] as String? ?? json['cohortId'] as String? ?? '',
       userId: json['user_id'] as String? ?? json['userId'] as String? ?? '',
       role: json['role'] as String? ?? 'member',
@@ -37,9 +65,7 @@ class GroupMember {
           : (json['joinedAt'] != null
               ? DateTime.tryParse(json['joinedAt'].toString()) ?? DateTime.now()
               : DateTime.now()),
-      profile: json['profile'] != null && json['profile'] is Map<String, dynamic>
-          ? UserProfile.fromJson(json['profile'] as Map<String, dynamic>)
-          : null,
+      profile: profile,
       isPlaceholder: json['is_placeholder'] as bool? ??
           json['isPlaceholder'] as bool? ??
           false,

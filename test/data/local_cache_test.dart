@@ -99,6 +99,12 @@ void main() {
         userId: 'u_1',
         role: 'admin',
         joinedAt: DateTime(2026, 1, 1),
+        profile: UserProfile(
+          id: 'u_1',
+          fullName: 'Alice Smith',
+          nickname: 'Alice',
+          createdAt: DateTime(2026, 1, 1),
+        ),
       );
 
       await cacheService.saveMembers('g_1', [member]);
@@ -107,6 +113,30 @@ void main() {
       expect(retrieved.length, equals(1));
       expect(retrieved.first.userId, equals('u_1'));
       expect(retrieved.first.role, equals('admin'));
+      expect(retrieved.first.displayName, equals('Alice'));
+      expect(retrieved.first.profile?.fullName, equals('Alice Smith'));
+    });
+
+    test('GroupMember.fromJson parses Supabase PostgREST profiles relation key', () {
+      final supabaseJson = {
+        'id': 'gm_supabase_1',
+        'cohort_id': 'c_1',
+        'user_id': 'u_2',
+        'role': 'member',
+        'joined_at': '2026-01-01T00:00:00.000Z',
+        'profiles': {
+          'id': 'u_2',
+          'full_name': 'Kavya Sharma',
+          'nickname': 'Kavya',
+          'username': 'kavya_s',
+          'created_at': '2026-01-01T00:00:00.000Z',
+        },
+      };
+
+      final member = GroupMember.fromJson(supabaseJson);
+      expect(member.displayName, equals('Kavya'));
+      expect(member.profile?.fullName, equals('Kavya Sharma'));
+      expect(member.profile?.username, equals('kavya_s'));
     });
 
     test('saveExpenses and getCachedExpenses with splits', () async {

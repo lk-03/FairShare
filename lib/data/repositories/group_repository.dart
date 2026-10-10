@@ -69,8 +69,14 @@ class GroupRepository {
         membersMap[cid] = [];
       }
 
+      final cachedCurrentUser = cacheService.getCurrentUser();
       for (final m in (allMembersRows as List)) {
-        final member = GroupMember.fromJson(m as Map<String, dynamic>);
+        var member = GroupMember.fromJson(m as Map<String, dynamic>);
+        if (member.profile == null &&
+            cachedCurrentUser != null &&
+            member.userId == cachedCurrentUser.id) {
+          member = member.copyWith(profile: cachedCurrentUser);
+        }
         membersMap[member.cohortId]?.add(member);
       }
 

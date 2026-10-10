@@ -25,11 +25,25 @@ class UserProfile {
     required this.createdAt,
   });
 
-  String get displayName =>
-      nickname?.isNotEmpty == true ? nickname! : fullName;
+  String get displayName {
+    if (nickname != null && nickname!.trim().isNotEmpty) {
+      return nickname!.trim();
+    }
+    if (fullName.trim().isNotEmpty) {
+      return fullName.trim();
+    }
+    if (username != null && username!.trim().isNotEmpty) {
+      return username!.trim();
+    }
+    if (email != null && email!.trim().isNotEmpty) {
+      return email!.split('@').first;
+    }
+    return 'Member';
+  }
 
   String get initials {
-    final parts = fullName.trim().split(RegExp(r'\s+'));
+    final name = displayName;
+    final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || parts[0].isEmpty) return '?';
     if (parts.length == 1) return parts[0][0].toUpperCase();
     return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
