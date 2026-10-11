@@ -5,7 +5,6 @@ import '../../../../core/models/expense.dart';
 import '../../../../core/models/group.dart';
 import '../../../../core/models/group_member.dart';
 import '../../../../core/utils/currency_formatter.dart';
-import '../../../../core/widgets/category_icon.dart';
 
 class MonthlySpendingsTab extends StatefulWidget {
   final Group cohort;
@@ -27,6 +26,7 @@ class MonthlySpendingsTab extends StatefulWidget {
 
 class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
   int _touchedIndex = -1;
+  int _memberChartMode = 0; // 0: By Share, 1: By Paid
 
   final List<Color> _chartPalette = [
     AppColors.primaryTeal,
@@ -37,6 +37,34 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
     const Color(0xFF10B981),
     const Color(0xFF6366F1),
   ];
+
+  Widget _buildToggleChip(String label, int mode) {
+    final isSelected = _memberChartMode == mode;
+    return InkWell(
+      onTap: () => setState(() {
+        _memberChartMode = mode;
+        _touchedIndex = -1;
+      }),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primaryTeal.withValues(alpha: 0.2)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+            color: isSelected ? AppColors.primaryTeal : AppColors.textMuted,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +100,7 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Spendings and category breakdown will appear here once expenses are added.',
+                'Spendings and member breakdown will appear here once expenses are added.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
@@ -82,10 +110,10 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
       );
     }
 
-    // 1. Calculate Group Spend & User Share
+    // 1. Calculate Group Spend, Paid & Shares
     double totalGroupSpend = 0.0;
     double totalUserShare = 0.0;
-    final Map<String, double> categorySpend = {};
+    double totalPaid = 0.0;
     final Map<String, double> memberPaidMap = {};
     final Map<String, double> memberShareMap = {};
 
@@ -96,16 +124,17 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
 
     for (final exp in widget.expenses) {
       totalGroupSpend += exp.totalAmount;
-      categorySpend[exp.category] = (categorySpend[exp.category] ?? 0.0) + exp.totalAmount;
 
       // Calculate paid
       if (exp.payers.isNotEmpty) {
         for (final p in exp.payers) {
           memberPaidMap[p.userId] = (memberPaidMap[p.userId] ?? 0.0) + p.amount;
+          totalPaid += p.amount;
         }
       } else {
         memberPaidMap[exp.paidByUserId] =
             (memberPaidMap[exp.paidByUserId] ?? 0.0) + exp.totalAmount;
+        totalPaid += exp.totalAmount;
       }
 
       // Calculate share
@@ -117,23 +146,33 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
       }
     }
 
-    // Sort categories descending
-    final sortedCategories = categorySpend.entries.toList()
+    // Build member spending entries
+    final memberSpendEntries = widget.members.map((m) {
+      final share = memberShareMap[m.userId] ?? 0.0;
+      final paid = memberPaidMap[m.userId] ?? 0.0;
+      final val = _memberChartMode == 0 ? share : paid;
+      return (member: m, value: val);
+    }).toList()
       ..sort((a, b) => b.value.compareTo(a.value));
+
+    final relevantTotal = _memberChartMode == 0
+        ? totalGroupSpend
+        : (totalPaid > 0 ? totalPaid : totalGroupSpend);
 
     // Build chart sections
     final pieSections = <PieChartSectionData>[];
-    for (var i = 0; i < sortedCategories.length; i++) {
-      final entry = sortedCategories[i];
+    for (var i = 0; i < memberSpendEntries.length; i++) {
+      final item = memberSpendEntries[i];
+      if (item.value <= 0) continue;
       final isTouched = i == _touchedIndex;
-      final pct = totalGroupSpend > 0 ? (entry.value / totalGroupSpend) * 100 : 0.0;
+      final pct = relevantTotal > 0 ? (item.value / relevantTotal) * 100 : 0.0;
       final color = _chartPalette[i % _chartPalette.length];
 
       pieSections.add(
         PieChartSectionData(
           color: color,
-          value: entry.value,
-          title: '${pct.toStringAsFixed(0)}%',
+          value: item.value,
+          title: pct >= 5 ? '${pct.toStringAsFixed(0)}%' : '',
           radius: isTouched ? 58.0 : 48.0,
           titleStyle: TextStyle(
             fontSize: isTouched ? 14 : 11,
@@ -219,7 +258,7 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
         ),
         const SizedBox(height: 24),
 
-        // Donut Chart
+        // Donut Chart: Member Breakdown
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -230,13 +269,48 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Category Breakdown',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Member Breakdown',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _memberChartMode == 0
+                            ? 'By consumption share'
+                            : 'By upfront payment',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.borderSubtle),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildToggleChip('Share', 0),
+                        _buildToggleChip('Paid', 1),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -260,18 +334,34 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
                     borderData: FlBorderData(show: false),
                     sectionsSpace: 3,
                     centerSpaceRadius: 46,
-                    sections: pieSections,
+                    sections: pieSections.isNotEmpty
+                        ? pieSections
+                        : [
+                            PieChartSectionData(
+                              color: AppColors.surface,
+                              value: 1,
+                              title: '0%',
+                              radius: 48,
+                              titleStyle: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          ],
                   ),
                 ),
               ),
               const SizedBox(height: 16),
 
-              // Category Ranking List
-              ...sortedCategories.asMap().entries.map((item) {
-                final idx = item.key;
-                final cat = item.value;
+              // Member Ranking List
+              ...memberSpendEntries.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final item = entry.value;
                 final color = _chartPalette[idx % _chartPalette.length];
-                final pct = totalGroupSpend > 0 ? (cat.value / totalGroupSpend) * 100 : 0.0;
+                final isMe = item.member.userId == widget.currentUserId;
+                final name = isMe ? 'You' : item.member.displayName;
+                final pct = relevantTotal > 0 ? (item.value / relevantTotal) * 100 : 0.0;
 
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
@@ -286,11 +376,24 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      CategoryIcon(category: cat.key, size: 16),
+                      CircleAvatar(
+                        radius: 12,
+                        backgroundColor: isMe
+                            ? AppColors.primaryTeal.withValues(alpha: 0.2)
+                            : AppColors.surfaceDim,
+                        child: Text(
+                          name.isNotEmpty ? name[0].toUpperCase() : '?',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: isMe ? AppColors.primaryTeal : AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          cat.key[0].toUpperCase() + cat.key.substring(1),
+                          name,
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -308,7 +411,7 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        CurrencyFormatter.format(cat.value),
+                        CurrencyFormatter.format(item.value),
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,

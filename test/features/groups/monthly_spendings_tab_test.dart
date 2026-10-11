@@ -70,10 +70,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('No expenses logged yet'), findsOneWidget);
-    expect(find.text('Spendings and category breakdown will appear here once expenses are added.'), findsOneWidget);
+    expect(find.text('Spendings and member breakdown will appear here once expenses are added.'), findsOneWidget);
   });
 
-  testWidgets('MonthlySpendingsTab renders spending summary, categories and contributions', (tester) async {
+  testWidgets('MonthlySpendingsTab renders spending summary, member breakdown and contributions', (tester) async {
     tester.view.physicalSize = const Size(800, 1200);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -129,8 +129,21 @@ void main() {
     expect(find.text('Total Group Spend'), findsOneWidget);
     expect(find.text('Your Personal Share'), findsOneWidget);
 
-    // Verify category breakdown section
-    expect(find.text('Category Breakdown'), findsOneWidget);
+    // Verify member breakdown donut chart section
+    expect(find.text('Member Breakdown'), findsOneWidget);
+    expect(find.text('By consumption share'), findsOneWidget);
+    expect(find.text('Share'), findsOneWidget);
+    expect(find.text('Paid'), findsOneWidget);
+
+    // Toggle to Paid mode
+    await tester.tap(find.text('Paid'));
+    await tester.pumpAndSettle();
+    expect(find.text('By upfront payment'), findsOneWidget);
+
+    // Toggle back to Share mode
+    await tester.tap(find.text('Share'));
+    await tester.pumpAndSettle();
+    expect(find.text('By consumption share'), findsOneWidget);
 
     // Verify member contribution section
     expect(find.text('Member Contribution Matrix'), findsOneWidget);
