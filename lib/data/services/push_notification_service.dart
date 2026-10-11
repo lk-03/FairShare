@@ -87,6 +87,13 @@ class PushNotificationService {
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         final notification = message.notification;
         final android = message.notification?.android;
+        final senderId = message.data['sender_user_id'];
+        final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+
+        // Never notify the user who initiated the action
+        if (senderId != null && currentUserId != null && senderId == currentUserId) {
+          return;
+        }
 
         if (notification != null && !kIsWeb) {
           _localNotifications.show(

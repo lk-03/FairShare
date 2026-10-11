@@ -130,7 +130,19 @@ serve(async (req: Request) => {
       senderUserId = record.paid_by_user_id;
       const expenseTitle = record.title || 'Expense';
       const amount = record.total_amount != null ? `₹${record.total_amount}` : '';
-      const payerName = record.paid_by_name || 'A member';
+      let payerName = record.paid_by_name;
+      if (!payerName && senderUserId) {
+        const { data: payer } = await supabase
+          .from('profiles')
+          .select('full_name, nickname, username')
+          .eq('id', senderUserId)
+          .maybeSingle();
+        payerName =
+          payer?.nickname?.trim() ||
+          payer?.full_name?.trim() ||
+          payer?.username?.trim();
+      }
+      payerName = payerName || 'A member';
       title = `${expenseTitle} ${amount}`.trim();
       body = `${payerName} added a new expense.`;
       clickRoute = cohortId ? `/groups/${cohortId}` : '/activity';
@@ -156,27 +168,40 @@ serve(async (req: Request) => {
       // Get commenter name
       const { data: commenter } = await supabase
         .from('profiles')
-        .select('full_name, nickname')
+        .select('full_name, nickname, username')
         .eq('id', senderUserId)
         .maybeSingle();
 
-      const name = commenter?.nickname || commenter?.full_name || 'Someone';
+      const name =
+        commenter?.nickname?.trim() ||
+        commenter?.full_name?.trim() ||
+        commenter?.username?.trim() ||
+        'Someone';
       body = `${name}: "${commentContent}"`;
       clickRoute = cohortId ? `/groups/${cohortId}` : '/activity';
     } else if (table === 'shared_list_items') {
       cohortId = record.cohort_id;
-      senderUserId = record.user_id;
-      const itemName = record.title || 'Item';
-      title = 'House Cart Update';
+      // In shared_list_items, the user column is added_by_user_id
+      senderUserId = record.added_by_user_id || record.user_id;
+      const itemName = record.title?.trim() || 'an item';
+      title = 'House Cart';
 
-      const { data: author } = await supabase
-        .from('profiles')
-        .select('full_name, nickname')
-        .eq('id', senderUserId)
-        .maybeSingle();
+      let name = 'A member';
+      if (senderUserId) {
+        const { data: author } = await supabase
+          .from('profiles')
+          .select('full_name, nickname, username')
+          .eq('id', senderUserId)
+          .maybeSingle();
 
-      const name = author?.nickname || author?.full_name || 'Someone';
-      body = `${name} added "${itemName}" to the house cart.`;
+        name =
+          author?.nickname?.trim() ||
+          author?.full_name?.trim() ||
+          author?.username?.trim() ||
+          'A member';
+      }
+
+      body = `${name} added ${itemName} in cart.`;
       clickRoute = cohortId ? `/groups/${cohortId}` : '/activity';
     }
 
@@ -258,6 +283,7 @@ serve(async (req: Request) => {
                 data: {
                   cohort_id: cohortId,
                   route: clickRoute,
+                  sender_user_id: senderUserId || '',
                 },
                 android: {
                   priority: 'high',
