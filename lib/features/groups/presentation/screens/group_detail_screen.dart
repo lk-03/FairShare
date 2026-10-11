@@ -39,6 +39,7 @@ class GroupDetailScreen extends ConsumerStatefulWidget {
 
 class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   int _selectedTab = 0; // 0: Ledger, 1: Spendings, 2: House Cart
+  bool _isMembersExpanded = false;
   late final PageController _pageController;
 
   @override
@@ -193,7 +194,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                           const SizedBox(height: 24),
 
                           // Chronological Expenses Section
-                          _buildExpensesSection(expenses, currentUser?.id, colors),
+                          _buildExpensesSection(expenses, members, currentUser?.id, colors),
                           const SizedBox(height: 80), // Padding for floating button
                         ],
                       ),
@@ -598,100 +599,178 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'MEMBERS (${members.length})',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.0,
-                color: colors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: members.map((m) {
-              final isMe = m.userId == currentUserId;
-              final name = isMe ? 'You' : m.displayName;
-              final isAdmin = m.role == 'admin';
-
-              return InkWell(
-                onTap: () => MemberProfileSheet.show(context, member: m, cohort: group),
-                borderRadius: BorderRadius.circular(18),
-                child: Container(
-                  width: 90,
-                  margin: const EdgeInsets.only(right: 12),
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: colors.border),
-                  ),
-                  child: Column(
-                    children: [
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundColor: colors.accentPill,
-                            child: Text(
-                              name.isNotEmpty ? name[0].toUpperCase() : '?',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: colors.cyan,
-                              ),
-                            ),
-                          ),
-                          if (isAdmin)
-                            Positioned(
-                              top: -4,
-                              right: -4,
-                              child: Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: BoxDecoration(
-                                  color: colors.amber,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.star_rounded, size: 10, color: Colors.white),
-                              ),
-                            ),
-                        ],
+        InkWell(
+          onTap: () => setState(() => _isMembersExpanded = !_isMembersExpanded),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'MEMBERS (${members.length})',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.0,
+                        color: colors.textSecondary,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: colors.textMain,
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(
+                      _isMembersExpanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      size: 18,
+                      color: colors.cyan,
+                    ),
+                  ],
+                ),
+                if (!_isMembersExpanded && members.isNotEmpty)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        height: 22,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (int i = 0; i < (members.length > 3 ? 3 : members.length); i++)
+                              Align(
+                                widthFactor: 0.7,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: colors.screen, width: 1.5),
+                                  ),
+                                  child: CircleAvatar(
+                                    radius: 10,
+                                    backgroundColor: colors.accentPill,
+                                    child: Text(
+                                      members[i].displayName.isNotEmpty
+                                          ? members[i].displayName[0].toUpperCase()
+                                          : '?',
+                                      style: TextStyle(
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.w800,
+                                        color: colors.cyan,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(width: 6),
                       Text(
-                        isAdmin ? 'Admin' : 'Member',
+                        'Tap to expand',
                         style: TextStyle(
-                          fontSize: 9,
+                          fontSize: 10,
                           fontWeight: FontWeight.w600,
-                          color: colors.textSecondary,
+                          color: colors.cyan,
                         ),
                       ),
                     ],
                   ),
-                ),
-              );
-            }).toList(),
+              ],
+            ),
           ),
+        ),
+        AnimatedCrossFade(
+          firstChild: const SizedBox.shrink(),
+          secondChild: Column(
+            children: [
+              const SizedBox(height: 12),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: members.map((m) {
+                    final isMe = m.userId == currentUserId;
+                    final name = isMe ? 'You' : m.displayName;
+                    final isAdmin = m.role == 'admin';
+
+                    return InkWell(
+                      onTap: () => MemberProfileSheet.show(context, member: m, cohort: group),
+                      borderRadius: BorderRadius.circular(18),
+                      child: Container(
+                        width: 90,
+                        margin: const EdgeInsets.only(right: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                        decoration: BoxDecoration(
+                          color: colors.surface,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: colors.border),
+                        ),
+                        child: Column(
+                          children: [
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: colors.accentPill,
+                                  child: Text(
+                                    name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                      color: colors.cyan,
+                                    ),
+                                  ),
+                                ),
+                                if (isAdmin)
+                                  Positioned(
+                                    top: -4,
+                                    right: -4,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(2),
+                                      decoration: BoxDecoration(
+                                        color: colors.amber,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.star_rounded, size: 10, color: Colors.white),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: colors.textMain,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              isAdmin ? 'Admin' : 'Member',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                                color: colors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+          crossFadeState: _isMembersExpanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 250),
         ),
       ],
     );
@@ -853,6 +932,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
 
   Widget _buildExpensesSection(
     List<Expense> expenses,
+    List<GroupMember> members,
     String? currentUserId,
     AppThemeColors colors,
   ) {
@@ -888,6 +968,12 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
             final formattedDate = DateFormat('MMM d, h:mm a').format(exp.createdAt);
             final userSplit = exp.splits.where((s) => s.userId == currentUserId).firstOrNull;
 
+            final isPaidByMe = exp.paidByUserId == currentUserId;
+            final payerMember = members.where((m) => m.userId == exp.paidByUserId).firstOrNull;
+            final payerLabel = isPaidByMe
+                ? 'You'
+                : (payerMember?.displayName ?? exp.paidByName ?? 'A member');
+
             return Container(
               margin: const EdgeInsets.only(bottom: 10),
               decoration: BoxDecoration(
@@ -917,7 +1003,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                   ),
                 ),
                 subtitle: Text(
-                  '${exp.paidByName} • $formattedDate',
+                  'Paid by $payerLabel • $formattedDate',
                   style: TextStyle(
                     fontSize: 11,
                     color: colors.textSecondary,

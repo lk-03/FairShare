@@ -112,18 +112,30 @@ void main() {
     expect(find.text('+₹600.00'), findsOneWidget);
     expect(find.text('You are owed ₹600.00 in total'), findsOneWidget);
 
-    // Verify Member Rail
+    // Verify Foldable Member Rail
     expect(find.text('MEMBERS (2)'), findsOneWidget);
+    expect(find.text('Tap to expand'), findsOneWidget);
+
+    // Tap to expand members rail
+    await tester.tap(find.text('MEMBERS (2)'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tap to expand'), findsNothing);
     expect(find.text('Admin'), findsOneWidget);
     expect(find.text('Sam Altman'), findsOneWidget);
+
+    // Tap again to fold
+    await tester.tap(find.text('MEMBERS (2)'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tap to expand'), findsOneWidget);
 
     // Verify Debts to Settle: Sam Altman owes You ₹600.00
     expect(find.text('DEBTS TO SETTLE'), findsOneWidget);
     expect(find.text('Settle Up'), findsOneWidget);
 
-    // Verify Expenses timeline
+    // Verify Expenses timeline & resolved payer label
     expect(find.text('EXPENSES (1)'), findsOneWidget);
     expect(find.text('Weekly Groceries & Supplies'), findsOneWidget);
+    expect(find.textContaining('Paid by You'), findsOneWidget);
     expect(find.text('Add Expense'), findsOneWidget);
   });
 
