@@ -197,11 +197,11 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
 
     final payerDisplayName = isMeDebtor
         ? 'You'
-        : (debtorMember?.profile?.displayName ?? 'Payer');
+        : (debtorMember?.displayName ?? 'Payer');
 
     final payeeDisplayName = isMeCreditor
         ? 'You'
-        : (creditorMember?.profile?.displayName ?? 'Payee');
+        : (creditorMember?.displayName ?? 'Payee');
 
     final rawVpa = creditorMember?.profile?.vpaId;
     final fallbackVpa = '${payeeDisplayName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '')}@upi';

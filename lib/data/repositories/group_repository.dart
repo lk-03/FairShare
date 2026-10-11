@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import '../../core/models/group.dart';
 import '../../core/models/group_member.dart';
 import '../../core/models/profile.dart';
@@ -94,7 +95,8 @@ class GroupRepository {
       }
 
       return (cohorts: cohorts, members: membersMap);
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[GroupRepository] fetchUserCohorts error: $e\n$st');
       final cachedCohorts = cacheService.getCachedGroups();
       final Map<String, List<GroupMember>> cachedMembers = {};
       for (final c in cachedCohorts) {
@@ -181,7 +183,8 @@ class GroupRepository {
       await cacheService.saveMembers(finalCohort.id, [savedMember]);
 
       return (cohort: finalCohort, member: savedMember);
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[GroupRepository] createCohort error: $e\n$st');
       final groups = cacheService.getCachedGroups();
       await cacheService.saveGroups([updatedCohort, ...groups]);
       await cacheService.saveMembers(updatedCohort.id, [fallbackMember]);
@@ -327,7 +330,8 @@ class GroupRepository {
       await cacheService.saveMembers(finalCohort.id, membersList);
 
       return (cohort: finalCohort, member: member, members: membersList);
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[GroupRepository] joinCohortByInviteCode error: $e\n$st');
       return null;
     }
   }

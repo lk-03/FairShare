@@ -191,7 +191,7 @@ final activityFeedProvider = Provider<List<ActivityItem>>((ref) {
             members.where((m) => m.userId == exp.paidByUserId).firstOrNull;
         final payerName = (currentUser != null && exp.paidByUserId == currentUser.id)
             ? 'You'
-            : (payerMember?.profile?.displayName ?? exp.paidByName ?? 'Member');
+            : (payerMember?.displayName ?? exp.paidByName ?? 'Member');
 
         feed.add(ActivityItem(
           id: 'exp_${exp.id}',
@@ -220,7 +220,7 @@ final activityFeedProvider = Provider<List<ActivityItem>>((ref) {
           final commenterName =
               (currentUser != null && comment.userId == currentUser.id)
                   ? 'You'
-                  : (commenterMember?.profile?.displayName ??
+                  : (commenterMember?.displayName ??
                       comment.profile?.displayName ??
                       'Member');
 

@@ -886,7 +886,7 @@ class _GroupCard extends ConsumerWidget {
     final memberNames = members
         .map((m) {
           if (m.userId == currentUser?.id) return 'You';
-          return m.profile?.displayName ?? 'Member';
+          return m.displayName;
         })
         .where((name) => name.isNotEmpty)
         .toList();

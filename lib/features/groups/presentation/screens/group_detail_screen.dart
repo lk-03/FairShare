@@ -618,7 +618,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           child: Row(
             children: members.map((m) {
               final isMe = m.userId == currentUserId;
-              final name = isMe ? 'You' : (m.profile?.displayName ?? 'Member');
+              final name = isMe ? 'You' : m.displayName;
               final isAdmin = m.role == 'admin';
 
               return InkWell(

@@ -102,7 +102,7 @@ class ExpenseDetailsSheet extends ConsumerWidget {
     final isCurrentUserPayer = expense.paidByUserId == currentUser?.id;
     final payerDisplayName = isCurrentUserPayer
         ? 'You'
-        : (payerMember?.profile?.displayName ?? expense.paidByName);
+        : (payerMember?.displayName ?? expense.paidByName);
 
     final formattedDate = DateFormat('EEEE, MMM d, y • h:mm a').format(expense.createdAt);
 
@@ -290,7 +290,7 @@ class ExpenseDetailsSheet extends ConsumerWidget {
                 final split = expense.splits[index];
                 final isMe = split.userId == currentUser?.id;
                 final member = members.where((m) => m.userId == split.userId).firstOrNull;
-                final name = isMe ? 'You' : (member?.profile?.displayName ?? 'Member');
+                final name = isMe ? 'You' : (member?.displayName ?? 'Member');
 
                 // Determine if this person lent or owes
                 final isPayer = split.userId == expense.paidByUserId;

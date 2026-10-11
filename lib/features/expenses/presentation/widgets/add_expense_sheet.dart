@@ -102,18 +102,46 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
 
   double get _totalAmount => double.tryParse(_amountController.text.trim()) ?? 0.0;
 
-  void _ensureSplits(List<GroupMember> members) {
-    if (_splits.isEmpty && members.isNotEmpty && _totalAmount > 0) {
-      final count = members.length;
-      final base = (_totalAmount / count * 100).floor() / 100.0;
-      final remainder = _totalAmount - (base * count);
+  List<ExpenseSplit> _calculateEqualSplits(
+    double total,
+    List<GroupMember> members,
+  ) {
+    if (members.isEmpty || total <= 0) return [];
 
-      _splits = members.asMap().entries.map((entry) {
-        final idx = entry.key;
-        final m = entry.value;
-        final amt = idx == 0 ? base + remainder : base;
-        return ExpenseSplit(userId: m.userId, amount: amt);
-      }).toList();
+    final targetUserIds = <String>{};
+    if (_splits.isNotEmpty && _splits.length < members.length) {
+      for (final s in _splits) {
+        if (s.amount > 0) {
+          targetUserIds.add(s.userId);
+        }
+      }
+    }
+
+    final activeMembers = targetUserIds.isNotEmpty
+        ? members.where((m) => targetUserIds.contains(m.userId)).toList()
+        : members;
+
+    final count = activeMembers.isNotEmpty ? activeMembers.length : members.length;
+    final effectiveMembers = activeMembers.isNotEmpty ? activeMembers : members;
+
+    final base = (total / count * 100).floor() / 100.0;
+    final remainder = double.parse((total - (base * count)).toStringAsFixed(2));
+
+    return effectiveMembers.asMap().entries.map((entry) {
+      final idx = entry.key;
+      final m = entry.value;
+      final amt = idx == 0 ? double.parse((base + remainder).toStringAsFixed(2)) : base;
+      return ExpenseSplit(userId: m.userId, amount: amt);
+    }).toList();
+  }
+
+  void _ensureSplits(List<GroupMember> members) {
+    if (_splitType == SplitType.equal) {
+      if (members.isNotEmpty && _totalAmount > 0) {
+        _splits = _calculateEqualSplits(_totalAmount, members);
+      }
+    } else if (_splits.isEmpty && members.isNotEmpty && _totalAmount > 0) {
+      _splits = _calculateEqualSplits(_totalAmount, members);
     }
   }
 
@@ -135,7 +163,11 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
   }
 
   Future<void> _openSplitSheet(List<GroupMember> members) async {
-    _ensureSplits(members);
+    if (_splitType == SplitType.equal) {
+      _splits = _calculateEqualSplits(_totalAmount, members);
+    } else {
+      _ensureSplits(members);
+    }
     final result = await AdjustSplitSheet.show(
       context,
       members: members,
@@ -324,7 +356,11 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
       return;
     }
 
-    _ensureSplits(members);
+    if (_splitType == SplitType.equal) {
+      _splits = _calculateEqualSplits(total, members);
+    } else {
+      _ensureSplits(members);
+    }
     if (_splits.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
