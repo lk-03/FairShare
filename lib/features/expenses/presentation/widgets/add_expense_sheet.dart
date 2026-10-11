@@ -539,19 +539,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
                           color: AppColors.textPrimary,
                         ),
                       ),
-                      IconButton(
-                        icon: _isLoading
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.primaryTeal,
-                                ),
-                              )
-                            : const Icon(Icons.check_rounded, color: AppColors.primaryTeal, size: 26),
-                        onPressed: _isLoading ? null : () => _submit(members),
-                      ),
+                      const SizedBox(width: 48),
                     ],
                   ),
                 ),
@@ -611,7 +599,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: TextField(
                               controller: _titleController,
@@ -647,27 +635,6 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
                                     color: context.colors.cyan,
                                     width: 1.5,
                                   ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          InkWell(
-                            onTap: _openReceiptScanner,
-                            borderRadius: BorderRadius.circular(16),
-                            child: Container(
-                              width: 50,
-                              height: 50,
-                              decoration: BoxDecoration(
-                                color: AppColors.surfaceCard,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: AppColors.borderSubtle),
-                              ),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.document_scanner_rounded,
-                                  color: AppColors.primaryTeal,
-                                  size: 22,
                                 ),
                               ),
                             ),
