@@ -145,8 +145,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('By consumption share'), findsOneWidget);
 
-    // Verify member contribution section
-    expect(find.text('Member Contribution Matrix'), findsOneWidget);
+    // Verify categories spent section
+    expect(find.text('Categories Spent'), findsOneWidget);
+    expect(find.text('House'), findsOneWidget);
+    expect(find.text('Dining'), findsOneWidget);
     expect(find.text('You'), findsWidgets);
     expect(find.text('Bob Jones'), findsWidgets);
   });

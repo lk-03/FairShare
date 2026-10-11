@@ -5,6 +5,7 @@ import '../../../../core/models/expense.dart';
 import '../../../../core/models/group.dart';
 import '../../../../core/models/group_member.dart';
 import '../../../../core/utils/currency_formatter.dart';
+import '../../../../core/widgets/category_icon.dart';
 
 class MonthlySpendingsTab extends StatefulWidget {
   final Group cohort;
@@ -28,15 +29,14 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
   int _touchedIndex = -1;
   int _memberChartMode = 0; // 0: By Share, 1: By Paid
 
-  final List<Color> _chartPalette = [
-    AppColors.primaryTeal,
-    const Color(0xFF38BDF8),
-    const Color(0xFFA855F7),
-    const Color(0xFFF59E0B),
-    const Color(0xFFEC4899),
-    const Color(0xFF10B981),
-    const Color(0xFF6366F1),
-  ];
+  Color _getMemberColor(String userId, [int index = 0]) {
+    final seed = userId.isNotEmpty ? userId : 'member_$index';
+    final hash = seed.codeUnits.fold<int>(index * 17, (prev, curr) => (prev * 31 + curr) & 0x7FFFFFFF);
+    // Golden angle distribution for wide visual separation between members
+    final hue = ((hash + index * 59) * 137.508) % 360.0;
+    // Slightly desaturated (0.40) and balanced lightness (0.60) - not too vibrant
+    return HSLColor.fromAHSL(1.0, hue, 0.40, 0.60).toColor();
+  }
 
   Widget _buildToggleChip(String label, int mode) {
     final isSelected = _memberChartMode == mode;
@@ -110,10 +110,11 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
       );
     }
 
-    // 1. Calculate Group Spend, Paid & Shares
+    // 1. Calculate Group Spend, Paid, Shares & Categories
     double totalGroupSpend = 0.0;
     double totalUserShare = 0.0;
     double totalPaid = 0.0;
+    final Map<String, double> categorySpend = {};
     final Map<String, double> memberPaidMap = {};
     final Map<String, double> memberShareMap = {};
 
@@ -124,6 +125,7 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
 
     for (final exp in widget.expenses) {
       totalGroupSpend += exp.totalAmount;
+      categorySpend[exp.category] = (categorySpend[exp.category] ?? 0.0) + exp.totalAmount;
 
       // Calculate paid
       if (exp.payers.isNotEmpty) {
@@ -146,6 +148,10 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
       }
     }
 
+    // Sort categories descending by spent amount
+    final sortedCategories = categorySpend.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
     // Build member spending entries
     final memberSpendEntries = widget.members.map((m) {
       final share = memberShareMap[m.userId] ?? 0.0;
@@ -159,14 +165,14 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
         ? totalGroupSpend
         : (totalPaid > 0 ? totalPaid : totalGroupSpend);
 
-    // Build chart sections
+    // Build chart sections with desaturated per-member colors
     final pieSections = <PieChartSectionData>[];
     for (var i = 0; i < memberSpendEntries.length; i++) {
       final item = memberSpendEntries[i];
       if (item.value <= 0) continue;
       final isTouched = i == _touchedIndex;
       final pct = relevantTotal > 0 ? (item.value / relevantTotal) * 100 : 0.0;
-      final color = _chartPalette[i % _chartPalette.length];
+      final color = _getMemberColor(item.member.userId, i);
 
       pieSections.add(
         PieChartSectionData(
@@ -358,7 +364,7 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
               ...memberSpendEntries.asMap().entries.map((entry) {
                 final idx = entry.key;
                 final item = entry.value;
-                final color = _chartPalette[idx % _chartPalette.length];
+                final color = _getMemberColor(item.member.userId, idx);
                 final isMe = item.member.userId == widget.currentUserId;
                 final name = isMe ? 'You' : item.member.displayName;
                 final pct = relevantTotal > 0 ? (item.value / relevantTotal) * 100 : 0.0;
@@ -427,7 +433,7 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
         ),
         const SizedBox(height: 24),
 
-        // Member Contribution Matrix
+        // Categories Spent
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -439,7 +445,7 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Member Contribution Matrix',
+                'Categories Spent',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -448,101 +454,98 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Comparison of upfront cash paid vs actual consumption share',
+                'Distribution of group spending across expense categories',
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
-              ...widget.members.map((member) {
-                final paid = memberPaidMap[member.userId] ?? 0.0;
-                final share = memberShareMap[member.userId] ?? 0.0;
-                final net = paid - share;
-                final isMe = member.userId == widget.currentUserId;
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: isMe
-                        ? AppColors.primaryTeal.withValues(alpha: 0.08)
-                        : AppColors.surface,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: isMe
-                          ? AppColors.primaryTeal.withValues(alpha: 0.3)
-                          : AppColors.borderSubtle,
-                    ),
+              if (sortedCategories.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    'No categorized expenses yet',
+                    style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                   ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 14,
-                                backgroundColor: isMe
-                                    ? AppColors.primaryTeal
-                                    : AppColors.surfaceCard,
-                                child: Text(
-                                  (member.displayName.isNotEmpty
-                                          ? member.displayName[0]
-                                          : 'U')
-                                      .toUpperCase(),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: isMe
-                                        ? AppColors.surfaceDim
-                                        : AppColors.textPrimary,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                isMe ? 'You' : member.displayName,
+                )
+              else
+                ...sortedCategories.map((entry) {
+                  final catKey = entry.key;
+                  final amount = entry.value;
+                  final pct = totalGroupSpend > 0 ? (amount / totalGroupSpend) * 100 : 0.0;
+                  final cfg = categoryStyles[catKey.toLowerCase()];
+                  final label = cfg?.label ??
+                      (catKey.isNotEmpty
+                          ? '${catKey[0].toUpperCase()}${catKey.substring(1)}'
+                          : 'Other');
+                  final color = cfg?.darkIcon ?? AppColors.primaryTeal;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.borderSubtle),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            CategoryIcon(
+                              category: catKey,
+                              size: 32,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                label,
                                 style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                   color: AppColors.textPrimary,
                                 ),
                               ),
-                            ],
-                          ),
-                          Text(
-                            net > 0.01
-                                ? '+${CurrencyFormatter.format(net)}'
-                                : (net < -0.01
-                                    ? CurrencyFormatter.format(net)
-                                    : 'Settled'),
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: net > 0.01
-                                  ? AppColors.emerald
-                                  : (net < -0.01 ? AppColors.rose : AppColors.textMuted),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Paid: ${CurrencyFormatter.format(paid)}',
-                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                          ),
-                          Text(
-                            'Share: ${CurrencyFormatter.format(share)}',
-                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                );
-              }),
+                            Text(
+                              CurrencyFormatter.format(amount),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: totalGroupSpend > 0
+                                      ? (amount / totalGroupSpend).clamp(0.0, 1.0)
+                                      : 0.0,
+                                  backgroundColor: AppColors.surfaceCard,
+                                  valueColor: AlwaysStoppedAnimation<Color>(color),
+                                  minHeight: 6,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              '${pct.toStringAsFixed(1)}%',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }),
             ],
           ),
         ),
