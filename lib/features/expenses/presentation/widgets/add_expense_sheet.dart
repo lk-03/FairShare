@@ -5,12 +5,15 @@ import '../../../../core/models/expense.dart';
 import '../../../../core/models/expense_payer.dart';
 import '../../../../core/models/group_member.dart';
 import '../../../../core/models/split.dart';
+import '../../../../core/utils/cart_matching_helper.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/widgets/category_icon.dart';
 import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/expenses_provider.dart';
 import '../../../../data/providers/groups_provider.dart';
+import '../../../../data/providers/needs_provider.dart';
 import 'adjust_split_sheet.dart';
+import 'cross_off_cart_sheet.dart';
 import 'itemized_receipt_sheet.dart';
 import 'payer_selection_sheet.dart';
 
@@ -57,6 +60,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
   List<ExpenseSplit> _splits = [];
   DateTime _selectedDate = DateTime.now();
   String? _receiptName;
+  List<String> _scannedReceiptItemNames = [];
   bool _isLoading = false;
 
   final List<String> _categories = [
@@ -194,6 +198,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
         _amountController.text = parsed.totalAmount.toStringAsFixed(2);
         _category = _categories.contains(parsed.category) ? parsed.category : 'dining';
         _receiptName = '${parsed.merchantName}_receipt.jpg';
+        _scannedReceiptItemNames = parsed.items.map((i) => i.name).toList();
       });
     }
   }
@@ -373,6 +378,34 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
 
     if (_payers.isEmpty) {
       _payers = [ExpensePayer(userId: _paidByUserId, amount: total)];
+    }
+
+    // Detect matching uncompleted House Cart items if creating a new expense
+    if (widget.existingExpense == null) {
+      final needsAsync = ref.read(groupNeedsProvider(widget.cohortId));
+      final uncompletedNeeds = (needsAsync.value ?? []).where((n) => !n.isCompleted).toList();
+      if (uncompletedNeeds.isNotEmpty) {
+        final matches = CartMatchingHelper.findMatchingCartItems(
+          expenseTitle: title,
+          itemNames: _scannedReceiptItemNames,
+          notes: _notesController.text.trim(),
+          uncompletedCartItems: uncompletedNeeds,
+        );
+
+        if (matches.isNotEmpty && mounted) {
+          final currentUserId = ref.read(currentUserProvider)?.id ?? '';
+          final itemsToCrossOff = await CrossOffCartSheet.show(
+            context,
+            matchedItems: matches,
+            members: members,
+            currentUserId: currentUserId,
+          );
+
+          for (final itemId in itemsToCrossOff) {
+            await ref.read(groupNeedsProvider(widget.cohortId).notifier).toggleNeed(itemId);
+          }
+        }
+      }
     }
 
     setState(() => _isLoading = true);

@@ -6,11 +6,13 @@ import 'package:fairshare/config/theme/app_theme.dart';
 import 'package:fairshare/core/models/expense.dart';
 import 'package:fairshare/core/models/group.dart';
 import 'package:fairshare/core/models/group_member.dart';
+import 'package:fairshare/core/models/need_item.dart';
 import 'package:fairshare/core/models/profile.dart';
 import 'package:fairshare/data/local/local_cache_service.dart';
 import 'package:fairshare/data/providers/auth_provider.dart';
 import 'package:fairshare/data/providers/expenses_provider.dart';
 import 'package:fairshare/data/providers/groups_provider.dart';
+import 'package:fairshare/data/providers/needs_provider.dart';
 import 'package:fairshare/features/expenses/presentation/widgets/add_expense_sheet.dart';
 
 void main() {
@@ -178,6 +180,76 @@ void main() {
     await tester.tap(find.byIcon(Icons.close_rounded).last);
     await tester.pumpAndSettle();
   });
+
+  testWidgets('prompts to cross off matching House Cart items when saving expense',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final prefs = await SharedPreferences.getInstance();
+    final cacheService = LocalCacheService(prefs);
+
+    final cartNeed = NeedItem(
+      id: 'need_banana_1',
+      cohortId: 'cohort_test_1',
+      title: 'Bananas',
+      addedByUserId: 'user_sam',
+      createdAt: DateTime(2026, 10, 10),
+      addedByName: 'Sam Altman',
+    );
+
+    final mockNeeds = _MockNeeds('cohort_test_1', [cartNeed]);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          localCacheServiceProvider.overrideWithValue(cacheService),
+          currentUserProvider.overrideWith(() => _MockCurrentUser(testUser)),
+          groupsProvider.overrideWith(() => _MockGroups([testGroup])),
+          groupExpensesProvider('cohort_test_1')
+              .overrideWith(() => _MockExpenses('cohort_test_1', [])),
+          groupNeedsProvider('cohort_test_1').overrideWith(() => mockNeeds),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.buildTheme(brightness: Brightness.dark),
+          home: const Scaffold(
+            body: AddExpenseSheet(cohortId: 'cohort_test_1'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Enter description and amount
+    final textFields = find.byType(TextField);
+    await tester.enterText(textFields.at(0), 'Bought 1kg Bananas');
+    await tester.enterText(textFields.at(1), '50.00');
+    await tester.pumpAndSettle();
+
+    // Tap Save Expense
+    await tester.tap(find.text('Save Expense'));
+    await tester.pumpAndSettle();
+
+    // Verify CrossOffCartSheet pops up with item details and author
+    expect(find.text('House Cart Match'), findsOneWidget);
+    expect(find.text('Bananas'), findsOneWidget);
+    expect(
+      find.textContaining('Sam Altman added this to the group house cart'),
+      findsOneWidget,
+    );
+    expect(find.text('Cross Off & Save'), findsOneWidget);
+
+    // Tap Cross Off & Save
+    await tester.tap(find.text('Cross Off & Save'));
+    await tester.pumpAndSettle();
+
+    // Verify item was marked completed in mock needs
+    expect(mockNeeds.toggledIds, contains('need_banana_1'));
+  });
 }
 
 class _MockCurrentUser extends CurrentUserNotifier {
@@ -213,5 +285,19 @@ class _MockExpenses extends GroupExpensesNotifier {
   Future<Expense> addExpense(Expense expense) async {
     state = AsyncValue.data([..._expenses, expense]);
     return expense;
+  }
+}
+
+class _MockNeeds extends GroupNeedsNotifier {
+  final List<NeedItem> _initial;
+  final Set<String> toggledIds = {};
+  _MockNeeds(super.cohortId, this._initial);
+
+  @override
+  AsyncValue<List<NeedItem>> build() => AsyncValue.data(_initial);
+
+  @override
+  Future<void> toggleNeed(String itemId) async {
+    toggledIds.add(itemId);
   }
 }
