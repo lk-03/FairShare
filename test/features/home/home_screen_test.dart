@@ -15,6 +15,7 @@ import 'package:fairshare/data/providers/groups_provider.dart';
 import 'package:fairshare/features/home/presentation/screens/home_screen.dart';
 import 'package:fairshare/features/home/presentation/widgets/create_group_sheet.dart';
 import 'package:fairshare/features/home/presentation/widgets/join_group_sheet.dart';
+import 'package:fairshare/features/profile/presentation/widgets/splitwise_import_sheet.dart';
 
 void main() {
   setUp(() {
@@ -124,6 +125,36 @@ void main() {
     expect(find.byType(JoinGroupSheet), findsOneWidget);
     expect(find.text('Join a Group'), findsOneWidget);
     expect(find.text('INVITE CODE'), findsOneWidget);
+  });
+
+  testWidgets('HomeScreen tapping Import Splitwise opens SplitwiseImportSheet', (tester) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cacheService = LocalCacheService(prefs);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          localCacheServiceProvider.overrideWithValue(cacheService),
+          currentUserProvider.overrideWith(() => _MockCurrentUserNotifier(testUser)),
+          groupsProvider.overrideWith(() => _MockEmptyGroupsNotifier()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.buildTheme(brightness: Brightness.dark),
+          home: const HomeScreen(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Tap "Import Splitwise" chip
+    await tester.tap(find.text('Import Splitwise'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SplitwiseImportSheet), findsOneWidget);
+    expect(find.text('Import Splitwise CSV'), findsOneWidget);
+    expect(find.text('PASTE CSV CONTENT'), findsOneWidget);
   });
 
   testWidgets('HomeScreen computes net balance and renders groups and recent transactions', (tester) async {

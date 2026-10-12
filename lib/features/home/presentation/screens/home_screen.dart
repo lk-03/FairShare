@@ -14,6 +14,7 @@ import '../widgets/home_header.dart';
 import '../widgets/home_recent_activity_section.dart';
 import '../widgets/join_group_sheet.dart';
 import '../widgets/select_group_sheet.dart';
+import '../../../profile/presentation/widgets/splitwise_import_sheet.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -119,12 +120,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _handleImportSplitwise() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Splitwise CSV import will be available in next release.'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    SplitwiseImportSheet.show(context);
   }
 
   void _handleGroupTap(Group cohort) {

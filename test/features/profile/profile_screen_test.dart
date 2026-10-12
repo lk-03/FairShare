@@ -193,13 +193,42 @@ void main() {
     expect(find.byType(SplitwiseImportSheet), findsOneWidget);
     expect(find.text('How to export CSV from Splitwise'), findsOneWidget);
     expect(find.text('PASTE CSV CONTENT'), findsOneWidget);
-    expect(find.text('Parse CSV Content'), findsOneWidget);
+    expect(find.text('Preview Import'), findsOneWidget);
+    expect(find.text('Try Sample'), findsOneWidget);
 
     // Close sheet
     await tester.tap(find.byIcon(Icons.close_rounded));
     await tester.pumpAndSettle();
 
     expect(find.byType(SplitwiseImportSheet), findsNothing);
+  });
+
+  testWidgets('SplitwiseImportSheet loads sample CSV and navigates to step 1 preview',
+      (tester) async {
+    setViewport(tester);
+    await tester.pumpWidget(buildTestWidget());
+    await tester.pumpAndSettle();
+
+    // Tap "Import Splitwise CSV"
+    await tester.tap(find.text('Import Splitwise CSV'));
+    await tester.pumpAndSettle();
+
+    // Tap "Try Sample"
+    await tester.tap(find.text('Try Sample'));
+    await tester.pumpAndSettle();
+
+    // Tap "Preview Import"
+    await tester.tap(find.text('Preview Import'));
+    await tester.pumpAndSettle();
+
+    // Should now be on step 1 (Preview & Map)
+    expect(find.text('NEW GROUP NAME'), findsOneWidget);
+    expect(find.text('WHICH MEMBER IN THIS CSV ARE YOU?'), findsOneWidget);
+    expect(find.text('Create Group & Import (5 Expenses)'), findsOneWidget);
+    expect(find.text('LK'), findsWidgets);
+    expect(find.text('Njj'), findsWidgets);
+    expect(find.text('KATTU PUCHI'), findsWidgets);
+    expect(find.text('keith james'), findsWidgets);
   });
 
   testWidgets('tapping Log Out shows confirmation dialog and cancels or logs out',
