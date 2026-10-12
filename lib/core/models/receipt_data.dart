@@ -1,3 +1,15 @@
+double _toDouble(dynamic val, [double fallback = 0.0]) {
+  if (val == null) return fallback;
+  if (val is num) return val.toDouble();
+  return double.tryParse(val.toString()) ?? fallback;
+}
+
+int _toInt(dynamic val, [int fallback = 1]) {
+  if (val == null) return fallback;
+  if (val is num) return val.toInt();
+  return int.tryParse(val.toString()) ?? fallback;
+}
+
 class ParsedReceiptItem {
   final String name;
   final int quantity;
@@ -11,9 +23,9 @@ class ParsedReceiptItem {
 
   factory ParsedReceiptItem.fromJson(Map<String, dynamic> json) {
     return ParsedReceiptItem(
-      name: json['name'] as String? ?? 'Item',
-      quantity: (json['quantity'] as num?)?.toInt() ?? 1,
-      price: (json['price'] as num?)?.toDouble() ?? 0.0,
+      name: json['name']?.toString() ?? 'Item',
+      quantity: _toInt(json['quantity'], 1),
+      price: _toDouble(json['price'], 0.0),
     );
   }
 
@@ -71,23 +83,29 @@ class ParsedReceiptData {
           .toList();
     }
 
-    final total = (json['totalAmount'] as num?)?.toDouble() ??
-        (json['total_amount'] as num?)?.toDouble() ??
-        0.0;
-    final sub = (json['subtotal'] as num?)?.toDouble() ?? total;
+    final total = _toDouble(json['totalAmount'] ?? json['total_amount'], 0.0);
+    final sub = _toDouble(json['subtotal'], total);
+
+    final merchant = json['merchantName']?.toString() ??
+        json['merchant_name']?.toString() ??
+        'Receipt';
+    final date = json['date']?.toString() ??
+        DateTime.now().toIso8601String().substring(0, 10);
+    final category = json['category']?.toString() ?? 'dining';
+
+    final tax = _toDouble(json['tax'], 0.0);
+    final discount = _toDouble(json['discount'], 0.0);
 
     return ParsedReceiptData(
-      merchantName: json['merchantName'] as String? ??
-          json['merchant_name'] as String? ??
-          'Receipt',
-      date: json['date'] as String? ?? DateTime.now().toIso8601String().substring(0, 10),
-      category: json['category'] as String? ?? 'dining',
+      merchantName: merchant.isNotEmpty ? merchant : 'Receipt',
+      date: date.isNotEmpty ? date : DateTime.now().toIso8601String().substring(0, 10),
+      category: category.isNotEmpty ? category : 'dining',
       items: parsedItems,
       subtotal: sub,
-      tax: (json['tax'] as num?)?.toDouble() ?? 0.0,
-      discount: (json['discount'] as num?)?.toDouble() ?? 0.0,
+      tax: tax,
+      discount: discount,
       totalAmount: total,
-      source: json['source'] as String? ?? 'gemini_vision',
+      source: json['source']?.toString() ?? 'gemini_vision',
     );
   }
 

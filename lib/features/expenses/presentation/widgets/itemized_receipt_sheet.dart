@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../config/theme/app_colors.dart';
+import '../../../../core/config/app_config.dart';
 import '../../../../core/models/receipt_data.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../data/services/gemini_vision_service.dart';
@@ -33,6 +34,15 @@ class _ItemizedReceiptSheetState extends ConsumerState<ItemizedReceiptSheet> {
 
 
   Future<void> _pickAndAnalyze(ImageSource source) async {
+    final apiKey = AppConfig.geminiApiKey;
+    if (apiKey == null || apiKey.isEmpty || apiKey.contains('placeholder')) {
+      setState(() {
+        _errorMessage =
+            'Gemini API key is not configured in .env. Please configure GEMINI_API_KEY to enable receipt OCR.';
+      });
+      return;
+    }
+
     try {
       final XFile? file = await _picker.pickImage(
         source: source,
