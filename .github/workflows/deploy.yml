@@ -34,14 +34,22 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Extract Version from pubspec.yaml
-        id: extract_version
+      - name: Generate Automated Date Version (CalVer)
+        id: generate_version
         run: |
-          RAW_VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
-          VERSION=$(echo "$RAW_VERSION" | cut -d'+' -f1)
-          echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
-          echo "TAG_NAME=v$VERSION" >> $GITHUB_ENV
-          echo "Version: $VERSION (Tag: v$VERSION)"
+          DATE_VERSION=$(date +'%Y.%m.%d')
+          BUILD_NUM=${{ github.run_number }}
+          FULL_VERSION="${DATE_VERSION}+${BUILD_NUM}"
+          TAG_NAME="v${DATE_VERSION}.${BUILD_NUM}"
+          
+          # Dynamically inject CalVer version into pubspec.yaml
+          sed -i "s/^version: .*/version: $FULL_VERSION/" pubspec.yaml
+          
+          echo "APP_VERSION=$DATE_VERSION" >> $GITHUB_ENV
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+          echo "BUILD_NUM=$BUILD_NUM" >> $GITHUB_ENV
+          echo "FULL_VERSION=$FULL_VERSION" >> $GITHUB_ENV
+          echo "Automated Version: $FULL_VERSION (Release Tag: $TAG_NAME)"
 
       - name: Configure Environment
         run: |

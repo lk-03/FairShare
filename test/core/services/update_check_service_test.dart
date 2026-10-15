@@ -14,6 +14,21 @@ void main() {
       expect(AppUpdateInfo.isRemoteNewer('v1.0.0+2', '1.0.0+1'), isTrue);
     });
 
+    test('identifies newer CalVer date versions and sequential build numbers', () {
+      // Future date vs past date
+      expect(AppUpdateInfo.isRemoteNewer('v2026.10.16.1', '2026.10.15.1'), isTrue);
+      expect(AppUpdateInfo.isRemoteNewer('v2026.11.01.1', '2026.10.31.5'), isTrue);
+      expect(AppUpdateInfo.isRemoteNewer('v2027.01.01.1', '2026.12.31.9'), isTrue);
+
+      // Same date, newer build number
+      expect(AppUpdateInfo.isRemoteNewer('v2026.10.15.4', '2026.10.15.3'), isTrue);
+      expect(AppUpdateInfo.isRemoteNewer('v2026.10.15+5', '2026.10.15+4'), isTrue);
+
+      // Identical or older CalVer
+      expect(AppUpdateInfo.isRemoteNewer('v2026.10.15.3', '2026.10.15.3'), isFalse);
+      expect(AppUpdateInfo.isRemoteNewer('v2026.10.14.9', '2026.10.15.1'), isFalse);
+    });
+
     test('returns false for identical or older versions', () {
       expect(AppUpdateInfo.isRemoteNewer('v1.0.0', '1.0.0'), isFalse);
       expect(AppUpdateInfo.isRemoteNewer('1.0.0', '1.0.0+1'), isFalse);

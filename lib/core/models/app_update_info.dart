@@ -59,6 +59,11 @@ class AppUpdateInfo {
     final minor = segments.length > 1 ? int.tryParse(segments[1]) ?? 0 : 0;
     final patch = segments.length > 2 ? int.tryParse(segments[2]) ?? 0 : 0;
 
+    // If build was not specified via '+', check for 4th dot-separated segment (e.g. 2026.10.15.4)
+    if (build == 0 && segments.length > 3) {
+      build = int.tryParse(segments[3]) ?? 0;
+    }
+
     return (major, minor, patch, build);
   }
 
