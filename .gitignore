@@ -3,10 +3,11 @@ node_modules/
 .pnp
 .pnp.js
 
-# Expo & Metro
+# Expo & Metro & Vercel
 .expo/
 dist/
 web-build/
+.vercel/
 expo-env.d.ts
 .metro-health-check*
 
