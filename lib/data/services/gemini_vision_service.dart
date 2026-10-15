@@ -29,6 +29,9 @@ class GeminiVisionService {
   /// Dynamically queries Google's ModelService to discover all available models supporting
   /// generateContent, scored to prioritize lightweight and fast multimodal Flash models.
   Future<List<String>> discoverAvailableModels(String key) async {
+    if (kIsWeb) {
+      return _fallbackModels;
+    }
     try {
       final client = HttpClient();
       final uri = Uri.parse(

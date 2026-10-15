@@ -32,8 +32,8 @@ class PushNotificationService {
   static Future<void> initialize({Function(String? route)? onSelectNotification}) async {
     if (_initialized) return;
 
-    // Firebase only supported on mobile/web platforms
-    if (!kIsWeb && !Platform.isAndroid && !Platform.isIOS) {
+    // Push notifications currently only supported on native mobile platforms (Android/iOS)
+    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) {
       return;
     }
 

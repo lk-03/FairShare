@@ -237,5 +237,91 @@ void main() {
       );
       expect(totalSettled, 300.0);
     });
+
+    test('should simplify multi-payer expense correctly', () {
+      // Alice pays 200, Bob pays 100 on a 300 total expense.
+      // Split equally (100 each) between Alice, Bob, Charlie.
+      // Alice: paid 200, owes 100 -> net +100
+      // Bob: paid 100, owes 100 -> net 0
+      // Charlie: paid 0, owes 100 -> net -100
+      final expenses = [
+        Expense(
+          id: 'exp_multi',
+          cohortId: 'c1',
+          title: 'Party',
+          category: 'Food',
+          totalAmount: 300.0,
+          paidByUserId: 'user_A',
+          payers: const [
+            ExpensePayer(userId: 'user_A', amount: 200.0),
+            ExpensePayer(userId: 'user_B', amount: 100.0),
+          ],
+          splitType: SplitType.equal,
+          splits: const [
+            ExpenseSplit(userId: 'user_A', amount: 100.0),
+            ExpenseSplit(userId: 'user_B', amount: 100.0),
+            ExpenseSplit(userId: 'user_C', amount: 100.0),
+          ],
+          createdAt: now,
+          updatedAt: now,
+        ),
+      ];
+
+      final result = DebtSimplifier.calculateSimplifiedDebts(
+        cohortId: 'c1',
+        members: members,
+        expenses: expenses,
+      );
+
+      expect(result.netBalances['user_A'], 100.0);
+      expect(result.netBalances['user_B'], 0.0);
+      expect(result.netBalances['user_C'], -100.0);
+
+      expect(result.simplifiedDebts.length, 1);
+      final debt = result.simplifiedDebts.first;
+      expect(debt.fromUserId, 'user_C');
+      expect(debt.toUserId, 'user_A');
+      expect(debt.amount, 100.0);
+    });
+
+    test('should preserve closed-ledger debt when only other member split is recorded (Koushitha owes Kowsic case)', () {
+      // Kowsic (user_A) pays 303 for an expense.
+      // Database only has 1 split record: Koushitha (user_B) owes 151.50.
+      // Net conservation assigns remaining 151.50 to Kowsic (user_A).
+      // Kowsic: paid 303, owes 151.50 -> net +151.50
+      // Koushitha: paid 0, owes 151.50 -> net -151.50
+      final twoMembers = [members[0], members[1]];
+      final expenses = [
+        Expense(
+          id: 'exp_lalala',
+          cohortId: 'c1',
+          title: 'Groceries',
+          category: 'Food',
+          totalAmount: 303.0,
+          paidByUserId: 'user_A',
+          splitType: SplitType.equal,
+          splits: const [
+            ExpenseSplit(userId: 'user_B', amount: 151.50),
+          ],
+          createdAt: now,
+          updatedAt: now,
+        ),
+      ];
+
+      final result = DebtSimplifier.calculateSimplifiedDebts(
+        cohortId: 'c1',
+        members: twoMembers,
+        expenses: expenses,
+      );
+
+      expect(result.netBalances['user_A'], 151.50);
+      expect(result.netBalances['user_B'], -151.50);
+
+      expect(result.simplifiedDebts.length, 1);
+      final debt = result.simplifiedDebts.first;
+      expect(debt.fromUserId, 'user_B');
+      expect(debt.toUserId, 'user_A');
+      expect(debt.amount, 151.50);
+    });
   });
 }

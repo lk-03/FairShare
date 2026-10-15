@@ -68,7 +68,6 @@ class GroupsNotifier extends Notifier<AsyncValue<List<Group>>> {
           category: updates['category'] as String? ?? g.category,
           customIcon: updates['custom_icon'] as String? ?? g.customIcon,
           avatarUrl: updates['avatar_url'] as String? ?? g.avatarUrl,
-          bannerUrl: updates['banner_url'] as String? ?? g.bannerUrl,
           currency: updates['currency'] as String? ?? g.currency,
           createdBy: updates['created_by'] as String? ?? g.createdBy,
         );
@@ -165,9 +164,9 @@ class GroupsNotifier extends Notifier<AsyncValue<List<Group>>> {
     }
   }
 
-  Future<void> kickMember(String groupId, String userId) async {
+  Future<bool> kickMember(String groupId, String userId) async {
     final repo = ref.read(groupRepositoryProvider);
-    await repo.removeMemberFromCohort(groupId, userId);
+    final success = await repo.removeMemberFromCohort(groupId, userId);
 
     final currentGroups = state.value ?? [];
     final updated = currentGroups.map((g) {
@@ -179,6 +178,7 @@ class GroupsNotifier extends Notifier<AsyncValue<List<Group>>> {
       return g;
     }).toList();
     state = AsyncValue.data(updated);
+    return success;
   }
 
   /// Handles leaving a cohort with automatic admin succession if user is admin

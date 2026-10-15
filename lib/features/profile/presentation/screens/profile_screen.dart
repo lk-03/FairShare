@@ -7,10 +7,14 @@ import '../../../../core/widgets/avatar_picker_modal.dart';
 import '../../../../core/widgets/theme_gradient_header.dart';
 import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/repositories/profile_repository.dart';
+import '../../../../core/config/app_config.dart';
+import '../../../../core/services/update_check_service.dart';
+import '../../../../core/widgets/update_available_dialog.dart';
 import '../widgets/edit_profile_sheet.dart';
 import '../widgets/set_upi_sheet.dart';
-import '../widgets/splitwise_import_sheet.dart';
+import '../widgets/csv_import_sheet.dart';
 import '../widgets/theme_settings_sheet.dart';
+import '../widgets/upi_setup_banner.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -78,6 +82,34 @@ class ProfileScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _checkForUpdates(BuildContext context, WidgetRef ref) async {
+    final colors = context.colors;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Checking for updates...'),
+        duration: const Duration(seconds: 1),
+        backgroundColor: colors.surface,
+      ),
+    );
+
+    final service = ref.read(updateCheckServiceProvider);
+    final update = await service.checkForUpdate();
+
+    if (!context.mounted) return;
+
+    if (update != null && update.hasUpdate) {
+      UpdateAvailableDialog.show(context, update);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('FairShare is up to date (v${AppConfig.appVersion})'),
+          backgroundColor: colors.surface,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
@@ -338,6 +370,9 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 20),
 
+                  // UPI Setup Reminder Banner
+                  const UpiSetupBanner(),
+
                   // Options List
                   Column(
                     children: [
@@ -357,16 +392,16 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 10),
 
-                      // Import Splitwise CSV
+                      // Import CSV
                       _buildOptionTile(
                         context: context,
                         icon: Icons.swap_horiz_rounded,
                         iconBg: colors.emerald.withValues(alpha: 0.15),
                         iconColor: colors.emerald,
-                        title: 'Import Splitwise CSV',
-                        subtitle: 'Migrate full group history and expenses',
+                        title: 'Import CSV',
+                        subtitle: 'Import historical expenses into new or existing groups',
                         onTap: () {
-                          SplitwiseImportSheet.show(context);
+                          CsvImportSheet.show(context);
                         },
                       ),
                       const SizedBox(height: 10),
@@ -456,13 +491,34 @@ class ProfileScreen extends ConsumerWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Version 1.0.0 (Build Ready)',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textSecondary,
+                      const SizedBox(height: 6),
+                      InkWell(
+                        onTap: () => _checkForUpdates(context, ref),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'v${AppConfig.appVersion} · Check for updates',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.cyan,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.refresh_rounded,
+                                size: 12,
+                                color: colors.cyan,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],

@@ -1,23 +1,58 @@
-import 'dart:typed_data';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../core/config/app_config.dart';
+import '../../../../core/models/group_member.dart';
 import '../../../../core/models/receipt_data.dart';
+import '../../../../core/models/split.dart';
 import '../../../../core/utils/currency_formatter.dart';
+import '../../../../core/widgets/user_avatar.dart';
 import '../../../../data/services/gemini_vision_service.dart';
+import '../../../receipts/domain/services/receipt_split_calculator.dart';
+
+class ReceiptScanResult {
+  final ParsedReceiptData parsedData;
+  final List<ExpenseSplit>? splits;
+  final SplitType splitType;
+
+  const ReceiptScanResult({
+    required this.parsedData,
+    this.splits,
+    this.splitType = SplitType.exact,
+  });
+}
 
 class ItemizedReceiptSheet extends ConsumerStatefulWidget {
-  const ItemizedReceiptSheet({super.key});
+  final List<GroupMember> members;
+  final String? currentUserId;
+  final ParsedReceiptData? initialParsedData;
 
-  static Future<ParsedReceiptData?> show(BuildContext context) {
-    return showModalBottomSheet<ParsedReceiptData>(
+  const ItemizedReceiptSheet({
+    super.key,
+    this.members = const [],
+    this.currentUserId,
+    this.initialParsedData,
+  });
+
+  static Future<ReceiptScanResult?> show(
+    BuildContext context, {
+    List<GroupMember> members = const [],
+    String? currentUserId,
+    ParsedReceiptData? initialParsedData,
+  }) {
+    return showModalBottomSheet<ReceiptScanResult>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => const ItemizedReceiptSheet(),
+      builder: (_) => ItemizedReceiptSheet(
+        members: members,
+        currentUserId: currentUserId,
+        initialParsedData: initialParsedData,
+      ),
     );
   }
 
@@ -32,6 +67,25 @@ class _ItemizedReceiptSheetState extends ConsumerState<ItemizedReceiptSheet> {
   ParsedReceiptData? _parsedData;
   Uint8List? _selectedImageBytes;
 
+  // Itemized split state
+  final Map<int, Set<String>> _itemAssignments = {};
+  TaxDistributionMode _taxMode = TaxDistributionMode.proportional;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialParsedData != null) {
+      _parsedData = widget.initialParsedData;
+      _initializeAssignments(widget.initialParsedData!);
+    }
+  }
+
+  @override
+  void dispose() {
+    // Zero-storage guarantee: immediately dispose image bytes from memory
+    _selectedImageBytes = null;
+    super.dispose();
+  }
 
   Future<void> _pickAndAnalyze(ImageSource source) async {
     final apiKey = AppConfig.geminiApiKey;
@@ -53,6 +107,19 @@ class _ItemizedReceiptSheetState extends ConsumerState<ItemizedReceiptSheet> {
       if (file == null) return;
 
       final bytes = await file.readAsBytes();
+
+      // Zero-storage guarantee: remove picker temp file from device storage immediately (mobile only)
+      if (!kIsWeb) {
+        try {
+          final f = File(file.path);
+          if (await f.exists()) {
+            await f.delete();
+          }
+        } catch (_) {
+          // Best-effort local cleanup
+        }
+      }
+
       setState(() {
         _selectedImageBytes = bytes;
         _isLoading = true;
@@ -67,6 +134,7 @@ class _ItemizedReceiptSheetState extends ConsumerState<ItemizedReceiptSheet> {
           _isLoading = false;
           if (result != null) {
             _parsedData = result;
+            _initializeAssignments(result);
           } else {
             _errorMessage =
                 'Could not extract receipt details. Please check the image or enter details manually.';
@@ -83,10 +151,72 @@ class _ItemizedReceiptSheetState extends ConsumerState<ItemizedReceiptSheet> {
     }
   }
 
-  void _applyResult() {
-    if (_parsedData != null) {
-      Navigator.of(context).pop(_parsedData);
+  void _initializeAssignments(ParsedReceiptData data) {
+    _itemAssignments.clear();
+    final allIds = widget.members.map((m) => m.userId).toSet();
+    for (var i = 0; i < data.items.length; i++) {
+      // Default each item to shared by all members
+      _itemAssignments[i] = Set<String>.from(allIds);
     }
+  }
+
+  void _toggleMemberAssignment(int itemIndex, String userId) {
+    setState(() {
+      final set = _itemAssignments.putIfAbsent(
+        itemIndex,
+        () => widget.members.map((m) => m.userId).toSet(),
+      );
+
+      if (set.contains(userId)) {
+        set.remove(userId);
+      } else {
+        set.add(userId);
+      }
+    });
+  }
+
+  void _toggleAllAssignment(int itemIndex) {
+    setState(() {
+      final set = _itemAssignments.putIfAbsent(
+        itemIndex,
+        () => widget.members.map((m) => m.userId).toSet(),
+      );
+
+      final allIds = widget.members.map((m) => m.userId).toSet();
+      if (set.length == allIds.length) {
+        // If all are selected, toggle to just current user (or first member)
+        final fallback = widget.currentUserId ?? (widget.members.isNotEmpty ? widget.members.first.userId : '');
+        set.clear();
+        if (fallback.isNotEmpty) set.add(fallback);
+      } else {
+        // Select all
+        set.clear();
+        set.addAll(allIds);
+      }
+    });
+  }
+
+  void _applyResult() {
+    if (_parsedData == null) return;
+
+    List<ExpenseSplit>? calculatedSplits;
+    if (widget.members.isNotEmpty) {
+      calculatedSplits = ReceiptSplitCalculator.calculateSplits(
+        parsedData: _parsedData!,
+        members: widget.members,
+        itemAssignments: _itemAssignments,
+        taxMode: _taxMode,
+      );
+    }
+
+    // Zero-storage: dispose image bytes from memory
+    _selectedImageBytes = null;
+
+    Navigator.of(context).pop(ReceiptScanResult(
+      parsedData: _parsedData!,
+      splits: calculatedSplits,
+      splitType: widget.members.isNotEmpty ? SplitType.exact : SplitType.equal,
+    ));
   }
 
   @override
@@ -96,7 +226,7 @@ class _ItemizedReceiptSheetState extends ConsumerState<ItemizedReceiptSheet> {
 
     return Container(
       constraints: BoxConstraints(
-        maxHeight: availableHeight * 0.88,
+        maxHeight: availableHeight * 0.92,
       ),
       margin: const EdgeInsets.only(top: 8),
       decoration: const BoxDecoration(
@@ -136,7 +266,10 @@ class _ItemizedReceiptSheetState extends ConsumerState<ItemizedReceiptSheet> {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: () {
+                          _selectedImageBytes = null;
+                          Navigator.of(context).pop();
+                        },
                         visualDensity: VisualDensity.compact,
                       ),
                       const SizedBox(width: 4),
@@ -166,7 +299,7 @@ class _ItemizedReceiptSheetState extends ConsumerState<ItemizedReceiptSheet> {
               ),
             ),
 
-            // Source Selector Buttons
+            // Initial Source Selector (when nothing has been parsed yet)
             if (_parsedData == null && !_isLoading)
               Padding(
                 padding: const EdgeInsets.all(24),
@@ -188,7 +321,7 @@ class _ItemizedReceiptSheetState extends ConsumerState<ItemizedReceiptSheet> {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Take a photo or upload a receipt to auto-extract items, taxes, and amounts with Gemini Vision.',
+                      'Take a photo or upload a receipt to auto-extract items, taxes, and amounts with Gemini Vision. Zero cloud persistence.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 13,
@@ -263,13 +396,13 @@ class _ItemizedReceiptSheetState extends ConsumerState<ItemizedReceiptSheet> {
 
             // Loading state
             if (_isLoading)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 48, horizontal: 24),
                 child: Column(
                   children: [
-                    const CircularProgressIndicator(color: AppColors.primaryTeal),
-                    const SizedBox(height: 20),
-                    const Text(
+                    CircularProgressIndicator(color: AppColors.primaryTeal),
+                    SizedBox(height: 20),
+                    Text(
                       'Analyzing receipt with Gemini Vision...',
                       style: TextStyle(
                         fontSize: 15,
@@ -277,16 +410,16 @@ class _ItemizedReceiptSheetState extends ConsumerState<ItemizedReceiptSheet> {
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Extracting vendor, line items, taxes, and totals',
+                    SizedBox(height: 8),
+                    Text(
+                      'Extracting vendor, line items, taxes, and totals in memory',
                       style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
               ),
 
-            // Parsed Result Display
+            // Parsed Result Display & Itemized Assignment
             if (_parsedData != null)
               Expanded(
                 child: ListView(
@@ -353,7 +486,72 @@ class _ItemizedReceiptSheetState extends ConsumerState<ItemizedReceiptSheet> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Line Items Title
+                    // Tax & Fee Distribution Toggle (if members are present and there are extra charges)
+                    if (widget.members.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppColors.borderSubtle),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Tax & Surcharges',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _taxMode == TaxDistributionMode.proportional
+                                        ? 'Split by item share'
+                                        : 'Split equally',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            SegmentedButton<TaxDistributionMode>(
+                              segments: const [
+                                ButtonSegment(
+                                  value: TaxDistributionMode.proportional,
+                                  label: Text('Proportional', style: TextStyle(fontSize: 11)),
+                                ),
+                                ButtonSegment(
+                                  value: TaxDistributionMode.equal,
+                                  label: Text('Equal', style: TextStyle(fontSize: 11)),
+                                ),
+                              ],
+                              selected: {_taxMode},
+                              onSelectionChanged: (val) {
+                                if (val.isNotEmpty) {
+                                  setState(() => _taxMode = val.first);
+                                }
+                              },
+                              style: ButtonStyle(
+                                visualDensity: VisualDensity.compact,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Line Items Header
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -366,60 +564,237 @@ class _ItemizedReceiptSheetState extends ConsumerState<ItemizedReceiptSheet> {
                             color: AppColors.textMuted,
                           ),
                         ),
-                        Text(
-                          'Tax: ${CurrencyFormatter.format(_parsedData!.tax)}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary,
+                        if (_parsedData!.tax > 0)
+                          Text(
+                            'Tax: ${CurrencyFormatter.format(_parsedData!.tax)}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
 
-                    // Line Items List
-                    ..._parsedData!.items.map((item) {
+                    // Line Items List with interactive member assignment chips
+                    ..._parsedData!.items.asMap().entries.map((entry) {
+                      final idx = entry.key;
+                      final item = entry.value;
+                      final assigned = _itemAssignments[idx] ?? widget.members.map((m) => m.userId).toSet();
+                      final isAllSelected = widget.members.isNotEmpty && assigned.length == widget.members.length;
+                      final shareCount = assigned.isNotEmpty ? assigned.length : widget.members.length;
+                      final perPersonShare = shareCount > 0 ? item.price / shareCount : item.price;
+
                       return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(14),
                           border: Border.all(color: AppColors.borderSubtle),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: Text(
-                                '${item.quantity > 1 ? "${item.quantity}x " : ""}${item.name}',
+                            // Item name & price row
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '${item.quantity > 1 ? "${item.quantity}x " : ""}${item.name}',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  CurrencyFormatter.format(item.price),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            // If members are available, render assignment chips and share calculation
+                            if (widget.members.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                isAllSelected
+                                    ? '${CurrencyFormatter.format(perPersonShare)} each · Shared by all (${widget.members.length})'
+                                    : '${CurrencyFormatter.format(perPersonShare)} each · $shareCount member${shareCount == 1 ? "" : "s"}',
                                 style: const TextStyle(
-                                  fontSize: 14,
+                                  fontSize: 11,
+                                  color: AppColors.primaryTeal,
                                   fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
                                 ),
                               ),
-                            ),
-                            Text(
-                              CurrencyFormatter.format(item.price),
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: [
+                                  // Quick "All" chip
+                                  FilterChip(
+                                    label: const Text('All', style: TextStyle(fontSize: 11)),
+                                    selected: isAllSelected,
+                                    onSelected: (_) => _toggleAllAssignment(idx),
+                                    visualDensity: VisualDensity.compact,
+                                    backgroundColor: AppColors.surfaceCard,
+                                    selectedColor: AppColors.primaryTeal.withValues(alpha: 0.2),
+                                    checkmarkColor: AppColors.primaryTeal,
+                                    labelStyle: TextStyle(
+                                      color: isAllSelected ? AppColors.primaryTeal : AppColors.textSecondary,
+                                      fontWeight: isAllSelected ? FontWeight.w700 : FontWeight.w500,
+                                    ),
+                                  ),
+                                  // Individual Member Chips
+                                  ...widget.members.map((m) {
+                                    final isSelected = assigned.contains(m.userId);
+                                    final firstName = m.displayName.split(' ').first;
+
+                                    return FilterChip(
+                                      avatar: UserAvatar(
+                                        radius: 10,
+                                        name: m.displayName,
+                                        avatarUrl: m.avatarUrl,
+                                        userId: m.userId,
+                                      ),
+                                      label: Text(firstName, style: const TextStyle(fontSize: 11)),
+                                      selected: isSelected,
+                                      onSelected: (_) => _toggleMemberAssignment(idx, m.userId),
+                                      visualDensity: VisualDensity.compact,
+                                      backgroundColor: AppColors.surfaceCard,
+                                      selectedColor: AppColors.primaryTeal.withValues(alpha: 0.2),
+                                      checkmarkColor: AppColors.primaryTeal,
+                                      labelStyle: TextStyle(
+                                        color: isSelected ? AppColors.primaryTeal : AppColors.textSecondary,
+                                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                      ),
+                                    );
+                                  }),
+                                ],
                               ),
-                            ),
+                            ],
                           ],
                         ),
                       );
                     }),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
+
+                    // Live Member Split Summary
+                    if (widget.members.isNotEmpty) ...[
+                      Builder(builder: (context) {
+                        final liveSplits = ReceiptSplitCalculator.calculateSplits(
+                          parsedData: _parsedData!,
+                          members: widget.members,
+                          itemAssignments: _itemAssignments,
+                          taxMode: _taxMode,
+                        );
+
+                        return Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceCard,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.borderSubtle),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'CALCULATED ITEM SPLITS',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.8,
+                                      color: AppColors.textMuted,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Exact total: ${CurrencyFormatter.format(_parsedData!.totalAmount)}',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.emerald,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              ...liveSplits.map((s) {
+                                final member = widget.members.firstWhere(
+                                  (m) => m.userId == s.userId,
+                                  orElse: () => widget.members.first,
+                                );
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 4),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Row(
+                                          children: [
+                                            UserAvatar(
+                                              radius: 12,
+                                              name: member.displayName,
+                                              avatarUrl: member.avatarUrl,
+                                              userId: member.userId,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                member.displayName,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: AppColors.textPrimary,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        CurrencyFormatter.format(s.amount),
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 16),
+                    ],
 
                     // Apply Button
                     ElevatedButton.icon(
                       onPressed: _applyResult,
                       icon: const Icon(Icons.check_circle_rounded, size: 20),
-                      label: const Text('Use These Receipt Details'),
+                      label: Text(
+                        widget.members.isNotEmpty
+                            ? 'Apply Itemized Split (${CurrencyFormatter.format(_parsedData!.totalAmount)})'
+                            : 'Use These Receipt Details',
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryTeal,
                         foregroundColor: AppColors.surfaceDim,
@@ -439,6 +814,7 @@ class _ItemizedReceiptSheetState extends ConsumerState<ItemizedReceiptSheet> {
                         setState(() {
                           _parsedData = null;
                           _selectedImageBytes = null;
+                          _itemAssignments.clear();
                         });
                       },
                       style: OutlinedButton.styleFrom(

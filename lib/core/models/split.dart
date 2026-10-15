@@ -48,7 +48,6 @@ class ExpenseSplit {
   final double? percentage;
   final double? shares;
   final double? adjustment;
-  final List<String>? lineItemIds;
 
   const ExpenseSplit({
     required this.userId,
@@ -56,7 +55,6 @@ class ExpenseSplit {
     this.percentage,
     this.shares,
     this.adjustment,
-    this.lineItemIds,
   });
 
   factory ExpenseSplit.fromJson(Map<String, dynamic> json) {
@@ -66,11 +64,6 @@ class ExpenseSplit {
       percentage: (json['percentage'] as num?)?.toDouble(),
       shares: (json['shares'] as num?)?.toDouble(),
       adjustment: (json['adjustment'] as num?)?.toDouble(),
-      lineItemIds: json['line_item_ids'] != null
-          ? List<String>.from(json['line_item_ids'] as List)
-          : (json['lineItemIds'] != null
-              ? List<String>.from(json['lineItemIds'] as List)
-              : null),
     );
   }
 
@@ -81,7 +74,6 @@ class ExpenseSplit {
       if (percentage != null) 'percentage': percentage,
       if (shares != null) 'shares': shares,
       if (adjustment != null) 'adjustment': adjustment,
-      if (lineItemIds != null) 'line_item_ids': lineItemIds,
     };
   }
 
@@ -91,7 +83,6 @@ class ExpenseSplit {
     double? percentage,
     double? shares,
     double? adjustment,
-    List<String>? lineItemIds,
   }) {
     return ExpenseSplit(
       userId: userId ?? this.userId,
@@ -99,7 +90,6 @@ class ExpenseSplit {
       percentage: percentage ?? this.percentage,
       shares: shares ?? this.shares,
       adjustment: adjustment ?? this.adjustment,
-      lineItemIds: lineItemIds ?? this.lineItemIds,
     );
   }
 

@@ -17,7 +17,7 @@ import '../../../../data/providers/groups_provider.dart';
 import '../../../../data/providers/needs_provider.dart';
 import '../../../expenses/presentation/widgets/add_expense_sheet.dart';
 import '../../../expenses/presentation/widgets/expense_details_sheet.dart';
-import '../../../expenses/presentation/widgets/itemized_receipt_sheet.dart';
+import '../../../../core/widgets/user_avatar.dart';
 import '../../../expenses/presentation/widgets/settle_up_sheet.dart';
 import '../../../needs/presentation/widgets/needs_list_view.dart';
 import '../widgets/edit_group_sheet.dart';
@@ -115,10 +115,26 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    final groups = ref.watch(groupsProvider).value ?? [];
+    final groupsAsync = ref.watch(groupsProvider);
+    final groups = groupsAsync.value ?? [];
     final group = groups.where((g) => g.id == widget.groupId).firstOrNull;
 
     if (group == null) {
+      if (groupsAsync.isLoading || groupsAsync.isRefreshing) {
+        return Scaffold(
+          backgroundColor: colors.screen,
+          body: Center(
+            child: SizedBox(
+              width: 32,
+              height: 32,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation<Color>(colors.cyan),
+              ),
+            ),
+          ),
+        );
+      }
       return Scaffold(
         backgroundColor: colors.screen,
         appBar: AppBar(
@@ -436,14 +452,14 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
             ),
           ),
           IconButton(
-            onPressed: () => ItemizedReceiptSheet.show(context),
-            icon: Icon(Icons.document_scanner_rounded, color: colors.cyan),
-            tooltip: 'Scan Receipt',
-          ),
-          IconButton(
             onPressed: () => _handleShowQR(group),
             icon: Icon(Icons.qr_code_rounded, color: colors.cyan),
             tooltip: 'Invite QR Code',
+          ),
+          IconButton(
+            onPressed: () => context.push('/groups/${group.id}/settings'),
+            icon: Icon(Icons.settings_outlined, color: colors.textSecondary),
+            tooltip: 'Group Settings',
           ),
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert_rounded, color: colors.textSecondary),
@@ -453,7 +469,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               side: BorderSide(color: colors.border),
             ),
             onSelected: (action) {
-              if (action == 'edit') {
+              if (action == 'settings') {
+                context.push('/groups/${group.id}/settings');
+              } else if (action == 'edit') {
                 _handleEditGroup(group);
               } else if (action == 'qr') {
                 _handleShowQR(group);
@@ -461,12 +479,22 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
             },
             itemBuilder: (ctx) => [
               PopupMenuItem(
+                value: 'settings',
+                child: Row(
+                  children: [
+                    Icon(Icons.settings_outlined, size: 18, color: colors.textSecondary),
+                    const SizedBox(width: 10),
+                    Text('Group Settings', style: TextStyle(fontSize: 13, color: colors.textMain)),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
                 value: 'edit',
                 child: Row(
                   children: [
                     Icon(Icons.edit_outlined, size: 18, color: colors.textSecondary),
                     const SizedBox(width: 10),
-                    Text('Edit Group', style: TextStyle(fontSize: 13, color: colors.textMain)),
+                    Text('Edit Group Info', style: TextStyle(fontSize: 13, color: colors.textMain)),
                   ],
                 ),
               ),
@@ -641,25 +669,13 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                             for (int i = 0; i < (members.length > 3 ? 3 : members.length); i++)
                               Align(
                                 widthFactor: 0.7,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: colors.screen, width: 1.5),
-                                  ),
-                                  child: CircleAvatar(
-                                    radius: 10,
-                                    backgroundColor: colors.accentPill,
-                                    child: Text(
-                                      members[i].displayName.isNotEmpty
-                                          ? members[i].displayName[0].toUpperCase()
-                                          : '?',
-                                      style: TextStyle(
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.w800,
-                                        color: colors.cyan,
-                                      ),
-                                    ),
-                                  ),
+                                child: UserAvatar(
+                                  avatarUrl: members[i].profile?.avatarUrl,
+                                  name: members[i].displayName,
+                                  userId: members[i].userId,
+                                  radius: 10,
+                                  borderWidth: 1.5,
+                                  borderColor: colors.screen,
                                 ),
                               ),
                           ],
@@ -710,17 +726,11 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                             Stack(
                               clipBehavior: Clip.none,
                               children: [
-                                CircleAvatar(
+                                UserAvatar(
+                                  avatarUrl: m.profile?.avatarUrl,
+                                  name: name,
+                                  userId: m.userId,
                                   radius: 20,
-                                  backgroundColor: colors.accentPill,
-                                  child: Text(
-                                    name.isNotEmpty ? name[0].toUpperCase() : '?',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w800,
-                                      color: colors.cyan,
-                                    ),
-                                  ),
                                 ),
                                 if (isAdmin)
                                   Positioned(
@@ -784,28 +794,14 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'DEBTS TO SETTLE',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.0,
-                color: colors.textSecondary,
-              ),
-            ),
-            if (debts.isNotEmpty)
-              Text(
-                'Min-Flow Simplified',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: colors.cyan,
-                ),
-              ),
-          ],
+        Text(
+          'DEBTS TO SETTLE',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.0,
+            color: colors.textSecondary,
+          ),
         ),
         const SizedBox(height: 10),
 
@@ -856,19 +852,11 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
+                  UserAvatar(
+                    avatarUrl: debt.fromProfile?.avatarUrl,
+                    name: payerName,
+                    userId: debt.fromUserId,
                     radius: 18,
-                    backgroundColor: isMePayer
-                        ? colors.crimson.withValues(alpha: 0.15)
-                        : colors.accentPill,
-                    child: Text(
-                      payerName.isNotEmpty ? payerName[0].toUpperCase() : '?',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: isMePayer ? colors.crimson : colors.cyan,
-                      ),
-                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -966,13 +954,59 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           ...expenses.map((exp) {
             final isSettlement = exp.category == 'settlement';
             final formattedDate = DateFormat('MMM d, h:mm a').format(exp.createdAt);
-            final userSplit = exp.splits.where((s) => s.userId == currentUserId).firstOrNull;
-
+            final hasMultiplePayers = exp.payers.length > 1;
             final isPaidByMe = exp.paidByUserId == currentUserId;
             final payerMember = members.where((m) => m.userId == exp.paidByUserId).firstOrNull;
-            final payerLabel = isPaidByMe
-                ? 'You'
-                : (payerMember?.displayName ?? exp.paidByName ?? 'A member');
+            final String payerLabel;
+            if (hasMultiplePayers) {
+              final myPayer = exp.payers.where((p) => p.userId == currentUserId).firstOrNull;
+              payerLabel = myPayer != null
+                  ? '${exp.payers.length} people (inc. You)'
+                  : '${exp.payers.length} people';
+            } else {
+              payerLabel = isPaidByMe
+                  ? 'You'
+                  : (payerMember?.displayName ?? exp.paidByName ?? 'A member');
+            }
+
+            final isReceiver = currentUserId != null && exp.splits.any((s) => s.userId == currentUserId);
+            final netBalance = currentUserId != null ? exp.userNetBalance(currentUserId) : 0.0;
+            final isInvolved = currentUserId != null ? exp.isUserInvolved(currentUserId) : false;
+
+            final String primaryTrailingText;
+            final Color primaryTrailingColor;
+            final String secondaryTrailingText;
+
+            if (isSettlement) {
+              if (isPaidByMe) {
+                primaryTrailingText = 'Paid ${CurrencyFormatter.formatINR(exp.totalAmount)}';
+                primaryTrailingColor = colors.emerald;
+                secondaryTrailingText = 'settlement';
+              } else if (isReceiver) {
+                primaryTrailingText = 'Got ${CurrencyFormatter.formatINR(exp.totalAmount)}';
+                primaryTrailingColor = colors.emerald;
+                secondaryTrailingText = 'settlement';
+              } else {
+                primaryTrailingText = CurrencyFormatter.formatINR(exp.totalAmount);
+                primaryTrailingColor = colors.textSecondary;
+                secondaryTrailingText = 'settlement';
+              }
+            } else {
+              secondaryTrailingText = 'total ${CurrencyFormatter.formatINR(exp.totalAmount)}';
+              if (netBalance > 0.005) {
+                primaryTrailingText = '+${CurrencyFormatter.formatINR(netBalance)}';
+                primaryTrailingColor = colors.emerald;
+              } else if (netBalance < -0.005) {
+                primaryTrailingText = '-${CurrencyFormatter.formatINR(netBalance.abs())}';
+                primaryTrailingColor = colors.crimson;
+              } else if (isInvolved) {
+                primaryTrailingText = '₹0.00';
+                primaryTrailingColor = colors.textSecondary;
+              } else {
+                primaryTrailingText = 'not involved';
+                primaryTrailingColor = colors.textSecondary;
+              }
+            }
 
             return Container(
               margin: const EdgeInsets.only(bottom: 10),
@@ -1014,22 +1048,22 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      CurrencyFormatter.formatINR(exp.totalAmount),
+                      primaryTrailingText,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w900,
-                        color: isSettlement ? colors.emerald : colors.textMain,
+                        color: primaryTrailingColor,
                       ),
                     ),
-                    if (userSplit != null && !isSettlement)
-                      Text(
-                        'Your share: ${CurrencyFormatter.formatINR(userSplit.amount)}',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: colors.cyan,
-                        ),
+                    const SizedBox(height: 2),
+                    Text(
+                      secondaryTrailingText,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textSecondary,
                       ),
+                    ),
                   ],
                 ),
               ),

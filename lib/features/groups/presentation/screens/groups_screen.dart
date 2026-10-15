@@ -631,7 +631,7 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                     Row(
                       children: [
                         GroupAvatar(
-                          avatarUrl: cohort.avatarUrl ?? cohort.bannerUrl,
+                          avatarUrl: cohort.avatarUrl,
                           category: cohort.category,
                           customIcon: cohort.customIcon,
                           size: 40,
@@ -918,7 +918,7 @@ class _GroupCard extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             GroupAvatar(
-              avatarUrl: cohort.avatarUrl ?? cohort.bannerUrl,
+              avatarUrl: cohort.avatarUrl,
               category: cohort.category,
               customIcon: cohort.customIcon,
               size: 48,

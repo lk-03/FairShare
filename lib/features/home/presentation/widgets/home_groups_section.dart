@@ -13,7 +13,6 @@ import '../../../../data/providers/groups_provider.dart';
 class HomeGroupsSection extends ConsumerWidget {
   final VoidCallback onCreateGroup;
   final VoidCallback onJoinGroup;
-  final VoidCallback onImportSplitwise;
   final ValueChanged<Group> onGroupTap;
   final ValueChanged<Group>? onGroupLongPress;
 
@@ -21,7 +20,6 @@ class HomeGroupsSection extends ConsumerWidget {
     super.key,
     required this.onCreateGroup,
     required this.onJoinGroup,
-    required this.onImportSplitwise,
     required this.onGroupTap,
     this.onGroupLongPress,
   });
@@ -54,43 +52,7 @@ class HomeGroupsSection extends ConsumerWidget {
             ),
             Row(
               children: [
-                // Splitwise Import Chip
-                InkWell(
-                  onTap: onImportSplitwise,
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: colors.emerald.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: colors.emerald.withValues(alpha: 0.3),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.swap_horiz_rounded,
-                          size: 14,
-                          color: colors.emerald,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Import Splitwise',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: colors.emerald,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
                 if (activeCohorts.isNotEmpty) ...[
-                  const SizedBox(width: 12),
                   InkWell(
                     onTap: () => context.go('/groups'),
                     borderRadius: BorderRadius.circular(8),
@@ -218,7 +180,7 @@ class HomeGroupsSection extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             GroupAvatar(
-                              avatarUrl: cohort.avatarUrl ?? cohort.bannerUrl,
+                              avatarUrl: cohort.avatarUrl,
                               category: cohort.category,
                               customIcon: cohort.customIcon,
                               size: 40,

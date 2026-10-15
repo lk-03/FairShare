@@ -6,6 +6,7 @@ import '../../../../core/models/direct_debt.dart';
 import '../../../../core/models/group.dart';
 import '../../../../core/models/group_member.dart';
 import '../../../../core/utils/currency_formatter.dart';
+import '../../../../core/widgets/user_avatar.dart';
 import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/expenses_provider.dart';
 import '../../../expenses/presentation/widgets/settle_up_sheet.dart';
@@ -101,17 +102,11 @@ class MemberProfileSheet extends ConsumerWidget {
               const SizedBox(height: 12),
 
               // Avatar & Name
-              CircleAvatar(
+              UserAvatar(
+                avatarUrl: member.profile?.avatarUrl,
+                name: member.displayName,
+                userId: member.userId,
                 radius: 36,
-                backgroundColor: AppColors.surfaceCard,
-                child: Text(
-                  (member.displayName.isNotEmpty ? member.displayName[0] : 'U').toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.primaryTeal,
-                  ),
-                ),
               ),
               const SizedBox(height: 12),
               Text(

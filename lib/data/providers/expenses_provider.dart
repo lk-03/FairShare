@@ -32,15 +32,16 @@ class GroupExpensesNotifier
   AsyncValue<List<Expense>> build() {
     final cache = ref.watch(localCacheServiceProvider);
     final cached = cache.getCachedExpenses(_cohortId);
-    return AsyncValue.data(cached);
+    return AsyncValue.data(cached.where((e) => !e.isDeleted).toList());
   }
 
   Future<void> loadExpenses() async {
     state = const AsyncValue.loading();
     try {
       final repo = ref.read(expenseRepositoryProvider);
+      await repo.purgeExpiredDeletedExpenses(_cohortId);
       final expenses = await repo.fetchExpensesForCohort(_cohortId);
-      state = AsyncValue.data(expenses);
+      state = AsyncValue.data(expenses.where((e) => !e.isDeleted).toList());
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
@@ -68,12 +69,44 @@ class GroupExpensesNotifier
     final current = state.value ?? [];
     state = AsyncValue.data(current.where((e) => e.id != expenseId).toList());
   }
+
+  Future<void> restoreExpense(String expenseId) async {
+    final repo = ref.read(expenseRepositoryProvider);
+    final restored = await repo.restoreExpense(expenseId, _cohortId);
+    if (restored != null) {
+      final current = state.value ?? [];
+      state = AsyncValue.data([restored, ...current.where((e) => e.id != restored.id)]);
+    }
+  }
+
+  Future<void> purgeExpensePermanently(String expenseId) async {
+    final repo = ref.read(expenseRepositoryProvider);
+    await repo.purgeExpensePermanently(expenseId, _cohortId);
+    final current = state.value ?? [];
+    state = AsyncValue.data(current.where((e) => e.id != expenseId).toList());
+  }
 }
 
 final groupExpensesProvider =
     NotifierProvider.family<GroupExpensesNotifier, AsyncValue<List<Expense>>, String>(
   (cohortId) => GroupExpensesNotifier(cohortId),
 );
+
+/// Soft-deleted expenses in trash (< 24 hours) for a cohort
+final groupTrashExpensesProvider =
+    Provider.family<List<Expense>, String>((ref, cohortId) {
+  final cache = ref.watch(localCacheServiceProvider);
+  ref.watch(groupExpensesProvider(cohortId));
+  final allCached = cache.getCachedExpenses(cohortId);
+  final now = DateTime.now();
+  const twentyFourHours = Duration(hours: 24);
+
+  return allCached.where((e) {
+    if (!e.isDeleted || e.deletedAt == null) return false;
+    return now.difference(e.deletedAt!) < twentyFourHours;
+  }).toList()
+    ..sort((a, b) => (b.deletedAt ?? b.updatedAt).compareTo(a.deletedAt ?? a.updatedAt));
+});
 
 /// Computes simplified min-flow direct debt settlements for a cohort
 final groupDebtsProvider =
@@ -87,6 +120,20 @@ final groupDebtsProvider =
     expenses: expenses,
   );
   return result.simplifiedDebts;
+});
+
+/// Calculates net balances for all members in a cohort (+ is owed, - owes)
+final groupMemberBalancesProvider =
+    Provider.family<Map<String, double>, String>((ref, cohortId) {
+  final expenses = ref.watch(groupExpensesProvider(cohortId)).value ?? [];
+  final members = ref.watch(groupMembersProvider(cohortId));
+
+  final result = DebtSimplifier.calculateSimplifiedDebts(
+    cohortId: cohortId,
+    members: members,
+    expenses: expenses,
+  );
+  return result.netBalances;
 });
 
 /// Total amount spent in a group across all expenses

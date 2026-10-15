@@ -31,7 +31,6 @@ void main() {
         fullName: 'Alice Walker',
         nickname: 'Alice',
         vpaId: 'alice@okhdfcbank',
-        isGuest: false,
         createdAt: DateTime(2025, 1, 1),
       );
 
@@ -44,7 +43,6 @@ void main() {
       expect(retrieved.fullName, equals('Alice Walker'));
       expect(retrieved.displayName, equals('Alice'));
       expect(retrieved.vpaId, equals('alice@okhdfcbank'));
-      expect(retrieved.isGuest, isFalse);
 
       await cacheService.clearCurrentUser();
       expect(cacheService.getCurrentUser(), isNull);

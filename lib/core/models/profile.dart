@@ -7,7 +7,6 @@ class UserProfile {
   final String? avatarUrl;
   final String? vpaId; // UPI ID (e.g. name@okaxis)
   final String? phoneNumber;
-  final bool isGuest;
   final String? authProvider;
   final DateTime createdAt;
 
@@ -20,7 +19,6 @@ class UserProfile {
     this.avatarUrl,
     this.vpaId,
     this.phoneNumber,
-    this.isGuest = false,
     this.authProvider,
     required this.createdAt,
   });
@@ -59,7 +57,6 @@ class UserProfile {
       avatarUrl: json['avatar_url'] as String? ?? json['avatarUrl'] as String?,
       vpaId: json['vpa_id'] as String? ?? json['vpaId'] as String?,
       phoneNumber: json['phone_number'] as String? ?? json['phoneNumber'] as String?,
-      isGuest: json['is_guest'] as bool? ?? json['isGuest'] as bool? ?? false,
       authProvider: json['auth_provider'] as String? ?? json['authProvider'] as String?,
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
@@ -79,7 +76,6 @@ class UserProfile {
       if (avatarUrl != null) 'avatar_url': avatarUrl,
       if (vpaId != null) 'vpa_id': vpaId,
       if (phoneNumber != null) 'phone_number': phoneNumber,
-      'is_guest': isGuest,
       if (authProvider != null) 'auth_provider': authProvider,
       'created_at': createdAt.toIso8601String(),
     };
@@ -94,7 +90,6 @@ class UserProfile {
     String? avatarUrl,
     String? vpaId,
     String? phoneNumber,
-    bool? isGuest,
     String? authProvider,
     DateTime? createdAt,
   }) {
@@ -107,7 +102,6 @@ class UserProfile {
       avatarUrl: avatarUrl ?? this.avatarUrl,
       vpaId: vpaId ?? this.vpaId,
       phoneNumber: phoneNumber ?? this.phoneNumber,
-      isGuest: isGuest ?? this.isGuest,
       authProvider: authProvider ?? this.authProvider,
       createdAt: createdAt ?? this.createdAt,
     );
@@ -126,7 +120,6 @@ class UserProfile {
           avatarUrl == other.avatarUrl &&
           vpaId == other.vpaId &&
           phoneNumber == other.phoneNumber &&
-          isGuest == other.isGuest &&
           authProvider == other.authProvider;
 
   @override
@@ -139,7 +132,6 @@ class UserProfile {
         avatarUrl,
         vpaId,
         phoneNumber,
-        isGuest,
         authProvider,
       );
 }

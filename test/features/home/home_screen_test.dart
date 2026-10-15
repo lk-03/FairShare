@@ -15,7 +15,8 @@ import 'package:fairshare/data/providers/groups_provider.dart';
 import 'package:fairshare/features/home/presentation/screens/home_screen.dart';
 import 'package:fairshare/features/home/presentation/widgets/create_group_sheet.dart';
 import 'package:fairshare/features/home/presentation/widgets/join_group_sheet.dart';
-import 'package:fairshare/features/profile/presentation/widgets/splitwise_import_sheet.dart';
+import 'package:fairshare/features/expenses/presentation/widgets/add_expense_sheet.dart';
+import 'package:fairshare/features/expenses/presentation/widgets/itemized_receipt_sheet.dart';
 
 void main() {
   setUp(() {
@@ -127,7 +128,7 @@ void main() {
     expect(find.text('INVITE CODE'), findsOneWidget);
   });
 
-  testWidgets('HomeScreen tapping Import Splitwise opens SplitwiseImportSheet', (tester) async {
+  testWidgets('HomeScreen does not render import chip; CreateGroupSheet offers Import from CSV', (tester) async {
     final prefs = await SharedPreferences.getInstance();
     final cacheService = LocalCacheService(prefs);
 
@@ -148,13 +149,15 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // Tap "Import Splitwise" chip
-    await tester.tap(find.text('Import Splitwise'));
+    // Verify "Import Splitwise" chip is absent from Home screen
+    expect(find.text('Import Splitwise'), findsNothing);
+
+    // Tap "New Group"
+    await tester.tap(find.text('New Group'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(SplitwiseImportSheet), findsOneWidget);
-    expect(find.text('Import Splitwise CSV'), findsOneWidget);
-    expect(find.text('PASTE CSV CONTENT'), findsOneWidget);
+    // Verify CreateGroupSheet has the "Import from CSV (Splitwise)" button
+    expect(find.text('Import from CSV (Splitwise)'), findsOneWidget);
   });
 
   testWidgets('HomeScreen computes net balance and renders groups and recent transactions', (tester) async {
@@ -250,6 +253,60 @@ void main() {
 
     // Recent transaction rendered
     expect(find.text('Groceries at Nature Basket'), findsOneWidget);
+  });
+
+  testWidgets('HomeScreen tapping Scan Receipt opens AddExpenseSheet and scanner', (tester) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cacheService = LocalCacheService(prefs);
+
+    final testGroup = Group(
+      id: 'group_test_scan',
+      name: 'Flat 402 - Bangalore',
+      category: 'house',
+      currency: 'INR',
+      createdBy: 'user_1',
+      inviteCode: 'FLAT402',
+      createdAt: DateTime(2026, 1, 1),
+      updatedAt: DateTime(2026, 1, 1),
+      members: [
+        GroupMember(
+          id: 'gm_1',
+          cohortId: 'group_test_scan',
+          userId: 'user_1',
+          role: 'admin',
+          joinedAt: DateTime(2026, 1, 1),
+          profile: testUser,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          localCacheServiceProvider.overrideWithValue(cacheService),
+          currentUserProvider.overrideWith(() => _MockCurrentUserNotifier(testUser)),
+          groupsProvider.overrideWith(() => _MockPopulatedGroupsNotifier([testGroup])),
+          groupExpensesProvider('group_test_scan').overrideWith(
+            () => _MockPopulatedExpensesNotifier([]),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.buildTheme(brightness: Brightness.dark),
+          home: const HomeScreen(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Tap "Scan Receipt" quick action
+    await tester.tap(find.text('Scan Receipt'));
+    await tester.pumpAndSettle();
+
+    // Verify AddExpenseSheet and ItemizedReceiptSheet are rendered
+    expect(find.byType(AddExpenseSheet), findsOneWidget);
+    expect(find.byType(ItemizedReceiptSheet), findsOneWidget);
   });
 }
 

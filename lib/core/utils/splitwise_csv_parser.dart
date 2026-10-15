@@ -1,5 +1,4 @@
 import '../models/expense.dart';
-import '../models/expense_payer.dart';
 import '../models/split.dart';
 
 /// Represents a single parsed row from a Splitwise group CSV export.

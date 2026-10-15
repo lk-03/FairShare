@@ -32,11 +32,10 @@ serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 1. Fetch current non-guest user count
+    // 1. Fetch current user count
     const { count, error: countError } = await supabase
       .from('profiles')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_guest', false);
+      .select('*', { count: 'exact', head: true });
 
     if (countError) {
       throw countError;

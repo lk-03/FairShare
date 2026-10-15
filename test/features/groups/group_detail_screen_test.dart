@@ -109,7 +109,7 @@ void main() {
 
     // Verify Balance hero
     expect(find.text('YOUR GROUP BALANCE'), findsOneWidget);
-    expect(find.text('+₹600.00'), findsOneWidget);
+    expect(find.text('+₹600.00'), findsWidgets);
     expect(find.text('You are owed ₹600.00 in total'), findsOneWidget);
 
     // Verify Foldable Member Rail
@@ -132,10 +132,11 @@ void main() {
     expect(find.text('DEBTS TO SETTLE'), findsOneWidget);
     expect(find.text('Settle Up'), findsOneWidget);
 
-    // Verify Expenses timeline & resolved payer label
+    // Verify Expenses timeline & resolved payer label & inverted trailing column
     expect(find.text('EXPENSES (1)'), findsOneWidget);
     expect(find.text('Weekly Groceries & Supplies'), findsOneWidget);
     expect(find.textContaining('Paid by You'), findsOneWidget);
+    expect(find.textContaining('total ₹1,200.00'), findsOneWidget);
     expect(find.text('Add Expense'), findsOneWidget);
   });
 

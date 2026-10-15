@@ -139,6 +139,97 @@ void main() {
     await tester.tap(find.text('Record as Settled (Cash / Paid)'));
     await tester.pumpAndSettle();
   });
+
+  testWidgets('SettleUpSheet hides UPI options when payee has no UPI ID and supports partial chips',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final prefs = await SharedPreferences.getInstance();
+    final cacheService = LocalCacheService(prefs);
+
+    // Member Bob without UPI
+    final memberBob = GroupMember(
+      id: 'gm_bob',
+      cohortId: 'cohort_test_1',
+      userId: 'user_bob',
+      role: 'member',
+      joinedAt: DateTime(2026, 1, 1),
+      profile: UserProfile(
+        id: 'user_bob',
+        fullName: 'Bob Builder',
+        email: 'bob@fairshare.app',
+        vpaId: null, // No UPI ID!
+        createdAt: DateTime(2026, 1, 1),
+      ),
+    );
+
+    final groupWithBob = Group(
+      id: 'cohort_test_1',
+      name: 'Flat 402',
+      currency: 'INR',
+      createdBy: 'user_1',
+      inviteCode: 'FLAT402',
+      createdAt: DateTime(2026, 1, 1),
+      updatedAt: DateTime(2026, 1, 1),
+      members: [memberAlex, memberBob],
+    );
+
+    // Alex owes Bob 200
+    final debtToBob = const DirectDebt(
+      fromUserId: 'user_1',
+      toUserId: 'user_bob',
+      amount: 200.0,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          localCacheServiceProvider.overrideWithValue(cacheService),
+          currentUserProvider.overrideWith(() => _MockCurrentUser(testUser)),
+          groupsProvider.overrideWith(() => _MockGroups([groupWithBob])),
+          groupExpensesProvider('cohort_test_1')
+              .overrideWith(() => _MockExpenses('cohort_test_1', [])),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.buildTheme(brightness: Brightness.dark),
+          home: Scaffold(
+            body: SettleUpSheet(
+              cohortId: 'cohort_test_1',
+              debt: debtToBob,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Verify No UPI ID notice is displayed
+    expect(find.text('No UPI ID Linked'), findsOneWidget);
+    expect(find.textContaining('Bob Builder has not added a UPI ID in their profile yet'), findsOneWidget);
+
+    // Verify UPI payment and QR buttons are NOT present
+    expect(find.textContaining('Pay with UPI App'), findsNothing);
+    expect(find.text('Show Settlement QR Code'), findsNothing);
+
+    // Verify partial chips work
+    expect(find.textContaining('50%'), findsOneWidget);
+    await tester.tap(find.textContaining('50%'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextField, '100.00'), findsOneWidget);
+
+    await tester.tap(find.textContaining('Full'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextField, '200.00'), findsOneWidget);
+
+    await tester.tap(find.text('Clear'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextField, ''), findsOneWidget);
+  });
 }
 
 class _MockCurrentUser extends CurrentUserNotifier {

@@ -6,6 +6,7 @@ import '../../../../core/models/group.dart';
 import '../../../../core/widgets/category_icon.dart';
 import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/groups_provider.dart';
+import '../../../profile/presentation/widgets/csv_import_sheet.dart';
 
 class CreateGroupSheet extends ConsumerStatefulWidget {
   final ValueChanged<Group>? onGroupCreated;
@@ -380,6 +381,47 @@ class _CreateGroupSheetState extends ConsumerState<CreateGroupSheet> {
                         color: colors.screen,
                       ),
                     ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: Divider(color: colors.border)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    'OR',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+                Expanded(child: Divider(color: colors.border)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop();
+                CsvImportSheet.show(context);
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: colors.emerald,
+                side: BorderSide(color: colors.emerald.withValues(alpha: 0.5)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+              icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+              label: const Text(
+                'Import from CSV (Splitwise)',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ],
         ),

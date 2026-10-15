@@ -48,11 +48,47 @@ class DebtSimplifier {
       }
 
       // Debit participants according to split amounts
-      final splits = expense.splits.isNotEmpty
-          ? expense.splits
-          : [ExpenseSplit(userId: paidBy, amount: totalAmount)];
+      List<ExpenseSplit> effectiveSplits = expense.splits;
+      if (effectiveSplits.isEmpty) {
+        if (members.isNotEmpty) {
+          final count = members.length;
+          final base = (totalAmount / count * 100).floor() / 100.0;
+          final rem = totalAmount - (base * count);
+          effectiveSplits = members.asMap().entries.map((entry) {
+            return ExpenseSplit(
+              userId: entry.value.userId,
+              amount: entry.key == 0 ? base + rem : base,
+            );
+          }).toList();
+        } else {
+          effectiveSplits = [ExpenseSplit(userId: paidBy, amount: totalAmount)];
+        }
+      } else if (expense.category != 'settlement') {
+        // In a group, if splits do not account for the entire totalAmount,
+        // attribute the unassigned remainder to members not included in splits.
+        final splitSum = effectiveSplits.fold(0.0, (s, sp) => s + sp.amount);
+        final unassigned = ((totalAmount - splitSum) * 100).round() / 100.0;
+        if (unassigned > 0.01 && members.isNotEmpty) {
+          final existingUserIds = effectiveSplits.map((s) => s.userId).toSet();
+          final unassignedMembers =
+              members.where((m) => !existingUserIds.contains(m.userId)).toList();
+          if (unassignedMembers.isNotEmpty) {
+            final perMember =
+                (unassigned / unassignedMembers.length * 100).floor() / 100.0;
+            final rem = unassigned - (perMember * unassignedMembers.length);
+            final additionalSplits =
+                unassignedMembers.asMap().entries.map((entry) {
+              return ExpenseSplit(
+                userId: entry.value.userId,
+                amount: entry.key == 0 ? perMember + rem : perMember,
+              );
+            }).toList();
+            effectiveSplits = [...effectiveSplits, ...additionalSplits];
+          }
+        }
+      }
 
-      for (final split in splits) {
+      for (final split in effectiveSplits) {
         netBalances[split.userId] =
             (netBalances[split.userId] ?? 0.0) - split.amount;
       }

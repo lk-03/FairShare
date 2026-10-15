@@ -153,7 +153,6 @@ class CurrentUserNotifier extends Notifier<UserProfile?> {
       username: 'alexv',
       vpaId: 'alex@okaxis',
       avatarUrl: 'https://api.dicebear.com/7.x/bottts/png?seed=Alex',
-      isGuest: true,
       authProvider: 'demo',
       createdAt: DateTime.now(),
     );

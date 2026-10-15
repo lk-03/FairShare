@@ -92,7 +92,7 @@ class GroupActionSheet extends ConsumerWidget {
           Row(
             children: [
               GroupAvatar(
-                avatarUrl: group.avatarUrl ?? group.bannerUrl,
+                avatarUrl: group.avatarUrl,
                 category: group.category,
                 customIcon: group.customIcon,
                 size: 44,

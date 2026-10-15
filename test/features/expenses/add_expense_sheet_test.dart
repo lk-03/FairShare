@@ -14,6 +14,7 @@ import 'package:fairshare/data/providers/expenses_provider.dart';
 import 'package:fairshare/data/providers/groups_provider.dart';
 import 'package:fairshare/data/providers/needs_provider.dart';
 import 'package:fairshare/features/expenses/presentation/widgets/add_expense_sheet.dart';
+import 'package:fairshare/features/expenses/presentation/widgets/itemized_receipt_sheet.dart';
 
 void main() {
   setUp(() {
@@ -250,6 +251,81 @@ void main() {
     // Verify item was marked completed in mock needs
     expect(mockNeeds.toggledIds, contains('need_banana_1'));
   });
+
+  testWidgets('AddExpenseSheet with autoOpenScanner true opens ItemizedReceiptSheet', (tester) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cacheService = LocalCacheService(prefs);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          localCacheServiceProvider.overrideWithValue(cacheService),
+          currentUserProvider.overrideWith(() => _MockCurrentUser(testUser)),
+          groupsProvider.overrideWith(() => _MockGroups([testGroup])),
+          groupExpensesProvider('cohort_test_1')
+              .overrideWith(() => _MockExpenses('cohort_test_1', [])),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.buildTheme(brightness: Brightness.dark),
+          home: const Scaffold(
+            body: AddExpenseSheet(
+              cohortId: 'cohort_test_1',
+              autoOpenScanner: true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Verify ItemizedReceiptSheet is opened
+    expect(find.byType(ItemizedReceiptSheet), findsOneWidget);
+    expect(find.text('Scan Receipt'), findsOneWidget);
+  });
+
+  testWidgets('AddExpenseSheet saves expense with zero-storage receiptUrl null', (tester) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cacheService = LocalCacheService(prefs);
+    final mockExpenses = _MockExpenses('cohort_test_1', []);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          localCacheServiceProvider.overrideWithValue(cacheService),
+          currentUserProvider.overrideWith(() => _MockCurrentUser(testUser)),
+          groupsProvider.overrideWith(() => _MockGroups([testGroup])),
+          groupExpensesProvider('cohort_test_1').overrideWith(() => mockExpenses),
+          groupNeedsProvider('cohort_test_1')
+              .overrideWith(() => _MockNeeds('cohort_test_1', [])),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.buildTheme(brightness: Brightness.dark),
+          home: const Scaffold(
+            body: AddExpenseSheet(cohortId: 'cohort_test_1'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final textFields = find.byType(TextField);
+    await tester.enterText(textFields.at(0), 'Lunch at Chipotle');
+    await tester.enterText(textFields.at(1), '45.00');
+    await tester.pumpAndSettle();
+
+    // Save Expense
+    await tester.tap(find.text('Save Expense'));
+    await tester.pumpAndSettle();
+
+    // Verify newly added expense has null receiptUrl for zero-storage guarantee
+    final added = mockExpenses.addedExpenses.last;
+    expect(added.title, 'Lunch at Chipotle');
+    expect(added.receiptUrl, isNull);
+  });
 }
 
 class _MockCurrentUser extends CurrentUserNotifier {
@@ -273,6 +349,7 @@ class _MockGroups extends GroupsNotifier {
 
 class _MockExpenses extends GroupExpensesNotifier {
   final List<Expense> _expenses;
+  final List<Expense> addedExpenses = [];
   _MockExpenses(super.cohortId, this._expenses);
 
   @override
@@ -283,6 +360,7 @@ class _MockExpenses extends GroupExpensesNotifier {
 
   @override
   Future<Expense> addExpense(Expense expense) async {
+    addedExpenses.add(expense);
     state = AsyncValue.data([..._expenses, expense]);
     return expense;
   }

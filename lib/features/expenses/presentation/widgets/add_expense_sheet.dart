@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../core/models/expense.dart';
-import '../../../../core/models/expense_payer.dart';
 import '../../../../core/models/group_member.dart';
 import '../../../../core/models/split.dart';
 import '../../../../core/utils/cart_matching_helper.dart';
+import '../../../../core/utils/category_detector.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/widgets/category_icon.dart';
 import '../../../../data/providers/auth_provider.dart';
@@ -20,17 +20,20 @@ import 'payer_selection_sheet.dart';
 class AddExpenseSheet extends ConsumerStatefulWidget {
   final String cohortId;
   final Expense? existingExpense;
+  final bool autoOpenScanner;
 
   const AddExpenseSheet({
     super.key,
     required this.cohortId,
     this.existingExpense,
+    this.autoOpenScanner = false,
   });
 
   static Future<Expense?> show(
     BuildContext context, {
     required String cohortId,
     Expense? existingExpense,
+    bool autoOpenScanner = false,
   }) {
     return showModalBottomSheet<Expense>(
       context: context,
@@ -40,6 +43,7 @@ class AddExpenseSheet extends ConsumerStatefulWidget {
       builder: (_) => AddExpenseSheet(
         cohortId: cohortId,
         existingExpense: existingExpense,
+        autoOpenScanner: autoOpenScanner,
       ),
     );
   }
@@ -59,7 +63,6 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
   late SplitType _splitType;
   List<ExpenseSplit> _splits = [];
   DateTime _selectedDate = DateTime.now();
-  String? _receiptName;
   List<String> _scannedReceiptItemNames = [];
   bool _isLoading = false;
 
@@ -94,10 +97,30 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
     if (_payers.isEmpty && _paidByUserId.isNotEmpty && exp != null) {
       _payers = [ExpensePayer(userId: _paidByUserId, amount: exp.totalAmount)];
     }
+
+    _titleController.addListener(_onTitleChanged);
+
+    if (widget.autoOpenScanner) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _openReceiptScanner();
+        }
+      });
+    }
+  }
+
+  void _onTitleChanged() {
+    final detected = CategoryDetector.detectCategory(_titleController.text);
+    if (detected != null && detected != _category) {
+      setState(() {
+        _category = detected;
+      });
+    }
   }
 
   @override
   void dispose() {
+    _titleController.removeListener(_onTitleChanged);
     _titleController.dispose();
     _amountController.dispose();
     _notesController.dispose();
@@ -112,26 +135,11 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
   ) {
     if (members.isEmpty || total <= 0) return [];
 
-    final targetUserIds = <String>{};
-    if (_splits.isNotEmpty && _splits.length < members.length) {
-      for (final s in _splits) {
-        if (s.amount > 0) {
-          targetUserIds.add(s.userId);
-        }
-      }
-    }
-
-    final activeMembers = targetUserIds.isNotEmpty
-        ? members.where((m) => targetUserIds.contains(m.userId)).toList()
-        : members;
-
-    final count = activeMembers.isNotEmpty ? activeMembers.length : members.length;
-    final effectiveMembers = activeMembers.isNotEmpty ? activeMembers : members;
-
+    final count = members.length;
     final base = (total / count * 100).floor() / 100.0;
     final remainder = double.parse((total - (base * count)).toStringAsFixed(2));
 
-    return effectiveMembers.asMap().entries.map((entry) {
+    return members.asMap().entries.map((entry) {
       final idx = entry.key;
       final m = entry.value;
       final amt = idx == 0 ? double.parse((base + remainder).toStringAsFixed(2)) : base;
@@ -189,16 +197,30 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
   }
 
   Future<void> _openReceiptScanner() async {
-    final parsed = await ItemizedReceiptSheet.show(context);
-    if (parsed != null) {
+    final members = ref.read(groupMembersProvider(widget.cohortId));
+    final currentUser = ref.read(currentUserProvider);
+    final result = await ItemizedReceiptSheet.show(
+      context,
+      members: members,
+      currentUserId: currentUser?.id,
+    );
+    if (result != null) {
       setState(() {
         if (_titleController.text.isEmpty) {
-          _titleController.text = parsed.merchantName;
+          _titleController.text = result.parsedData.merchantName;
         }
-        _amountController.text = parsed.totalAmount.toStringAsFixed(2);
-        _category = _categories.contains(parsed.category) ? parsed.category : 'dining';
-        _receiptName = '${parsed.merchantName}_receipt.jpg';
-        _scannedReceiptItemNames = parsed.items.map((i) => i.name).toList();
+        _amountController.text = result.parsedData.totalAmount.toStringAsFixed(2);
+        _category = _categories.contains(result.parsedData.category)
+            ? result.parsedData.category
+            : 'dining';
+        _scannedReceiptItemNames = result.parsedData.items.map((i) => i.name).toList();
+
+        if (result.splits != null && result.splits!.isNotEmpty) {
+          _splitType = result.splitType;
+          _splits = result.splits!;
+        } else if (_splitType == SplitType.equal) {
+          _splits = _calculateEqualSplits(result.parsedData.totalAmount, members);
+        }
       });
     }
   }
@@ -378,6 +400,21 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
 
     if (_payers.isEmpty) {
       _payers = [ExpensePayer(userId: _paidByUserId, amount: total)];
+    } else if (_payers.length > 1) {
+      final payerSum = _payers.fold(0.0, (sum, p) => sum + p.amount);
+      if ((payerSum - total).abs() > 0.05) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'The paid amounts (₹${payerSum.toStringAsFixed(2)}) do not match the total expense (₹${total.toStringAsFixed(2)}). Please adjust who paid.',
+            ),
+            backgroundColor: AppColors.rose,
+          ),
+        );
+        return;
+      }
+    } else {
+      _payers = [ExpensePayer(userId: _paidByUserId, amount: total)];
     }
 
     // Detect matching uncompleted House Cart items if creating a new expense
@@ -457,7 +494,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
               ? _notesController.text.trim()
               : null,
           paidByName: payerName,
-          receiptUrl: _receiptName,
+          receiptUrl: null,
         );
         final saved = await ref.read(groupExpensesProvider(widget.cohortId).notifier).addExpense(newExpense);
         if (mounted) Navigator.of(context).pop(saved);
@@ -914,15 +951,15 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
                         ],
                       ),
 
-                      // Attached Receipt Thumbnail Preview (if present)
-                      if (_receiptName != null) ...[
+                      // Scanned Receipt Itemized Badge (if present)
+                      if (_scannedReceiptItemNames.isNotEmpty) ...[
                         const SizedBox(height: 16),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                           decoration: BoxDecoration(
                             color: AppColors.surfaceCard,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.borderSubtle),
+                            border: Border.all(color: AppColors.primaryTeal.withValues(alpha: 0.3)),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -932,14 +969,14 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
                                   const Icon(Icons.receipt_long_rounded, color: AppColors.primaryTeal, size: 18),
                                   const SizedBox(width: 8),
                                   Text(
-                                    _receiptName!,
+                                    'Receipt scanned (${_scannedReceiptItemNames.length} items itemized)',
                                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                                   ),
                                 ],
                               ),
                               IconButton(
                                 icon: const Icon(Icons.close_rounded, size: 16, color: AppColors.textMuted),
-                                onPressed: () => setState(() => _receiptName = null),
+                                onPressed: () => setState(() => _scannedReceiptItemNames = []),
                                 visualDensity: VisualDensity.compact,
                               ),
                             ],

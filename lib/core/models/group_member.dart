@@ -23,6 +23,8 @@ class GroupMember {
 
   bool get isAdmin => role == 'admin';
 
+  String? get avatarUrl => profile?.avatarUrl;
+
   String get displayName {
     final pName = profile?.displayName;
     if (pName != null && pName.trim().isNotEmpty && pName != 'Member') {

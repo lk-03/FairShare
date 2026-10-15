@@ -11,6 +11,7 @@ import '../../../../core/utils/upi_intent.dart';
 import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/expenses_provider.dart';
 import '../../../../data/providers/groups_provider.dart';
+import '../../../../core/widgets/user_avatar.dart';
 
 class SettleUpSheet extends ConsumerStatefulWidget {
   final String cohortId;
@@ -134,6 +135,18 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
     final amount = _currentAmount;
     if (amount <= 0) return;
 
+    if (amount > widget.debt.amount + 0.05) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Settlement amount cannot exceed the outstanding debt (${CurrencyFormatter.formatINR(widget.debt.amount)}).',
+          ),
+          backgroundColor: AppColors.rose,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -147,6 +160,9 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
         currency: 'INR',
         paidByUserId: widget.debt.fromUserId,
         paidByName: payerName,
+        payers: [
+          ExpensePayer(userId: widget.debt.fromUserId, amount: amount),
+        ],
         splitType: SplitType.exact,
         splits: [
           ExpenseSplit(userId: widget.debt.toUserId, amount: amount),
@@ -203,9 +219,12 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
         ? 'You'
         : (creditorMember?.displayName ?? 'Payee');
 
+    final actualPayerName = debtorMember?.displayName ?? (isMeDebtor ? 'You' : 'Payer');
+    final actualPayeeName = creditorMember?.displayName ?? (isMeCreditor ? 'You' : 'Payee');
+
     final rawVpa = creditorMember?.profile?.vpaId;
-    final fallbackVpa = '${payeeDisplayName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '')}@upi';
-    final payeeVpa = (rawVpa != null && rawVpa.isNotEmpty) ? rawVpa : fallbackVpa;
+    final hasVpa = rawVpa != null && rawVpa.trim().isNotEmpty;
+    final payeeVpa = hasVpa ? rawVpa.trim() : '';
 
     final mediaQuery = MediaQuery.of(context);
     final availableHeight = mediaQuery.size.height - mediaQuery.padding.top;
@@ -279,17 +298,11 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
                 Expanded(
                   child: Column(
                     children: [
-                      CircleAvatar(
+                      UserAvatar(
+                        avatarUrl: widget.debt.fromProfile?.avatarUrl,
+                        name: payerDisplayName,
+                        userId: widget.debt.fromUserId,
                         radius: 24,
-                        backgroundColor: colors.crimson.withValues(alpha: 0.2),
-                        child: Text(
-                          payerDisplayName.isNotEmpty ? payerDisplayName[0].toUpperCase() : 'P',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            color: colors.crimson,
-                          ),
-                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -333,17 +346,11 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
                 Expanded(
                   child: Column(
                     children: [
-                      CircleAvatar(
+                      UserAvatar(
+                        avatarUrl: widget.debt.toProfile?.avatarUrl,
+                        name: payeeDisplayName,
+                        userId: widget.debt.toUserId,
                         radius: 24,
-                        backgroundColor: colors.emerald.withValues(alpha: 0.2),
-                        child: Text(
-                          payeeDisplayName.isNotEmpty ? payeeDisplayName[0].toUpperCase() : 'R',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            color: colors.emerald,
-                          ),
-                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -372,14 +379,28 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
           const SizedBox(height: 20),
 
           // Settlement Amount Input
-          Text(
-            'SETTLEMENT AMOUNT (INR)',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.8,
-              color: colors.textSecondary,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'SETTLEMENT AMOUNT (INR)',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                  color: colors.textSecondary,
+                ),
+              ),
+              if (_currentAmount < widget.debt.amount && _currentAmount > 0)
+                Text(
+                  'Partial: ${CurrencyFormatter.formatINR(widget.debt.amount - _currentAmount)} remaining',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: colors.amber,
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 8),
           TextField(
@@ -418,216 +439,206 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
             ),
             onChanged: (_) => setState(() {}),
           ),
+          const SizedBox(height: 8),
+
+          // Quick Partial Settlement Chips
+          Row(
+            children: [
+              ActionChip(
+                label: Text('Full (${CurrencyFormatter.formatINR(widget.debt.amount)})'),
+                labelStyle: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: (_currentAmount == widget.debt.amount) ? colors.cyan : colors.textSecondary,
+                ),
+                backgroundColor: (_currentAmount == widget.debt.amount)
+                    ? colors.cyan.withValues(alpha: 0.15)
+                    : colors.accentPill,
+                side: BorderSide(
+                  color: (_currentAmount == widget.debt.amount) ? colors.cyan : colors.border,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _amountController.text = widget.debt.amount.toStringAsFixed(2);
+                  });
+                },
+              ),
+              const SizedBox(width: 8),
+              ActionChip(
+                label: Text('50% (${CurrencyFormatter.formatINR(widget.debt.amount / 2)})'),
+                labelStyle: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: colors.textSecondary,
+                ),
+                backgroundColor: colors.accentPill,
+                side: BorderSide(color: colors.border),
+                onPressed: () {
+                  final half = ((widget.debt.amount / 2) * 100).round() / 100.0;
+                  setState(() {
+                    _amountController.text = half.toStringAsFixed(2);
+                  });
+                },
+              ),
+              const SizedBox(width: 8),
+              ActionChip(
+                label: const Text('Clear'),
+                labelStyle: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textSecondary,
+                ),
+                backgroundColor: colors.accentPill,
+                side: BorderSide(color: colors.border),
+                onPressed: () {
+                  setState(() {
+                    _amountController.clear();
+                  });
+                },
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
 
-          // Payee UPI ID Banner
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: colors.accentPill,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: colors.border),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.account_balance_wallet_outlined, size: 20, color: colors.cyan),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Payee UPI ID (VPA)',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                      Text(
-                        payeeVpa,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: colors.textMain,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => _handleCopyVpa(payeeVpa),
-                  icon: Icon(
-                    _copiedVpa ? Icons.check_rounded : Icons.copy_rounded,
-                    size: 18,
-                    color: _copiedVpa ? colors.emerald : colors.cyan,
-                  ),
-                  tooltip: 'Copy UPI ID',
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Paytm & Bank Risk Notice Banner
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colors.amber.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: colors.amber.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.warning_amber_rounded, size: 18, color: colors.amber),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Paytm Intent Policy Notice',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: colors.amber,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Paytm blocks third-party app intents ("Payment failed as per UPI risk policy"). For a smooth payment, select Google Pay / PhonePe, scan the QR code below, or copy the UPI ID.',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: colors.textSecondary,
-                          height: 1.3,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Primary: Launch UPI Payment Intent
-          SizedBox(
-            height: 50,
-            child: ElevatedButton.icon(
-              onPressed: _isLoading
-                  ? null
-                  : () => _handleLaunchUPI(vpa: payeeVpa, payeeName: payeeDisplayName),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colors.cyan,
-                foregroundColor: const Color(0xFF0F172A),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 0,
-              ),
-              icon: const Icon(Icons.flash_on_rounded, size: 20),
-              label: Text(
-                'Pay with UPI App (${CurrencyFormatter.formatINR(_currentAmount)})',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.2,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // QR Code Toggle Button
-          OutlinedButton.icon(
-            onPressed: () => setState(() => _showQr = !_showQr),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: colors.accentPill,
-              side: BorderSide(color: colors.border),
-              shape: RoundedRectangleBorder(
+          if (hasVpa) ...[
+            // Payee UPI ID Banner
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: colors.accentPill,
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: colors.border),
               ),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-            icon: Icon(
-              _showQr ? Icons.qr_code_rounded : Icons.qr_code_scanner_rounded,
-              size: 18,
-              color: colors.cyan,
-            ),
-            label: Text(
-              _showQr ? 'Hide Settlement QR Code' : 'Show Settlement QR Code',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                color: colors.textMain,
-              ),
-            ),
-          ),
-          if (_showQr) ...[
-            const SizedBox(height: 14),
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: QrImageView(
-                  data: UPIIntentHelper.buildUPIIntentURL(
-                    UPIPaymentConfig(
-                      vpaId: payeeVpa,
-                      payeeName: payeeDisplayName,
-                      amount: _currentAmount > 0 ? _currentAmount : widget.debt.amount,
+              child: Row(
+                children: [
+                  Icon(Icons.account_balance_wallet_outlined, size: 20, color: colors.cyan),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Payee UPI ID (VPA)',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                        Text(
+                          payeeVpa,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: colors.textMain,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  version: QrVersions.auto,
-                  size: 180,
-                  backgroundColor: Colors.white,
+                  IconButton(
+                    onPressed: () => _handleCopyVpa(payeeVpa),
+                    icon: Icon(
+                      _copiedVpa ? Icons.check_rounded : Icons.copy_rounded,
+                      size: 18,
+                      color: _copiedVpa ? colors.emerald : colors.cyan,
+                    ),
+                    tooltip: 'Copy UPI ID',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Paytm & Bank Risk Notice Banner
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colors.amber.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: colors.amber.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.warning_amber_rounded, size: 18, color: colors.amber),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Paytm Intent Policy Notice',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: colors.amber,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Paytm blocks third-party app intents ("Payment failed as per UPI risk policy"). For a smooth payment, select Google Pay / PhonePe, scan the QR code below, or copy the UPI ID.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: colors.textSecondary,
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Primary: Launch UPI Payment Intent
+            SizedBox(
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: _isLoading || _currentAmount <= 0
+                    ? null
+                    : () => _handleLaunchUPI(vpa: payeeVpa, payeeName: payeeDisplayName),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colors.cyan,
+                  foregroundColor: const Color(0xFF0F172A),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.flash_on_rounded, size: 20),
+                label: Text(
+                  'Pay with UPI App (${CurrencyFormatter.formatINR(_currentAmount)})',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.2,
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Scan directly or screenshot & scan from gallery in Paytm/GPay to bypass intent blocks.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 11,
-                color: colors.textSecondary,
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
+            const SizedBox(height: 12),
 
-          // Secondary: Record as Settled (Cash / Bank Transfer)
-          SizedBox(
-            height: 46,
-            child: OutlinedButton.icon(
-              onPressed: _isLoading
-                  ? null
-                  : () => _recordSettlement(
-                        payerName: payerDisplayName,
-                        payeeName: payeeDisplayName,
-                        method: 'Cash / Transfer',
-                      ),
+            // QR Code Toggle Button
+            OutlinedButton.icon(
+              onPressed: () => setState(() => _showQr = !_showQr),
               style: OutlinedButton.styleFrom(
                 backgroundColor: colors.accentPill,
                 side: BorderSide(color: colors.border),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              icon: Icon(Icons.check_circle_outline_rounded, size: 18, color: colors.emerald),
+              icon: Icon(
+                _showQr ? Icons.qr_code_rounded : Icons.qr_code_scanner_rounded,
+                size: 18,
+                color: colors.cyan,
+              ),
               label: Text(
-                'Record as Settled (Cash / Paid)',
+                _showQr ? 'Hide Settlement QR Code' : 'Show Settlement QR Code',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
@@ -635,7 +646,148 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
                 ),
               ),
             ),
-          ),
+            if (_showQr) ...[
+              const SizedBox(height: 14),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: QrImageView(
+                    data: UPIIntentHelper.buildUPIIntentURL(
+                      UPIPaymentConfig(
+                        vpaId: payeeVpa,
+                        payeeName: payeeDisplayName,
+                        amount: _currentAmount > 0 ? _currentAmount : widget.debt.amount,
+                      ),
+                    ),
+                    version: QrVersions.auto,
+                    size: 180,
+                    backgroundColor: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Scan directly or screenshot & scan from gallery in Paytm/GPay to bypass intent blocks.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colors.textSecondary,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+
+            // Secondary: Record as Settled (Cash / Bank Transfer)
+            SizedBox(
+              height: 46,
+              child: OutlinedButton.icon(
+                onPressed: _isLoading || _currentAmount <= 0
+                    ? null
+                    : () => _recordSettlement(
+                          payerName: actualPayerName,
+                          payeeName: actualPayeeName,
+                          method: 'Cash / Transfer',
+                        ),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: colors.accentPill,
+                  side: BorderSide(color: colors.border),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                icon: Icon(Icons.check_circle_outline_rounded, size: 18, color: colors.emerald),
+                label: Text(
+                  'Record as Settled (Cash / Paid)',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: colors.textMain,
+                  ),
+                ),
+              ),
+            ),
+          ] else ...[
+            // Payee has NO UPI ID configured in their profile
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: colors.accentPill,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: colors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline_rounded, size: 20, color: colors.amber),
+                      const SizedBox(width: 8),
+                      Text(
+                        'No UPI ID Linked',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: colors.textMain,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '$payeeDisplayName has not added a UPI ID in their profile yet. Settle up via cash or external bank transfer, then record it below.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Primary: Record as Settled (Cash / Offline Paid)
+            SizedBox(
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: _isLoading || _currentAmount <= 0
+                    ? null
+                    : () => _recordSettlement(
+                          payerName: actualPayerName,
+                          payeeName: actualPayeeName,
+                          method: 'Cash / Offline',
+                        ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colors.emerald,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.check_circle_rounded, size: 20),
+                label: Text(
+                  'Record as Settled (${CurrencyFormatter.formatINR(_currentAmount)})',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     ),

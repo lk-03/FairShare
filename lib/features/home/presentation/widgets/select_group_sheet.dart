@@ -132,7 +132,7 @@ class SelectGroupSheet extends ConsumerWidget {
                     child: Row(
                       children: [
                         GroupAvatar(
-                          avatarUrl: cohort.avatarUrl ?? cohort.bannerUrl,
+                          avatarUrl: cohort.avatarUrl,
                           category: cohort.category,
                           customIcon: cohort.customIcon,
                           size: 44,

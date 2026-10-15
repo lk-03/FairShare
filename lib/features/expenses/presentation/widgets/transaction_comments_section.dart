@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../config/theme/app_colors.dart';
+import '../../../../core/widgets/user_avatar.dart';
 import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/expenses_provider.dart';
 import '../../../../data/providers/groups_provider.dart';
@@ -256,17 +257,11 @@ class _TransactionCommentsSectionState
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Avatar Initial
-                        CircleAvatar(
+                        UserAvatar(
+                          avatarUrl: member?.profile?.avatarUrl ?? comment.profile?.avatarUrl,
+                          name: name,
+                          userId: comment.userId,
                           radius: 15,
-                          backgroundColor: colors.surface,
-                          child: Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : '?',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: colors.cyan,
-                            ),
-                          ),
                         ),
                         const SizedBox(width: 10),
 

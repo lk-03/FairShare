@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fairshare/core/algorithms/debt_simplifier.dart';
 import 'package:fairshare/core/models/expense.dart';
-import 'package:fairshare/core/models/expense_payer.dart';
 import 'package:fairshare/core/models/group_member.dart';
 import 'package:fairshare/core/models/split.dart';
 

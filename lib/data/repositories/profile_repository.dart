@@ -6,7 +6,7 @@ final UserProfile defaultGuestUser = UserProfile(
   id: 'guest_user_default',
   fullName: 'You',
   email: '',
-  isGuest: true,
+  authProvider: 'guest',
   createdAt: DateTime.fromMillisecondsSinceEpoch(0),
 );
 
@@ -60,7 +60,6 @@ class ProfileRepository {
       avatarUrl: profile.avatarUrl,
       vpaId: profile.vpaId,
       phoneNumber: profile.phoneNumber,
-      isGuest: profile.isGuest,
       authProvider: profile.authProvider,
     );
   }
@@ -73,7 +72,6 @@ class ProfileRepository {
     String? avatarUrl,
     String? vpaId,
     String? phoneNumber,
-    bool? isGuest,
     String? authProvider,
   }) async {
     final cached = cacheService.getCurrentUser() ??
@@ -90,7 +88,6 @@ class ProfileRepository {
       avatarUrl: avatarUrl,
       vpaId: vpaId,
       phoneNumber: phoneNumber,
-      isGuest: isGuest,
       authProvider: authProvider,
     );
 
@@ -114,7 +111,6 @@ class ProfileRepository {
       'avatar_url': ?avatarUrl,
       'vpa_id': ?vpaId,
       'phone_number': ?phoneNumber,
-      'is_guest': ?isGuest,
       'auth_provider': ?authProvider,
       'updated_at': DateTime.now().toIso8601String(),
     };
@@ -139,7 +135,6 @@ class ProfileRepository {
         'full_name': fullName?.trim().isNotEmpty == true
             ? fullName!
             : (nickname?.trim().isNotEmpty == true ? nickname! : 'You'),
-        'is_guest': isGuest ?? true,
         'auth_provider': authProvider ?? 'guest',
         ...dbPayload,
       };
@@ -189,7 +184,6 @@ class ProfileRepository {
           email: authUser.email,
           fullName: metaName,
           avatarUrl: avatarUrl,
-          isGuest: false,
           authProvider: authUser.appMetadata['provider'] as String? ?? 'email',
           createdAt: DateTime.now(),
         );
@@ -199,7 +193,6 @@ class ProfileRepository {
           'email': authUser.email,
           'full_name': metaName,
           'avatar_url': avatarUrl,
-          'is_guest': false,
           'auth_provider': authUser.appMetadata['provider'] ?? 'email',
         });
 

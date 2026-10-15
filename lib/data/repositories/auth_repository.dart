@@ -107,7 +107,6 @@ class AuthRepository {
         avatarUrl: finalAvatar,
         vpaId: existingProfile?.vpaId,
         phoneNumber: existingProfile?.phoneNumber,
-        isGuest: false,
         authProvider: 'google',
         createdAt: existingProfile?.createdAt ?? DateTime.now(),
       );
@@ -120,7 +119,6 @@ class AuthRepository {
         'username': existingProfile?.username,
         'avatar_url': finalAvatar,
         'vpa_id': existingProfile?.vpaId,
-        'is_guest': false,
         'auth_provider': 'google',
       });
 
@@ -150,7 +148,6 @@ class AuthRepository {
         id: 'local_user_${DateTime.now().millisecondsSinceEpoch}',
         email: email,
         fullName: email.split('@').first,
-        isGuest: false,
         authProvider: 'email',
         createdAt: DateTime.now(),
       );
@@ -175,7 +172,6 @@ class AuthRepository {
             id: user.id,
             email: user.email ?? email,
             fullName: email.split('@').first,
-            isGuest: false,
             authProvider: 'email',
             createdAt: DateTime.now(),
           );
@@ -205,7 +201,6 @@ class AuthRepository {
         id: 'local_user_${DateTime.now().millisecondsSinceEpoch}',
         email: email,
         fullName: fullName.trim().isNotEmpty ? fullName : email.split('@').first,
-        isGuest: false,
         authProvider: 'email',
         createdAt: DateTime.now(),
       );
@@ -232,7 +227,6 @@ class AuthRepository {
         id: user.id,
         email: email,
         fullName: fullName.trim().isNotEmpty ? fullName : email.split('@').first,
-        isGuest: false,
         authProvider: 'email',
         createdAt: DateTime.now(),
       );
@@ -241,7 +235,6 @@ class AuthRepository {
         'id': user.id,
         'email': email,
         'full_name': profile.fullName,
-        'is_guest': false,
         'auth_provider': 'email',
       });
 
@@ -267,14 +260,12 @@ class AuthRepository {
           final guestUser = UserProfile(
             id: res!.user!.id,
             fullName: 'Guest User',
-            isGuest: true,
             authProvider: 'guest',
             createdAt: DateTime.now(),
           );
           await supabaseService.client.from('profiles').upsert({
             'id': res.user!.id,
             'full_name': 'Guest User',
-            'is_guest': true,
             'auth_provider': 'guest',
           });
           await cacheService.saveCurrentUser(guestUser);
@@ -284,12 +275,11 @@ class AuthRepository {
     }
 
     final cached = cacheService.getCurrentUser();
-    if (cached != null && cached.isGuest) return cached;
+    if (cached != null && cached.authProvider == 'guest') return cached;
 
     final fallback = UserProfile(
       id: 'guest_${DateTime.now().millisecondsSinceEpoch}',
       fullName: 'Guest User',
-      isGuest: true,
       authProvider: 'guest',
       createdAt: DateTime.now(),
     );

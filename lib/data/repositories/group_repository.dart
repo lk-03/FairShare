@@ -148,8 +148,7 @@ class GroupRepository {
         'description': cohort.description,
         'category': cohort.category,
         'custom_icon': cohort.customIcon,
-        'avatar_url': cohort.avatarUrl ?? cohort.bannerUrl,
-        'banner_url': cohort.bannerUrl ?? cohort.avatarUrl,
+        'avatar_url': cohort.avatarUrl,
         'currency': cohort.currency,
         'invite_code': inviteCode,
         'created_by': effectiveCreator.id,
@@ -204,7 +203,6 @@ class GroupRepository {
           category: updates['category'] as String? ?? g.category,
           customIcon: updates['custom_icon'] as String? ?? g.customIcon,
           avatarUrl: updates['avatar_url'] as String? ?? g.avatarUrl,
-          bannerUrl: updates['banner_url'] as String? ?? g.bannerUrl,
           currency: updates['currency'] as String? ?? g.currency,
           createdBy: updates['created_by'] as String? ?? g.createdBy,
         );
@@ -290,7 +288,6 @@ class GroupRepository {
         'avatar_url': effectiveUser.avatarUrl,
         'nickname': effectiveUser.nickname,
         'vpa_id': effectiveUser.vpaId,
-        'is_guest': false,
         'auth_provider': effectiveUser.authProvider ?? 'email',
       });
 
@@ -532,14 +529,22 @@ class GroupRepository {
     if (!supabaseService.isConfigured || !isUuid(cohortId)) return true;
 
     try {
-      await supabaseService.client.from('expenses').delete().eq('cohort_id', cohortId);
-      await supabaseService.client.from('shared_list_items').delete().eq('cohort_id', cohortId);
-      await supabaseService.client.from('expense_shortcuts').delete().eq('cohort_id', cohortId);
-      await supabaseService.client.from('group_members').delete().eq('cohort_id', cohortId);
+      // Delete cohorts first while user's admin membership in group_members is still active for RLS
+      // Foreign keys in PostgreSQL are configured with ON DELETE CASCADE
       await supabaseService.client.from('cohorts').delete().eq('id', cohortId);
       return true;
     } catch (_) {
-      return false;
+      try {
+        // Fallback: Delete non-member child records first, then cohorts, then group_members
+        await supabaseService.client.from('expenses').delete().eq('cohort_id', cohortId);
+        await supabaseService.client.from('shared_list_items').delete().eq('cohort_id', cohortId);
+        await supabaseService.client.from('expense_shortcuts').delete().eq('cohort_id', cohortId);
+        await supabaseService.client.from('cohorts').delete().eq('id', cohortId);
+        await supabaseService.client.from('group_members').delete().eq('cohort_id', cohortId);
+        return true;
+      } catch (_) {
+        return false;
+      }
     }
   }
 

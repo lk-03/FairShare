@@ -14,7 +14,7 @@ class AppLogo extends StatelessWidget {
     this.size = 32,
     this.color,
     this.withGlow = false,
-    this.withShadow = true,
+    this.withShadow = false,
   });
 
   @override

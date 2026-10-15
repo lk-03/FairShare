@@ -7,8 +7,9 @@ import 'theme_palettes.dart';
 class AppTheme {
   static ThemeData buildTheme({
     required Brightness brightness,
+    bool isAmoled = false,
   }) {
-    final colors = AppPalettes.getColors(brightness);
+    final colors = AppPalettes.getColors(brightness, isAmoled: isAmoled);
     final isDark = brightness == Brightness.dark;
 
     final colorScheme = ColorScheme(

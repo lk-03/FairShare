@@ -6,6 +6,7 @@ import '../../../../core/models/group.dart';
 import '../../../../core/models/group_member.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/widgets/category_icon.dart';
+import '../../../../core/widgets/user_avatar.dart';
 
 class MonthlySpendingsTab extends StatefulWidget {
   final Group cohort;
@@ -382,19 +383,11 @@ class _MonthlySpendingsTabState extends State<MonthlySpendingsTab> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      CircleAvatar(
+                      UserAvatar(
+                        avatarUrl: item.member.profile?.avatarUrl,
+                        name: name,
+                        userId: item.member.userId,
                         radius: 12,
-                        backgroundColor: isMe
-                            ? AppColors.primaryTeal.withValues(alpha: 0.2)
-                            : AppColors.surfaceDim,
-                        child: Text(
-                          name.isNotEmpty ? name[0].toUpperCase() : '?',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: isMe ? AppColors.primaryTeal : AppColors.textPrimary,
-                          ),
-                        ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(

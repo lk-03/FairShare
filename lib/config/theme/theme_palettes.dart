@@ -35,7 +35,31 @@ class AppPalettes {
     amber: Color(0xFFFBBF24),
     gradStart: Color(0xFF2B3E50), // Scandinavian Steel Blue
     gradMid: Color(0xFF182533), // Deep Navy Slate
-    gradEnd: Color(0xFF0D131A), // Charcoal Screen Blend
+    gradEnd: Color(0xFF0D131A), // Dark Nordic Navy
+    chartColors: standardChartColors,
+  );
+
+  // ===========================================================================
+  // FAIRSHARE AMOLED BLACK: DARK MODE (Pure #000000 Pitch Black for OLED)
+  // ===========================================================================
+  static const AppThemeColors amoledDark = AppThemeColors(
+    screen: Color(0xFF000000),
+    surface: Color(0xFF000000),
+    surfaceElevated: Color(0xFF0B0F14),
+    border: Color(0xFF1E2631),
+    borderSubtle: Color(0xFF12171F),
+    textMain: Color(0xFFFFFFFF),
+    textSecondary: Color(0xFF8B9EB0),
+    textMuted: Color(0xFF556877),
+    accentPill: Color(0x1FFFFFFF),
+    accentPillText: Color(0xFFFFFFFF),
+    cyan: Color(0xFF38BDF8),
+    red: Color(0xFFF87171),
+    emerald: Color(0xFF34D399),
+    amber: Color(0xFFFBBF24),
+    gradStart: Color(0xFF16202B),
+    gradMid: Color(0xFF0B0F14),
+    gradEnd: Color(0xFF000000),
     chartColors: standardChartColors,
   );
 
@@ -64,7 +88,10 @@ class AppPalettes {
   );
 
   /// Resolves the concrete [AppThemeColors] for a given brightness.
-  static AppThemeColors getColors(Brightness brightness) {
-    return brightness == Brightness.dark ? dark : light;
+  static AppThemeColors getColors(Brightness brightness, {bool isAmoled = false}) {
+    if (brightness == Brightness.dark) {
+      return isAmoled ? amoledDark : dark;
+    }
+    return light;
   }
 }

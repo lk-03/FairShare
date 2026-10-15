@@ -3,6 +3,7 @@ import '../../../../config/theme/app_colors.dart';
 import '../../../../core/models/expense_payer.dart';
 import '../../../../core/models/group_member.dart';
 import '../../../../core/utils/currency_formatter.dart';
+import '../../../../core/widgets/user_avatar.dart';
 
 class PayerSelectionResult {
   final String primaryPaidByUserId;
@@ -397,20 +398,11 @@ class _PayerSelectionSheetState extends State<PayerSelectionSheet> {
                       child: Row(
                         children: [
                           // Avatar
-                          CircleAvatar(
+                          UserAvatar(
+                            avatarUrl: member.profile?.avatarUrl,
+                            name: member.displayName,
+                            userId: member.userId,
                             radius: 19,
-                            backgroundColor: AppColors.surfaceCard,
-                            child: Text(
-                              (member.displayName.isNotEmpty
-                                      ? member.displayName[0]
-                                      : 'U')
-                                  .toUpperCase(),
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.primaryTeal,
-                              ),
-                            ),
                           ),
                           const SizedBox(width: 12),
 

@@ -76,14 +76,14 @@ void main() {
     // Options
     expect(find.text('Payment Methods (UPI)'), findsOneWidget);
     expect(find.text('alex@okaxis'), findsOneWidget);
-    expect(find.text('Import Splitwise CSV'), findsOneWidget);
+    expect(find.text('Import CSV'), findsOneWidget);
     expect(find.text('Guide & Interactive Tour'), findsOneWidget);
     expect(find.text('Theme & Appearance'), findsOneWidget);
 
     // Logout & Footer
     expect(find.text('Log Out'), findsOneWidget);
     expect(find.text('FairShare'), findsOneWidget);
-    expect(find.text('Version 1.0.0 (Build Ready)'), findsOneWidget);
+    expect(find.textContaining('Check for updates'), findsOneWidget);
   });
 
   testWidgets('tapping Edit Profile opens EditProfileSheet and saves changes',
@@ -127,7 +127,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(SetUpiSheet), findsOneWidget);
-    expect(find.text('Direct 0-Fee Settlements'), findsOneWidget);
+    expect(find.text('Get Paid Easily'), findsOneWidget);
     expect(find.text('QUICK BANK HANDLES'), findsOneWidget);
     expect(find.text('Paste from Clipboard'), findsOneWidget);
 
@@ -166,8 +166,8 @@ void main() {
     expect(find.text('APPEARANCE MODE'), findsOneWidget);
     expect(find.text('System'), findsOneWidget);
     expect(find.text('Light'), findsOneWidget);
-    expect(find.text('Dark'), findsOneWidget);
-    expect(find.text('Nordic Steel'), findsOneWidget);
+    expect(find.text('Dark Nordic'), findsOneWidget);
+    expect(find.text('Dark AMOLED'), findsOneWidget);
 
     // Tap "Light"
     await tester.tap(find.text('Light'));
@@ -180,45 +180,56 @@ void main() {
     expect(find.byType(ThemeSettingsSheet), findsNothing);
   });
 
-  testWidgets('tapping Import Splitwise CSV opens SplitwiseImportSheet',
+  testWidgets('tapping Import CSV opens CsvImportSheet',
       (tester) async {
     setViewport(tester);
     await tester.pumpWidget(buildTestWidget());
     await tester.pumpAndSettle();
 
-    // Tap "Import Splitwise CSV"
-    await tester.tap(find.text('Import Splitwise CSV'));
+    // Tap "Import CSV"
+    await tester.tap(find.text('Import CSV'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(SplitwiseImportSheet), findsOneWidget);
+    expect(find.byType(CsvImportSheet), findsOneWidget);
+    expect(find.text('Browse & Import CSV File'), findsOneWidget);
+    expect(find.text('Browse CSV File'), findsOneWidget);
     expect(find.text('How to export CSV from Splitwise'), findsOneWidget);
-    expect(find.text('PASTE CSV CONTENT'), findsOneWidget);
-    expect(find.text('Preview Import'), findsOneWidget);
-    expect(find.text('Try Sample'), findsOneWidget);
 
     // Close sheet
     await tester.tap(find.byIcon(Icons.close_rounded));
     await tester.pumpAndSettle();
 
-    expect(find.byType(SplitwiseImportSheet), findsNothing);
+    expect(find.byType(CsvImportSheet), findsNothing);
   });
 
-  testWidgets('SplitwiseImportSheet loads sample CSV and navigates to step 1 preview',
+  testWidgets('CsvImportSheet accepts CSV text and navigates to step 1 preview',
       (tester) async {
     setViewport(tester);
     await tester.pumpWidget(buildTestWidget());
     await tester.pumpAndSettle();
 
-    // Tap "Import Splitwise CSV"
-    await tester.tap(find.text('Import Splitwise CSV'));
+    // Tap "Import CSV"
+    await tester.tap(find.text('Import CSV'));
     await tester.pumpAndSettle();
 
-    // Tap "Try Sample"
-    await tester.tap(find.text('Try Sample'));
+    // Open paste accordion
+    await tester.tap(find.text('Or paste CSV text directly'));
     await tester.pumpAndSettle();
 
-    // Tap "Preview Import"
-    await tester.tap(find.text('Preview Import'));
+    const sample = '''Date,Description,Category,Cost,Currency,LK,Njj,KATTU PUCHI,keith james (removed)
+2026-03-09,Fans,General,2800.00,INR,-700.00,2100.00,-700.00,-700.00
+2026-03-10,Dmart,Household supplies,3800.00,INR,2850.00,-950.00,-950.00,-950.00
+2026-03-11,keith j. paid Njj,Payment,110.00,INR,0.00,-110.00,0.00,110.00
+2026-03-15,"Instamart(maggi,syrup,curd,banana)",Groceries,390.00,INR,-167.50,-167.50,335.00,0.00
+2026-03-18,poori,Dining out,92.00,INR,46.00,-46.00,0.00,0.00
+''';
+
+    // Enter text in TextField
+    await tester.enterText(find.byType(TextField), sample);
+    await tester.pumpAndSettle();
+
+    // Tap "Preview Pasted CSV"
+    await tester.tap(find.text('Preview Pasted CSV'));
     await tester.pumpAndSettle();
 
     // Should now be on step 1 (Preview & Map)

@@ -5,6 +5,7 @@ import '../../../../config/theme/app_colors.dart';
 import '../../../../core/models/expense.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/widgets/category_icon.dart';
+import '../../../../core/widgets/user_avatar.dart';
 import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/expenses_provider.dart';
 import '../../../../data/providers/groups_provider.dart';
@@ -98,11 +99,21 @@ class ExpenseDetailsSheet extends ConsumerWidget {
     final currentUser = ref.watch(currentUserProvider);
     final members = ref.watch(groupMembersProvider(cohortId));
 
+    final hasMultiplePayers = expense.payers.length > 1;
     final payerMember = members.where((m) => m.userId == expense.paidByUserId).firstOrNull;
     final isCurrentUserPayer = expense.paidByUserId == currentUser?.id;
-    final payerDisplayName = isCurrentUserPayer
-        ? 'You'
-        : (payerMember?.displayName ?? expense.paidByName);
+    final String heroPayerText;
+    if (hasMultiplePayers) {
+      final myPayer = expense.payers.where((p) => p.userId == currentUser?.id).firstOrNull;
+      heroPayerText = myPayer != null
+          ? 'Paid by ${expense.payers.length} people (inc. You)'
+          : 'Paid by ${expense.payers.length} people';
+    } else {
+      final singlePayerName = isCurrentUserPayer
+          ? 'You'
+          : (payerMember?.displayName ?? expense.paidByName ?? 'A member');
+      heroPayerText = 'Paid by $singlePayerName';
+    }
 
     final formattedDate = DateFormat('EEEE, MMM d, y • h:mm a').format(expense.createdAt);
 
@@ -212,7 +223,7 @@ class ExpenseDetailsSheet extends ConsumerWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Paid by $payerDisplayName',
+                  heroPayerText,
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -263,6 +274,69 @@ class ExpenseDetailsSheet extends ConsumerWidget {
             const SizedBox(height: 16),
           ],
 
+          // Paid By Section (if multi-payer)
+          if (hasMultiplePayers) ...[
+            Text(
+              'PAID BY (${expense.payers.length} PEOPLE)',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+                color: colors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: colors.accentPill,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: colors.border),
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: expense.payers.length,
+                separatorBuilder: (_, _) => Divider(height: 1, color: colors.border),
+                itemBuilder: (context, index) {
+                  final payer = expense.payers[index];
+                  final isMe = payer.userId == currentUser?.id;
+                  final member = members.where((m) => m.userId == payer.userId).firstOrNull;
+                  final name = isMe ? 'You' : (member?.displayName ?? 'Member');
+
+                  return Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      dense: true,
+                      leading: UserAvatar(
+                        avatarUrl: member?.profile?.avatarUrl,
+                        name: name,
+                        userId: payer.userId,
+                        radius: 14,
+                      ),
+                      title: Text(
+                        name,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: colors.textMain,
+                        ),
+                      ),
+                      trailing: Text(
+                        CurrencyFormatter.formatINR(payer.amount),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: colors.emerald,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
           // Split Breakdown Section
           Text(
             'SPLIT BREAKDOWN (${expense.splitType.name.toUpperCase()})',
@@ -292,24 +366,31 @@ class ExpenseDetailsSheet extends ConsumerWidget {
                 final member = members.where((m) => m.userId == split.userId).firstOrNull;
                 final name = isMe ? 'You' : (member?.displayName ?? 'Member');
 
-                // Determine if this person lent or owes
-                final isPayer = split.userId == expense.paidByUserId;
+                final paidAmt = expense.userPaidAmount(split.userId);
+                final net = paidAmt - split.amount;
+
+                final String subtitleText;
+                if (paidAmt > 0) {
+                  if (net > 0.005) {
+                    subtitleText = 'Paid ${CurrencyFormatter.formatINR(paidAmt)} (gets back ${CurrencyFormatter.formatINR(net)})';
+                  } else if (net < -0.005) {
+                    subtitleText = 'Paid ${CurrencyFormatter.formatINR(paidAmt)} (owes ${CurrencyFormatter.formatINR(net.abs())})';
+                  } else {
+                    subtitleText = 'Paid ${CurrencyFormatter.formatINR(paidAmt)} (fully settled)';
+                  }
+                } else {
+                  subtitleText = 'Owes share';
+                }
 
                 return Material(
                   color: Colors.transparent,
                   child: ListTile(
                     dense: true,
-                    leading: CircleAvatar(
+                    leading: UserAvatar(
+                      avatarUrl: member?.profile?.avatarUrl,
+                      name: name,
+                      userId: split.userId,
                       radius: 14,
-                      backgroundColor: colors.surface,
-                      child: Text(
-                        name.isNotEmpty ? name[0].toUpperCase() : '?',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: colors.cyan,
-                        ),
-                      ),
                     ),
                     title: Text(
                       name,
@@ -320,7 +401,7 @@ class ExpenseDetailsSheet extends ConsumerWidget {
                       ),
                     ),
                     subtitle: Text(
-                      isPayer ? 'Paid and shared' : 'Owes share',
+                      subtitleText,
                       style: TextStyle(
                         fontSize: 11,
                         color: colors.textSecondary,

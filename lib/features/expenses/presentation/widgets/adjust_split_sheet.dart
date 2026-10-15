@@ -3,6 +3,7 @@ import '../../../../config/theme/app_colors.dart';
 import '../../../../core/models/group_member.dart';
 import '../../../../core/models/split.dart';
 import '../../../../core/utils/currency_formatter.dart';
+import '../../../../core/widgets/user_avatar.dart';
 
 class AdjustSplitResult {
   final SplitType splitType;
@@ -427,20 +428,11 @@ class _AdjustSplitSheetState extends State<AdjustSplitSheet> {
                     child: Row(
                       children: [
                         // Avatar
-                        CircleAvatar(
+                        UserAvatar(
+                          avatarUrl: member.profile?.avatarUrl,
+                          name: member.displayName,
+                          userId: member.userId,
                           radius: 18,
-                          backgroundColor: AppColors.surfaceCard,
-                          child: Text(
-                            (member.displayName.isNotEmpty
-                                    ? member.displayName[0]
-                                    : 'U')
-                                .toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primaryTeal,
-                            ),
-                          ),
                         ),
                         const SizedBox(width: 12),
 

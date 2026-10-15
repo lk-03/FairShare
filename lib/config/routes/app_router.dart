@@ -7,6 +7,7 @@ import '../../data/providers/auth_provider.dart';
 import '../../features/activity/presentation/screens/activity_screen.dart';
 import '../../features/auth/presentation/screens/auth_screen.dart';
 import '../../features/groups/presentation/screens/group_detail_screen.dart';
+import '../../features/groups/presentation/screens/group_settings_screen.dart';
 import '../../features/groups/presentation/screens/groups_screen.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/onboarding/presentation/screens/welcome_screen.dart';
@@ -32,10 +33,13 @@ final routerNotifierProvider = Provider<RouterNotifier>((ref) {
   return RouterNotifier(ref);
 });
 
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   final notifier = ref.watch(routerNotifierProvider);
 
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/welcome',
     refreshListenable: notifier,
     redirect: (context, state) {
@@ -103,6 +107,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final id = state.pathParameters['id'] ?? '';
           return GroupDetailScreen(groupId: id);
+        },
+      ),
+      GoRoute(
+        path: '/groups/:id/settings',
+        name: 'group-settings',
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return GroupSettingsScreen(groupId: id);
         },
       ),
       StatefulShellRoute.indexedStack(

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import '../../core/models/expense.dart';
 import '../../core/models/split.dart';
 import '../../core/models/comment.dart';
@@ -21,7 +22,7 @@ class ExpenseRepository {
   /// Fetches all expenses and their associated splits for a specific cohort
   Future<List<Expense>> fetchExpensesForCohort(String cohortId) async {
     if (!supabaseService.isConfigured || !isUuid(cohortId)) {
-      return cacheService.getCachedExpenses(cohortId);
+      return cacheService.getCachedExpenses(cohortId).where((e) => !e.isDeleted).toList();
     }
 
     try {
@@ -71,9 +72,9 @@ class ExpenseRepository {
       }).toList();
 
       await cacheService.saveExpenses(cohortId, expenses);
-      return expenses;
+      return expenses.where((e) => !e.isDeleted).toList();
     } catch (_) {
-      return cacheService.getCachedExpenses(cohortId);
+      return cacheService.getCachedExpenses(cohortId).where((e) => !e.isDeleted).toList();
     }
   }
 
@@ -99,6 +100,15 @@ class ExpenseRepository {
     }
 
     try {
+      String? notesPayload = expense.notes;
+      if (expense.payers.length > 1) {
+        final payersJson = jsonEncode(expense.payers.map((p) => p.toJson()).toList());
+        final tag = '[FS_PAYERS: $payersJson]';
+        notesPayload = (notesPayload == null || notesPayload.isEmpty)
+            ? tag
+            : '$notesPayload\n$tag';
+      }
+
       final insertPayload = <String, dynamic>{
         if (isUuid(expense.id)) 'id': expense.id,
         'cohort_id': expense.cohortId,
@@ -110,8 +120,7 @@ class ExpenseRepository {
         'paid_by_user_id': paidByUserId,
         'split_type': expense.splitType.toDbString(),
         'receipt_url': expense.receiptUrl,
-        'ocr_parsed': expense.ocrParsed,
-        'notes': expense.notes,
+        'notes': notesPayload,
       };
 
       final expRow = await supabaseService.client
@@ -144,6 +153,7 @@ class ExpenseRepository {
       final savedExpense = Expense.fromJson({
         ...expRow,
         'splits': expense.splits.map((s) => s.toJson()).toList(),
+        'payers': expense.payers.map((p) => p.toJson()).toList(),
       });
 
       // Update cache with server-saved record
@@ -175,6 +185,15 @@ class ExpenseRepository {
     }
 
     try {
+      String? notesPayload = expense.notes;
+      if (expense.payers.length > 1) {
+        final payersJson = jsonEncode(expense.payers.map((p) => p.toJson()).toList());
+        final tag = '[FS_PAYERS: $payersJson]';
+        notesPayload = (notesPayload == null || notesPayload.isEmpty)
+            ? tag
+            : '$notesPayload\n$tag';
+      }
+
       final updatePayload = <String, dynamic>{
         'title': expense.title,
         'category': expense.category,
@@ -183,7 +202,7 @@ class ExpenseRepository {
         'paid_by_user_id': expense.paidByUserId,
         'split_type': expense.splitType.toDbString(),
         'receipt_url': expense.receiptUrl,
-        'notes': expense.notes,
+        'notes': notesPayload,
         'updated_at': DateTime.now().toIso8601String(),
       };
 
@@ -221,6 +240,7 @@ class ExpenseRepository {
       final saved = Expense.fromJson({
         ...expRow,
         'splits': expense.splits.map((s) => s.toJson()).toList(),
+        'payers': expense.payers.map((p) => p.toJson()).toList(),
       });
       return saved;
     } catch (_) {
@@ -228,8 +248,77 @@ class ExpenseRepository {
     }
   }
 
-  /// Deletes an expense from Supabase & local cache
+  /// Soft deletes an expense (moves to trash for 24-hour recovery)
   Future<void> deleteExpense(String expenseId, String cohortId) async {
+    final now = DateTime.now();
+    final currentExpenses = cacheService.getCachedExpenses(cohortId);
+    Expense? targetExpense;
+    final updated = currentExpenses.map((e) {
+      if (e.id == expenseId) {
+        targetExpense = e.copyWith(isDeleted: true, deletedAt: now);
+        return targetExpense!;
+      }
+      return e;
+    }).toList();
+    await cacheService.saveExpenses(cohortId, updated);
+
+    if (!supabaseService.isConfigured || !isUuid(expenseId)) return;
+
+    try {
+      String? updatedNotes = targetExpense?.notes;
+      final delTag = '[FS_DELETED: ${jsonEncode({'deleted_at': now.toIso8601String()})}]';
+      updatedNotes = (updatedNotes == null || updatedNotes.isEmpty)
+          ? delTag
+          : '$updatedNotes\n$delTag';
+
+      await supabaseService.client
+          .from('expenses')
+          .update({
+            'notes': updatedNotes,
+            'updated_at': now.toIso8601String(),
+          })
+          .eq('id', expenseId);
+    } catch (_) {}
+  }
+
+  /// Restores a soft-deleted expense back to the active ledger
+  Future<Expense?> restoreExpense(String expenseId, String cohortId) async {
+    final currentExpenses = cacheService.getCachedExpenses(cohortId);
+    Expense? restored;
+    final updated = currentExpenses.map((e) {
+      if (e.id == expenseId) {
+        restored = e.copyWith(isDeleted: false, clearDeletedAt: true);
+        return restored!;
+      }
+      return e;
+    }).toList();
+    await cacheService.saveExpenses(cohortId, updated);
+
+    if (restored == null) return null;
+
+    if (!supabaseService.isConfigured || !isUuid(expenseId)) return restored;
+
+    try {
+      String? cleanNotes = restored?.notes;
+      if (cleanNotes != null && cleanNotes.contains('[FS_DELETED:')) {
+        cleanNotes = cleanNotes.replaceAll(RegExp(r'\[FS_DELETED:\s*.*?\]', dotAll: true), '').trim();
+        if (cleanNotes.isEmpty) cleanNotes = null;
+      }
+
+      await supabaseService.client
+          .from('expenses')
+          .update({
+            'notes': cleanNotes,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', expenseId);
+    } catch (_) {}
+
+    return restored;
+  }
+
+  /// Permanently purges an expense from Supabase and local cache
+  Future<void> purgeExpensePermanently(String expenseId, String cohortId) async {
     final currentExpenses = cacheService.getCachedExpenses(cohortId);
     final updated = currentExpenses.where((e) => e.id != expenseId).toList();
     await cacheService.saveExpenses(cohortId, updated);
@@ -238,10 +327,33 @@ class ExpenseRepository {
 
     try {
       await supabaseService.client
+          .from('expense_splits')
+          .delete()
+          .eq('expense_id', expenseId);
+      await supabaseService.client
           .from('expenses')
           .delete()
           .eq('id', expenseId);
     } catch (_) {}
+  }
+
+  /// Automatically purges expenses that have been in trash for > 24 hours
+  Future<List<String>> purgeExpiredDeletedExpenses(String cohortId) async {
+    final currentExpenses = cacheService.getCachedExpenses(cohortId);
+    final now = DateTime.now();
+    const twentyFourHours = Duration(hours: 24);
+    final expiredIds = <String>[];
+
+    for (final e in currentExpenses) {
+      if (e.isDeleted && e.deletedAt != null) {
+        if (now.difference(e.deletedAt!) >= twentyFourHours) {
+          expiredIds.add(e.id);
+          await purgeExpensePermanently(e.id, cohortId);
+        }
+      }
+    }
+
+    return expiredIds;
   }
 
   // --- Comments ---

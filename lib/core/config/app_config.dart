@@ -48,6 +48,18 @@ class AppConfig {
     return defaultGoogleWebClientId;
   }
 
+  static const String defaultGithubRepo = 'lk-03/FairShare';
+  static const String appVersion = '1.0.0+1';
+
+  static String get githubRepo {
+    const envRepo = String.fromEnvironment('GITHUB_REPO');
+    if (envRepo.isNotEmpty) return envRepo;
+    if (dotenv.isInitialized) {
+      return dotenv.env['GITHUB_REPO'] ?? defaultGithubRepo;
+    }
+    return defaultGithubRepo;
+  }
+
   static String? get geminiApiKey {
     const envKey = String.fromEnvironment('GEMINI_API_KEY');
     if (envKey.isNotEmpty) return envKey;

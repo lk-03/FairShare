@@ -14,7 +14,7 @@ import '../widgets/home_header.dart';
 import '../widgets/home_recent_activity_section.dart';
 import '../widgets/join_group_sheet.dart';
 import '../widgets/select_group_sheet.dart';
-import '../../../profile/presentation/widgets/splitwise_import_sheet.dart';
+import '../../../profile/presentation/widgets/upi_setup_banner.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -93,11 +93,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _openScanReceiptForGroup(Group group) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Receipt scanner for "${group.name}" selected.'),
-        behavior: SnackBarBehavior.floating,
-      ),
+    AddExpenseSheet.show(
+      context,
+      cohortId: group.id,
+      autoOpenScanner: true,
     );
   }
 
@@ -117,10 +116,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _handleCreateGroup() {
     CreateGroupSheet.show(context);
-  }
-
-  void _handleImportSplitwise() {
-    SplitwiseImportSheet.show(context);
   }
 
   void _handleGroupTap(Group cohort) {
@@ -214,11 +209,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // UPI Setup Reminder Banner (if not yet configured)
+                    const UpiSetupBanner(),
+
                     // Groups horizontal section
                     HomeGroupsSection(
                       onCreateGroup: _handleCreateGroup,
                       onJoinGroup: _handleJoinGroup,
-                      onImportSplitwise: _handleImportSplitwise,
                       onGroupTap: _handleGroupTap,
                     ),
                     const SizedBox(height: 28),

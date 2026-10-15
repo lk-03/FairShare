@@ -6,7 +6,6 @@ class Group {
   final String? description;
   final String category; // 'trip', 'house', 'event', 'dining', etc.
   final String? customIcon;
-  final String? bannerUrl;
   final String? avatarUrl;
   final String currency;
   final String createdBy;
@@ -25,7 +24,6 @@ class Group {
     this.description,
     this.category = 'trip',
     this.customIcon,
-    this.bannerUrl,
     this.avatarUrl,
     this.currency = 'INR',
     required this.createdBy,
@@ -65,7 +63,6 @@ class Group {
       description: json['description'] as String?,
       category: json['category'] as String? ?? 'trip',
       customIcon: json['custom_icon'] as String? ?? json['customIcon'] as String?,
-      bannerUrl: json['banner_url'] as String? ?? json['bannerUrl'] as String?,
       avatarUrl: json['avatar_url'] as String? ?? json['avatarUrl'] as String?,
       currency: json['currency'] as String? ?? 'INR',
       createdBy: json['created_by'] as String? ?? json['createdBy'] as String? ?? '',
@@ -103,7 +100,6 @@ class Group {
       if (description != null) 'description': description,
       'category': category,
       if (customIcon != null) 'custom_icon': customIcon,
-      if (bannerUrl != null) 'banner_url': bannerUrl,
       if (avatarUrl != null) 'avatar_url': avatarUrl,
       'currency': currency,
       'created_by': createdBy,
@@ -124,7 +120,6 @@ class Group {
     String? description,
     String? category,
     String? customIcon,
-    String? bannerUrl,
     String? avatarUrl,
     String? currency,
     String? createdBy,
@@ -143,7 +138,6 @@ class Group {
       description: description ?? this.description,
       category: category ?? this.category,
       customIcon: customIcon ?? this.customIcon,
-      bannerUrl: bannerUrl ?? this.bannerUrl,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       currency: currency ?? this.currency,
       createdBy: createdBy ?? this.createdBy,

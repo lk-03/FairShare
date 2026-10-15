@@ -240,7 +240,7 @@ class _SetUpiSheetState extends ConsumerState<SetUpiSheet> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Direct 0-Fee Settlements',
+                            'Get Paid Easily',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
@@ -249,7 +249,7 @@ class _SetUpiSheetState extends ConsumerState<SetUpiSheet> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Your UPI ID allows friends to settle group debts with 1 tap via GPay, PhonePe, or Paytm.',
+                            'Add your UPI ID so friends can pay you directly with Google Pay, PhonePe, or Paytm.',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
@@ -491,7 +491,7 @@ class _SetUpiSheetState extends ConsumerState<SetUpiSheet> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Typo & Error Prevention',
+                            'Double-check your ID',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
@@ -500,7 +500,7 @@ class _SetUpiSheetState extends ConsumerState<SetUpiSheet> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Ensure your UPI ID matches the one in your Google Pay, PhonePe, or BHIM settings. You can paste directly using the button above or tap one of the common bank handles.',
+                            'Make sure this matches the UPI ID shown in your payment app so payments go to the right account.',
                             style: TextStyle(
                               fontSize: 11,
                               color: colors.textSecondary,

@@ -158,7 +158,6 @@ class _FirstTimeSetupScreenState extends ConsumerState<FirstTimeSetupScreen> {
         username: username.isNotEmpty ? username : null,
         avatarUrl: _selectedAvatar,
         vpaId: vpaId.isNotEmpty ? vpaId : null,
-        isGuest: false,
         createdAt: currentUser?.createdAt ?? DateTime.now(),
       );
 

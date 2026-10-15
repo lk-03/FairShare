@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/theme_gradient_header.dart';
+import '../../../../core/widgets/user_avatar.dart';
 import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/expenses_provider.dart';
 
@@ -24,15 +25,9 @@ class HomeHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final user = ref.watch(currentUserProvider);
     final netBalance = ref.watch(overallNetBalanceProvider);
     final netTotal = netBalance.netTotal;
-
-    String initial = 'U';
-    if (user != null && user.fullName.trim().isNotEmpty) {
-      initial = user.fullName.trim().substring(0, 1).toUpperCase();
-    }
 
     String formattedTotal;
     if (netTotal > 0.01) {
@@ -67,7 +62,7 @@ class HomeHeader extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  const AppLogo(size: 32, withShadow: true, withGlow: true),
+                  const AppLogo(size: 32, withShadow: false, withGlow: false),
                   const SizedBox(width: 10),
                   Text(
                     'FairShare',
@@ -83,40 +78,13 @@ class HomeHeader extends ConsumerWidget {
               InkWell(
                 onTap: () => context.go('/profile'),
                 borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isDark ? colors.accentPill : Colors.white,
-                    border: Border.all(color: colors.border, width: 1),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: user?.avatarUrl != null && user!.avatarUrl!.isNotEmpty
-                      ? Image.network(
-                          user.avatarUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Center(
-                            child: Text(
-                              initial,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: colors.textMain,
-                              ),
-                            ),
-                          ),
-                        )
-                      : Center(
-                          child: Text(
-                            initial,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: colors.textMain,
-                            ),
-                          ),
-                        ),
+                child: UserAvatar(
+                  avatarUrl: user?.avatarUrl,
+                  name: user?.displayName,
+                  userId: user?.id,
+                  radius: 20,
+                  borderWidth: 1,
+                  borderColor: colors.border,
                 ),
               ),
             ],

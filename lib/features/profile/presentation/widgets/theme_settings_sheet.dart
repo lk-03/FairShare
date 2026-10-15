@@ -19,26 +19,32 @@ class ThemeSettingsSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
-    final currentMode = ref.watch(themeModeProvider);
+    final currentStyle = ref.watch(themeStyleProvider);
 
-    final modes = [
+    final styles = [
       (
-        mode: ThemeMode.system,
+        style: AppThemeStyle.system,
         label: 'System',
         icon: Icons.brightness_auto_rounded,
         subtitle: 'Match device system settings',
       ),
       (
-        mode: ThemeMode.light,
+        style: AppThemeStyle.light,
         label: 'Light',
         icon: Icons.light_mode_rounded,
         subtitle: 'Clean high-contrast daytime look',
       ),
       (
-        mode: ThemeMode.dark,
-        label: 'Dark',
+        style: AppThemeStyle.darkNordic,
+        label: 'Dark Nordic',
         icon: Icons.dark_mode_rounded,
         subtitle: 'Deep OLED Nordic night aesthetic',
+      ),
+      (
+        style: AppThemeStyle.darkAmoled,
+        label: 'Dark AMOLED',
+        icon: Icons.brightness_2_rounded,
+        subtitle: 'Pitch black #000000 true dark theme',
       ),
     ];
 
@@ -125,14 +131,14 @@ class ThemeSettingsSheet extends ConsumerWidget {
             const SizedBox(height: 10),
 
             Column(
-              children: modes.map((item) {
-                final isSelected = currentMode == item.mode;
+              children: styles.map((item) {
+                final isSelected = currentStyle == item.style;
 
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: InkWell(
                     onTap: () {
-                      ref.read(themeModeProvider.notifier).setMode(item.mode);
+                      ref.read(themeStyleProvider.notifier).setStyle(item.style);
                     },
                     borderRadius: BorderRadius.circular(16),
                     child: Container(
@@ -210,90 +216,6 @@ class ThemeSettingsSheet extends ConsumerWidget {
                   ),
                 );
               }).toList(),
-            ),
-            const SizedBox(height: 12),
-
-            // Color Palette Card
-            Text(
-              'ACTIVE DESIGN SYSTEM',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.8,
-                color: colors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 10),
-
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: colors.screen,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: colors.border, width: 1),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: colors.cyan,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Icon(
-                      Icons.palette_rounded,
-                      color: Color(0xFF0F172A),
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              'Nordic Steel',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: colors.textMain,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: colors.cyan.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                'ACTIVE',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w900,
-                                  color: colors.cyan,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Understated Scandinavian minimalism with high-contrast Nordic blue',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
             ),
           ],
         ),
