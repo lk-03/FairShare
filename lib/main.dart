@@ -5,13 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'config/routes/app_router.dart';
 import 'config/theme/theme_provider.dart';
 import 'core/config/app_config.dart';
-import 'core/services/sharing_intent_service.dart';
 import 'core/services/update_check_service.dart';
 import 'core/widgets/update_available_dialog.dart';
 import 'data/providers/auth_provider.dart';
 import 'data/services/push_notification_service.dart';
 import 'data/services/supabase_service.dart';
-import 'features/profile/presentation/widgets/csv_import_sheet.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,28 +39,9 @@ class _FairShareAppState extends ConsumerState<FairShareApp> {
   @override
   void initState() {
     super.initState();
-    SharingIntentService.instance.initialize();
-    SharingIntentService.instance.pendingCsvNotifier.addListener(_onPendingCsvReceived);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _onPendingCsvReceived();
       _checkForUpdatesSilently();
     });
-  }
-
-  @override
-  void dispose() {
-    SharingIntentService.instance.pendingCsvNotifier.removeListener(_onPendingCsvReceived);
-    super.dispose();
-  }
-
-  void _onPendingCsvReceived() {
-    final csv = SharingIntentService.instance.consumePendingCsv();
-    if (csv != null && csv.trim().isNotEmpty) {
-      final context = rootNavigatorKey.currentContext;
-      if (context != null) {
-        CsvImportSheet.show(context, initialCsvText: csv);
-      }
-    }
   }
 
   Future<void> _checkForUpdatesSilently() async {

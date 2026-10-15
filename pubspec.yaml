@@ -56,7 +56,6 @@ dependencies:
   firebase_messaging: ^16.7.0
   flutter_local_notifications: ^22.3.1
   file_picker: ^13.1.0
-  receive_sharing_intent: ^1.9.0
 
 dev_dependencies:
   flutter_test:
