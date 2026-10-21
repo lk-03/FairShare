@@ -66,7 +66,7 @@ class AuthRepository {
     if (kIsWeb) {
       await supabaseService.client.auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo: kIsWeb ? null : 'fairshare://login-callback',
+        redirectTo: kIsWeb ? Uri.base.origin : 'fairshare://login-callback',
       );
       return null;
     }
