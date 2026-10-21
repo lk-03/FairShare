@@ -37,12 +37,11 @@ class HomeRecentActivitySection extends ConsumerWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'RECENT ACTIVITY',
+              'Recent Activity',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 18,
                 fontWeight: FontWeight.w800,
-                letterSpacing: 0.8,
-                color: colors.textSecondary,
+                color: colors.textMain,
               ),
             ),
             if (recentExpenses.isNotEmpty)
@@ -54,7 +53,7 @@ class HomeRecentActivitySection extends ConsumerWidget {
                   child: Text(
                     'See All',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: colors.cyan,
                     ),

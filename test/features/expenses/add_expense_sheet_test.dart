@@ -326,6 +326,46 @@ void main() {
     expect(added.title, 'Lunch at Chipotle');
     expect(added.receiptUrl, isNull);
   });
+
+  testWidgets('AddExpenseSheet restricts amount input to numbers and max 2 decimal places, rejecting letters like SVVVV', (tester) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cacheService = LocalCacheService(prefs);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          localCacheServiceProvider.overrideWithValue(cacheService),
+          currentUserProvider.overrideWith(() => _MockCurrentUser(testUser)),
+          groupsProvider.overrideWith(() => _MockGroups([testGroup])),
+          groupMembersProvider('cohort_test_1')
+              .overrideWithValue([memberAlex, memberSam]),
+          groupExpensesProvider('cohort_test_1')
+              .overrideWith(() => _MockExpenses('cohort_test_1', [])),
+          groupNeedsProvider('cohort_test_1')
+              .overrideWith(() => _MockNeeds('cohort_test_1', [])),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.buildTheme(brightness: Brightness.dark),
+          home: const Scaffold(
+            body: AddExpenseSheet(cohortId: 'cohort_test_1'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final textFields = find.byType(TextField);
+    // Amount TextField is at(1)
+    await tester.enterText(textFields.at(1), 'SVVVV');
+    await tester.pumpAndSettle();
+    expect(find.text('SVVVV'), findsNothing);
+
+    await tester.enterText(textFields.at(1), '123.456');
+    await tester.pumpAndSettle();
+    expect(find.text('123.45'), findsOneWidget);
+  });
 }
 
 class _MockCurrentUser extends CurrentUserNotifier {

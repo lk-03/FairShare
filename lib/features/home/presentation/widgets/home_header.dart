@@ -50,45 +50,108 @@ class HomeHeader extends ConsumerWidget {
             ? 'Total amount you owe'
             : 'You are all settled up';
 
+    final isDesktop = MediaQuery.of(context).size.width > 800;
+
     return ThemeGradientHeader(
       borderRadius: 40,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Top bar: AppLogo, App Name & Profile Avatar
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const AppLogo(size: 32, withShadow: false, withGlow: false),
-                  const SizedBox(width: 10),
-                  Text(
-                    'FairShare',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      color: colors.textMain,
-                      letterSpacing: -0.5,
+          // Top bar: on desktop, show sleek greeting without duplicate logo/avatar
+          if (isDesktop)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Welcome back, ${user?.displayName ?? 'Friend'}',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: colors.textMain,
+                        letterSpacing: -0.3,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              InkWell(
-                onTap: () => context.go('/profile'),
-                borderRadius: BorderRadius.circular(20),
-                child: UserAvatar(
-                  avatarUrl: user?.avatarUrl,
-                  name: user?.displayName,
-                  userId: user?.id,
-                  radius: 20,
-                  borderWidth: 1,
-                  borderColor: colors.border,
+                    const SizedBox(height: 2),
+                    Text(
+                      'Financial overview across all your shared groups',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: colors.accentPill,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: colors.border, width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: colors.emerald,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Cloud Sync Active',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: colors.textMain,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          else
+            // Mobile Top bar: AppLogo, App Name & Profile Avatar
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const AppLogo(size: 32, withShadow: false, withGlow: false),
+                    const SizedBox(width: 10),
+                    Text(
+                      'FairShare',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: colors.textMain,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                InkWell(
+                  onTap: () => context.go('/profile'),
+                  borderRadius: BorderRadius.circular(20),
+                  child: UserAvatar(
+                    avatarUrl: user?.avatarUrl,
+                    name: user?.displayName,
+                    userId: user?.id,
+                    radius: 20,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  ),
+                ),
+              ],
+            ),
           const SizedBox(height: 18),
 
           // Centered Net Balance Display

@@ -308,6 +308,38 @@ void main() {
     expect(find.byType(AddExpenseSheet), findsOneWidget);
     expect(find.byType(ItemizedReceiptSheet), findsOneWidget);
   });
+
+  testWidgets('HomeScreen renders desktop welcome banner when width > 800 without duplicate brand logo in header', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final prefs = await SharedPreferences.getInstance();
+    final cacheService = LocalCacheService(prefs);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          localCacheServiceProvider.overrideWithValue(cacheService),
+          currentUserProvider.overrideWith(() => _MockCurrentUserNotifier(testUser)),
+          groupsProvider.overrideWith(() => _MockEmptyGroupsNotifier()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.buildTheme(brightness: Brightness.dark),
+          home: const HomeScreen(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Welcome back, Lokesh Kumar'), findsOneWidget);
+    expect(find.text('Cloud Sync Active'), findsOneWidget);
+  });
 }
 
 class _MockCurrentUserNotifier extends CurrentUserNotifier {
@@ -316,6 +348,11 @@ class _MockCurrentUserNotifier extends CurrentUserNotifier {
 
   @override
   UserProfile? build() => _user;
+
+  @override
+  Future<void> refresh() async {
+    state = _user;
+  }
 }
 
 class _MockEmptyGroupsNotifier extends GroupsNotifier {

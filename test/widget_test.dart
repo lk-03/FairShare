@@ -50,7 +50,7 @@ void main() {
     expect(find.text('FairShare'), findsOneWidget);
     expect(find.text('PERSONAL • NET BALANCE'), findsOneWidget);
     expect(find.text('Groups'), findsNWidgets(2));
-    expect(find.text('RECENT ACTIVITY'), findsOneWidget);
+    expect(find.text('Recent Activity'), findsOneWidget);
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('Profile'), findsOneWidget);
   });

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../core/models/expense.dart';
@@ -736,6 +737,9 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
                                   child: TextField(
                                     controller: _amountController,
                                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                                    ],
                                     textAlign: TextAlign.center,
                                     style: const TextStyle(
                                       fontSize: 42,

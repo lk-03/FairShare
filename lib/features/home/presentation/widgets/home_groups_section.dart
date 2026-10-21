@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../core/algorithms/debt_simplifier.dart';
 import '../../../../core/models/group.dart';
+import '../../../../core/models/profile.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/group_avatar.dart';
 import '../../../../data/providers/auth_provider.dart';
@@ -35,6 +36,8 @@ class HomeGroupsSection extends ConsumerWidget {
     final activeCohorts = allGroups.where((c) => !c.isDeleted).toList();
     final isLoading = groupsAsync.isLoading && allGroups.isEmpty;
 
+    final isDesktop = MediaQuery.of(context).size.width > 800;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -45,32 +48,27 @@ class HomeGroupsSection extends ConsumerWidget {
             Text(
               'Groups',
               style: TextStyle(
-                fontSize: 20,
+                fontSize: 18,
                 fontWeight: FontWeight.w800,
                 color: colors.textMain,
               ),
             ),
-            Row(
-              children: [
-                if (activeCohorts.isNotEmpty) ...[
-                  InkWell(
-                    onTap: () => context.go('/groups'),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      child: Text(
-                        'View All (${activeCohorts.length})',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: colors.cyan,
-                        ),
-                      ),
+            if (activeCohorts.isNotEmpty)
+              InkWell(
+                onTap: () => context.go('/groups'),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Text(
+                    'View All (${activeCohorts.length})',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: colors.cyan,
                     ),
                   ),
-                ],
-              ],
-            ),
+                ),
+              ),
           ],
         ),
         const SizedBox(height: 14),
@@ -118,6 +116,28 @@ class HomeGroupsSection extends ConsumerWidget {
             onSecondaryAction: onJoinGroup,
             variant: EmptyStateVariant.card,
           )
+        else if (isDesktop)
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: activeCohorts.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 14,
+              mainAxisSpacing: 14,
+              mainAxisExtent: 136,
+            ),
+            itemBuilder: (context, index) {
+              return _buildGroupCard(
+                context: context,
+                ref: ref,
+                cohort: activeCohorts[index],
+                colors: colors,
+                isDark: isDark,
+                currentUser: currentUser,
+              );
+            },
+          )
         else
           SizedBox(
             height: 140,
@@ -127,145 +147,163 @@ class HomeGroupsSection extends ConsumerWidget {
               itemCount: activeCohorts.length,
               separatorBuilder: (_, _) => const SizedBox(width: 14),
               itemBuilder: (context, index) {
-                final cohort = activeCohorts[index];
-                final expenses =
-                    ref.watch(groupExpensesProvider(cohort.id)).value ?? [];
-                final members = ref.watch(groupMembersProvider(cohort.id));
-
-                final res = DebtSimplifier.calculateSimplifiedDebts(
-                  cohortId: cohort.id,
-                  members: members,
-                  expenses: expenses,
-                );
-                final userBal =
-                    currentUser != null ? (res.netBalances[currentUser.id] ?? 0.0) : 0.0;
-
-                final isPositive = userBal > 0.01;
-                final isNegative = userBal < -0.01;
-
-                Color badgeBg = isDark ? colors.accentPill : const Color(0xFFF1F5F9);
-                Color badgeTextColor = colors.textSecondary;
-                String badgeText = '₹0';
-
-                if (isPositive) {
-                  badgeBg = colors.emerald.withValues(alpha: 0.15);
-                  badgeTextColor = colors.emerald;
-                  badgeText = '+₹${userBal.toStringAsFixed(0)}';
-                } else if (isNegative) {
-                  badgeBg = colors.red.withValues(alpha: 0.15);
-                  badgeTextColor = colors.red;
-                  badgeText = '-₹${userBal.abs().toStringAsFixed(0)}';
-                }
-
-                return InkWell(
-                  onTap: () => onGroupTap(cohort),
-                  onLongPress: onGroupLongPress != null
-                      ? () => onGroupLongPress!(cohort)
-                      : null,
-                  borderRadius: BorderRadius.circular(24),
-                  child: Container(
-                    width: 176,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: colors.surface,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: colors.border, width: 1),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // Top row: Avatar + Balance pill
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            GroupAvatar(
-                              avatarUrl: cohort.avatarUrl,
-                              category: cohort.category,
-                              customIcon: cohort.customIcon,
-                              size: 40,
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: badgeBg,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                badgeText,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  color: badgeTextColor,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        // Bottom info: Name, members, archive tag
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              cohort.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: colors.textMain,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${members.length} members',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: colors.textSecondary,
-                              ),
-                            ),
-                            if (cohort.isArchived) ...[
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: colors.accentPill,
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                    color: colors.border,
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Text(
-                                  'Archived (Muted)',
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700,
-                                    color: colors.cyan,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ],
-                    ),
+                return SizedBox(
+                  width: 176,
+                  child: _buildGroupCard(
+                    context: context,
+                    ref: ref,
+                    cohort: activeCohorts[index],
+                    colors: colors,
+                    isDark: isDark,
+                    currentUser: currentUser,
                   ),
                 );
               },
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildGroupCard({
+    required BuildContext context,
+    required WidgetRef ref,
+    required Group cohort,
+    required dynamic colors,
+    required bool isDark,
+    required UserProfile? currentUser,
+  }) {
+    final expenses = ref.watch(groupExpensesProvider(cohort.id)).value ?? [];
+    final members = ref.watch(groupMembersProvider(cohort.id));
+
+    final res = DebtSimplifier.calculateSimplifiedDebts(
+      cohortId: cohort.id,
+      members: members,
+      expenses: expenses,
+    );
+    final userBal =
+        currentUser != null ? (res.netBalances[currentUser.id] ?? 0.0) : 0.0;
+
+    final isPositive = userBal > 0.01;
+    final isNegative = userBal < -0.01;
+
+    Color badgeBg = isDark ? colors.accentPill : const Color(0xFFF1F5F9);
+    Color badgeTextColor = colors.textSecondary;
+    String badgeText = '₹0';
+
+    if (isPositive) {
+      badgeBg = colors.emerald.withValues(alpha: 0.15);
+      badgeTextColor = colors.emerald;
+      badgeText = '+₹${userBal.toStringAsFixed(0)}';
+    } else if (isNegative) {
+      badgeBg = colors.red.withValues(alpha: 0.15);
+      badgeTextColor = colors.red;
+      badgeText = '-₹${userBal.abs().toStringAsFixed(0)}';
+    }
+
+    return InkWell(
+      onTap: () => onGroupTap(cohort),
+      onLongPress: onGroupLongPress != null
+          ? () => onGroupLongPress!(cohort)
+          : null,
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: colors.border, width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Top row: Avatar + Balance pill
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                GroupAvatar(
+                  avatarUrl: cohort.avatarUrl,
+                  category: cohort.category,
+                  customIcon: cohort.customIcon,
+                  size: 40,
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: badgeBg,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    badgeText,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: badgeTextColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            // Bottom info: Name, members, archive tag
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  cohort.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: colors.textMain,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${members.length} members',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: colors.textSecondary,
+                  ),
+                ),
+                if (cohort.isArchived) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.accentPill,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: colors.border,
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      'Archived (Muted)',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: colors.cyan,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

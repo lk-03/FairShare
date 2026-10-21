@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../core/models/expense.dart';
 import '../../../../core/models/group.dart';
+import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/expenses_provider.dart';
 import '../../../../data/providers/groups_provider.dart';
 import '../../../expenses/presentation/widgets/add_expense_sheet.dart';
@@ -36,6 +37,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _loadInitialData() async {
     try {
+      ref.read(currentUserProvider.notifier).refresh().ignore();
       await ref.read(groupsProvider.notifier).loadUserGroups();
       final groups = ref.read(groupsProvider).value ?? [];
       for (final cohort in groups) {

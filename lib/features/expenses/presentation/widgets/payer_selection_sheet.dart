@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../core/models/expense_payer.dart';
 import '../../../../core/models/group_member.dart';
@@ -455,6 +456,9 @@ class _PayerSelectionSheetState extends State<PayerSelectionSheet> {
                             child: TextField(
                               controller: controller,
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                              ],
                               textAlign: TextAlign.right,
                               style: const TextStyle(
                                 fontSize: 15,

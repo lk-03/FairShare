@@ -50,12 +50,70 @@ final authStateProvider = StreamProvider<AuthState>((ref) {
 
 /// Manages active authenticated / guest user state
 class CurrentUserNotifier extends Notifier<UserProfile?> {
+  RealtimeChannel? _profileChannel;
+
+  void _subscribeToProfileChanges(String userId) {
+    if (_profileChannel != null) {
+      _unsubscribeProfileChanges();
+    }
+
+    final supabase = ref.read(supabaseServiceProvider);
+    if (!supabase.isConfigured) return;
+
+    try {
+      _profileChannel = supabase.client
+          .channel('public:profiles:$userId')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'profiles',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'id',
+              value: userId,
+            ),
+            callback: (payload) {
+              final newRecord = payload.newRecord;
+              if (newRecord.isNotEmpty) {
+                try {
+                  final updatedProfile = UserProfile.fromJson(newRecord);
+                  state = updatedProfile;
+                  ref.read(localCacheServiceProvider).saveCurrentUser(updatedProfile);
+                } catch (_) {}
+              }
+            },
+          )
+          .subscribe();
+    } catch (_) {}
+  }
+
+  void _unsubscribeProfileChanges() {
+    if (_profileChannel != null) {
+      try {
+        ref.read(supabaseServiceProvider).client.removeChannel(_profileChannel!);
+      } catch (_) {}
+      _profileChannel = null;
+    }
+  }
+
   @override
   UserProfile? build() {
+    ref.onDispose(() {
+      _unsubscribeProfileChanges();
+    });
+
     final cache = ref.watch(localCacheServiceProvider);
     final user = cache.getCurrentUser();
     if (user != null) {
+      _subscribeToProfileChanges(user.id);
       PushNotificationService.syncDeviceToken(user.id);
+      // Background refresh so if profile was updated on another client (e.g. web),
+      // mobile gets the fresh data from Supabase immediately on boot!
+      Future.microtask(() async {
+        try {
+          await refresh();
+        } catch (_) {}
+      });
       return user;
     }
 
@@ -67,6 +125,7 @@ class CurrentUserNotifier extends Notifier<UserProfile?> {
           final synced = await authRepo.syncProfileFromAuthUser(currentAuth);
           await ref.read(onboardingProvider.notifier).completeOnboarding();
           state = synced;
+          _subscribeToProfileChanges(synced.id);
           PushNotificationService.syncDeviceToken(synced.id);
         } catch (_) {}
       });
@@ -80,10 +139,12 @@ class CurrentUserNotifier extends Notifier<UserProfile?> {
             final synced = await authRepo.syncProfileFromAuthUser(authUser);
             await ref.read(onboardingProvider.notifier).completeOnboarding();
             state = synced;
+            _subscribeToProfileChanges(synced.id);
             PushNotificationService.syncDeviceToken(synced.id);
           } catch (_) {}
         });
       } else if (next.value?.event == AuthChangeEvent.signedOut) {
+        _unsubscribeProfileChanges();
         state = null;
       }
     });
@@ -95,6 +156,7 @@ class CurrentUserNotifier extends Notifier<UserProfile?> {
     final profileRepo = ref.read(profileRepositoryProvider);
     final user = await profileRepo.getCurrentProfile();
     state = user;
+    _subscribeToProfileChanges(user.id);
     PushNotificationService.syncDeviceToken(user.id);
   }
 
@@ -102,6 +164,7 @@ class CurrentUserNotifier extends Notifier<UserProfile?> {
     final cache = ref.read(localCacheServiceProvider);
     await cache.saveCurrentUser(user);
     state = user;
+    _subscribeToProfileChanges(user.id);
     PushNotificationService.syncDeviceToken(user.id);
   }
 
@@ -111,6 +174,7 @@ class CurrentUserNotifier extends Notifier<UserProfile?> {
     final profileRepo = ref.read(profileRepositoryProvider);
     await profileRepo.upsertProfile(profile);
     state = profile;
+    _subscribeToProfileChanges(profile.id);
     PushNotificationService.syncDeviceToken(profile.id);
   }
 
@@ -134,6 +198,7 @@ class CurrentUserNotifier extends Notifier<UserProfile?> {
       phoneNumber: phoneNumber,
     );
     state = updated;
+    _subscribeToProfileChanges(updated.id);
     PushNotificationService.syncDeviceToken(updated.id);
   }
 
@@ -253,6 +318,7 @@ class CurrentUserNotifier extends Notifier<UserProfile?> {
   }
 
   Future<void> signOut() async {
+    _unsubscribeProfileChanges();
     final currentId = state?.id;
     if (currentId != null) {
       await PushNotificationService.clearDeviceToken(currentId);

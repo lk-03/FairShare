@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../core/models/group_member.dart';
 import '../../../../core/models/split.dart';
@@ -666,6 +667,9 @@ class _AdjustSplitSheetState extends State<AdjustSplitSheet> {
           child: TextField(
             controller: _exactControllers[member.userId],
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+            ],
             textAlign: TextAlign.right,
             style: const TextStyle(
               fontSize: 14,
@@ -694,6 +698,9 @@ class _AdjustSplitSheetState extends State<AdjustSplitSheet> {
           child: TextField(
             controller: _percentControllers[member.userId],
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+            ],
             textAlign: TextAlign.right,
             style: const TextStyle(
               fontSize: 14,
@@ -766,6 +773,9 @@ class _AdjustSplitSheetState extends State<AdjustSplitSheet> {
           child: TextField(
             controller: _adjustmentControllers[member.userId],
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+            ],
             textAlign: TextAlign.right,
             style: const TextStyle(
               fontSize: 14,
