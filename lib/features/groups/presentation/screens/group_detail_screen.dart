@@ -164,6 +164,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
 
     final needs = ref.watch(groupNeedsProvider(widget.groupId)).value ?? [];
     final pendingNeeds = needs.where((n) => !n.isCompleted).length;
+    final isDesktop = MediaQuery.of(context).size.width > 800;
 
     return Scaffold(
       backgroundColor: colors.screen,
@@ -171,7 +172,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
         child: Column(
           children: [
             // Top App Bar
-            _buildTopBar(group, colors),
+            _buildTopBar(group, colors, isDesktop),
 
             // Segmented Sub-Tab Switcher
             _buildSubTabSelector(colors, pendingNeeds),
@@ -194,26 +195,49 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                     child: SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // Group Net Balance Hero Card
-                          _buildBalanceHero(group, userBalance, totalSpent, colors),
-                          const SizedBox(height: 20),
+                      child: isDesktop
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SizedBox(
+                                  width: 380,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      _buildBalanceHero(group, userBalance, totalSpent, colors),
+                                      const SizedBox(height: 20),
+                                      _buildMemberRail(members, group, currentUser?.id, colors),
+                                      const SizedBox(height: 20),
+                                      _buildDebtsSection(debts, currentUser?.id, colors),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 24),
+                                Expanded(
+                                  child: _buildExpensesSection(expenses, members, currentUser?.id, colors),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // Group Net Balance Hero Card
+                                _buildBalanceHero(group, userBalance, totalSpent, colors),
+                                const SizedBox(height: 20),
 
-                          // Horizontal Member Rail
-                          _buildMemberRail(members, group, currentUser?.id, colors),
-                          const SizedBox(height: 24),
+                                // Horizontal Member Rail
+                                _buildMemberRail(members, group, currentUser?.id, colors),
+                                const SizedBox(height: 24),
 
-                          // Debts to Settle Section
-                          _buildDebtsSection(debts, currentUser?.id, colors),
-                          const SizedBox(height: 24),
+                                // Debts to Settle Section
+                                _buildDebtsSection(debts, currentUser?.id, colors),
+                                const SizedBox(height: 24),
 
-                          // Chronological Expenses Section
-                          _buildExpensesSection(expenses, members, currentUser?.id, colors),
-                          const SizedBox(height: 80), // Padding for floating button
-                        ],
-                      ),
+                                // Chronological Expenses Section
+                                _buildExpensesSection(expenses, members, currentUser?.id, colors),
+                                const SizedBox(height: 80), // Padding for floating button
+                              ],
+                            ),
                     ),
                   ),
 
@@ -222,11 +246,16 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                     onRefresh: _refresh,
                     color: colors.cyan,
                     backgroundColor: colors.surface,
-                    child: MonthlySpendingsTab(
-                      cohort: group,
-                      expenses: expenses,
-                      members: members,
-                      currentUserId: currentUser?.id ?? '',
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 960),
+                        child: MonthlySpendingsTab(
+                          cohort: group,
+                          expenses: expenses,
+                          members: members,
+                          currentUserId: currentUser?.id ?? '',
+                        ),
+                      ),
                     ),
                   ),
 
@@ -235,15 +264,20 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                     onRefresh: _refresh,
                     color: colors.cyan,
                     backgroundColor: colors.surface,
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          NeedsListView(cohortId: widget.groupId),
-                          const SizedBox(height: 40),
-                        ],
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 960),
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              NeedsListView(cohortId: widget.groupId),
+                              const SizedBox(height: 40),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -253,7 +287,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           ],
         ),
       ),
-      floatingActionButton: _selectedTab == 0
+      floatingActionButton: (!isDesktop && _selectedTab == 0)
           ? FloatingActionButton.extended(
               onPressed: _handleAddExpense,
               backgroundColor: colors.cyan,
@@ -382,7 +416,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     );
   }
 
-  Widget _buildTopBar(Group group, AppThemeColors colors) {
+  Widget _buildTopBar(Group group, AppThemeColors colors, bool isDesktop) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -451,6 +485,26 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               ],
             ),
           ),
+          if (isDesktop) ...[
+            ElevatedButton.icon(
+              onPressed: _handleAddExpense,
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text(
+                'Add Expense',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colors.cyan,
+                foregroundColor: const Color(0xFF0F172A),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
           IconButton(
             onPressed: () => _handleShowQR(group),
             icon: Icon(Icons.qr_code_rounded, color: colors.cyan),

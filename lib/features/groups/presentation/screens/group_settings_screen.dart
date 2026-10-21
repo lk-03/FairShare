@@ -541,67 +541,72 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Section 1: Group Profile & Avatar
-            _buildSectionHeader(
-              title: 'Group Profile',
-              subtitle: 'Customize avatar, name, and category',
-              colors: colors,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 840),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Section 1: Group Profile & Avatar
+                _buildSectionHeader(
+                  title: 'Group Profile',
+                  subtitle: 'Customize avatar, name, and category',
+                  colors: colors,
+                ),
+                const SizedBox(height: 12),
+                _buildGroupProfileCard(group, colors),
+
+                const SizedBox(height: 28),
+
+                // Section 2: Members & Live Balances
+                _buildSectionHeader(
+                  title: 'Members Roster',
+                  subtitle: 'Live group balances and governance',
+                  badgeText: '${members.length}',
+                  colors: colors,
+                ),
+                const SizedBox(height: 12),
+                _buildMembersRosterCard(group, members, memberBalances, isCurrentAdmin, currentUser?.id, colors),
+
+                const SizedBox(height: 28),
+
+                // Section 3: Data & History Import
+                _buildSectionHeader(
+                  title: 'Import History',
+                  subtitle: 'Add past Splitwise or ledger transactions into this group',
+                  colors: colors,
+                ),
+                const SizedBox(height: 12),
+                _buildImportCsvCard(group, colors),
+
+                const SizedBox(height: 28),
+
+                // Section 4: Trash & Recently Deleted Logs (24h Recovery)
+                _buildSectionHeader(
+                  title: 'Expense Trash',
+                  subtitle: 'Restore deleted expenses within 24 hours',
+                  badgeText: trashExpenses.isNotEmpty ? '${trashExpenses.length}' : null,
+                  colors: colors,
+                ),
+                const SizedBox(height: 12),
+                _buildTrashCard(trashExpenses, colors),
+
+                const SizedBox(height: 28),
+
+                // Section 4: Danger Zone
+                _buildSectionHeader(
+                  title: 'Danger Zone',
+                  subtitle: 'Leave or schedule group for deletion',
+                  isDestructive: true,
+                  colors: colors,
+                ),
+                const SizedBox(height: 12),
+                _buildDangerZoneCard(group, isCurrentAdmin, colors),
+              ],
             ),
-            const SizedBox(height: 12),
-            _buildGroupProfileCard(group, colors),
-
-            const SizedBox(height: 28),
-
-            // Section 2: Members & Live Balances
-            _buildSectionHeader(
-              title: 'Members Roster',
-              subtitle: 'Live group balances and governance',
-              badgeText: '${members.length}',
-              colors: colors,
-            ),
-            const SizedBox(height: 12),
-            _buildMembersRosterCard(group, members, memberBalances, isCurrentAdmin, currentUser?.id, colors),
-
-            const SizedBox(height: 28),
-
-            // Section 3: Data & History Import
-            _buildSectionHeader(
-              title: 'Import History',
-              subtitle: 'Add past Splitwise or ledger transactions into this group',
-              colors: colors,
-            ),
-            const SizedBox(height: 12),
-            _buildImportCsvCard(group, colors),
-
-            const SizedBox(height: 28),
-
-            // Section 4: Trash & Recently Deleted Logs (24h Recovery)
-            _buildSectionHeader(
-              title: 'Expense Trash',
-              subtitle: 'Restore deleted expenses within 24 hours',
-              badgeText: trashExpenses.isNotEmpty ? '${trashExpenses.length}' : null,
-              colors: colors,
-            ),
-            const SizedBox(height: 12),
-            _buildTrashCard(trashExpenses, colors),
-
-            const SizedBox(height: 28),
-
-            // Section 4: Danger Zone
-            _buildSectionHeader(
-              title: 'Danger Zone',
-              subtitle: 'Leave or schedule group for deletion',
-              isDestructive: true,
-              colors: colors,
-            ),
-            const SizedBox(height: 12),
-            _buildDangerZoneCard(group, isCurrentAdmin, colors),
-          ],
+          ),
         ),
       ),
     );

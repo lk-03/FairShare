@@ -142,6 +142,7 @@ class AppTheme {
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         clipBehavior: Clip.antiAliasWithSaveLayer,
+        constraints: const BoxConstraints(maxWidth: 640),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: colors.surface,

@@ -104,34 +104,84 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Groups',
-                              style: TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.w900,
-                                color: colors.textMain,
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: colors.accentPill,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: colors.border),
-                              ),
-                              child: Text(
-                                '${activeCohorts.length} Active',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: colors.cyan,
+                            Row(
+                              children: [
+                                Text(
+                                  'Groups',
+                                  style: TextStyle(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w900,
+                                    color: colors.textMain,
+                                    letterSpacing: -0.5,
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(width: 10),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: colors.accentPill,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: colors.border),
+                                  ),
+                                  child: Text(
+                                    '${activeCohorts.length} Active',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: colors.cyan,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
+                            if (isDesktop)
+                              Row(
+                                children: [
+                                  OutlinedButton.icon(
+                                    onPressed: () => JoinGroupSheet.show(
+                                      context,
+                                      onScanQr: () => context.push('/scan'),
+                                    ),
+                                    icon: Icon(Icons.login_rounded, size: 16, color: colors.cyan),
+                                    label: Text(
+                                      'Join Group',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: colors.cyan,
+                                      ),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      side: BorderSide(color: colors.border),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  ElevatedButton.icon(
+                                    onPressed: () => CreateGroupSheet.show(context),
+                                    icon: const Icon(Icons.add_rounded, size: 18),
+                                    label: const Text(
+                                      'New Group',
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: colors.cyan,
+                                      foregroundColor: const Color(0xFF0F172A),
+                                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                           ],
                         ),
                         const SizedBox(height: 4),
@@ -146,116 +196,25 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                         ),
                         const SizedBox(height: 16),
 
-                        // Search Bar
-                        Container(
-                          decoration: BoxDecoration(
-                            color: colors.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: colors.border),
-                          ),
-                          child: TextField(
-                            controller: _searchController,
-                            onChanged: (val) => setState(() => _searchQuery = val),
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: colors.textMain,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Search groups by name...',
-                              hintStyle: TextStyle(
-                                fontSize: 13,
-                                color: colors.textSecondary.withValues(alpha: 0.7),
+                        // Search and Filter Bar: Side-by-side on desktop, stacked on mobile
+                        if (isDesktop) ...[
+                          Row(
+                            children: [
+                              SizedBox(
+                                width: 340,
+                                child: _buildSearchBar(colors),
                               ),
-                              prefixIcon: Icon(
-                                Icons.search_rounded,
-                                size: 20,
-                                color: colors.textSecondary,
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: _buildCategoryChips(colors),
                               ),
-                              suffixIcon: _searchQuery.isNotEmpty
-                                  ? IconButton(
-                                      icon: Icon(
-                                        Icons.clear_rounded,
-                                        size: 18,
-                                        color: colors.textSecondary,
-                                      ),
-                                      onPressed: () {
-                                        _searchController.clear();
-                                        setState(() => _searchQuery = '');
-                                      },
-                                    )
-                                  : null,
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 14,
-                              ),
-                            ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Category Chips
-                        SizedBox(
-                          height: 34,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: _categoryFilters.length,
-                            separatorBuilder: (_, _) => const SizedBox(width: 8),
-                            itemBuilder: (context, idx) {
-                              final cat = _categoryFilters[idx];
-                              final isSelected = _selectedCategory == cat.id;
-
-                              return InkWell(
-                                onTap: () => setState(() => _selectedCategory = cat.id),
-                                borderRadius: BorderRadius.circular(10),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? colors.cyan.withValues(alpha: 0.18)
-                                        : colors.surface,
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: isSelected ? colors.cyan : colors.border,
-                                      width: isSelected ? 1.5 : 1,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        cat.icon,
-                                        size: 14,
-                                        color: isSelected
-                                            ? colors.cyan
-                                            : colors.textSecondary,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        cat.label,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: isSelected
-                                              ? FontWeight.w800
-                                              : FontWeight.w600,
-                                          color: isSelected
-                                              ? colors.cyan
-                                              : colors.textSecondary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
+                        ] else ...[
+                          _buildSearchBar(colors),
+                          const SizedBox(height: 12),
+                          _buildCategoryChips(colors),
+                        ],
                       ],
                     ),
                   ),
@@ -334,8 +293,8 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
             ),
           ),
 
-          // Speed-Dial Backdrop Overlay
-          if (_fabOpen)
+          // Speed-Dial Backdrop Overlay & Options (Mobile only)
+          if (!isDesktop && _fabOpen) ...[
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
@@ -345,9 +304,6 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                 ),
               ),
             ),
-
-          // Speed-Dial Action Options
-          if (_fabOpen)
             Positioned(
               right: 20,
               bottom: 90,
@@ -387,31 +343,145 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                 ],
               ),
             ),
+          ],
 
-          // Main Bottom-Right FAB Button
-          Positioned(
-            right: 20,
-            bottom: 24,
-            child: FloatingActionButton(
-              heroTag: 'groups_fab',
-              backgroundColor: _fabOpen ? colors.surface : colors.cyan,
-              foregroundColor: _fabOpen ? colors.textSecondary : Colors.white,
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-                side: BorderSide(
-                  color: _fabOpen ? colors.border : colors.cyan,
-                  width: 1.5,
+          // Main Bottom-Right FAB Button (Mobile only)
+          if (!isDesktop)
+            Positioned(
+              right: 20,
+              bottom: 24,
+              child: FloatingActionButton(
+                heroTag: 'groups_fab',
+                backgroundColor: _fabOpen ? colors.surface : colors.cyan,
+                foregroundColor: _fabOpen ? colors.textSecondary : Colors.white,
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  side: BorderSide(
+                    color: _fabOpen ? colors.border : colors.cyan,
+                    width: 1.5,
+                  ),
+                ),
+                onPressed: () => setState(() => _fabOpen = !_fabOpen),
+                child: Icon(
+                  _fabOpen ? Icons.close_rounded : Icons.add_rounded,
+                  size: 28,
                 ),
               ),
-              onPressed: () => setState(() => _fabOpen = !_fabOpen),
-              child: Icon(
-                _fabOpen ? Icons.close_rounded : Icons.add_rounded,
-                size: 28,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar(dynamic colors) {
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+      ),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (val) => setState(() => _searchQuery = val),
+        style: TextStyle(
+          fontSize: 14,
+          color: colors.textMain,
+          fontWeight: FontWeight.w500,
+        ),
+        decoration: InputDecoration(
+          hintText: 'Search groups by name...',
+          hintStyle: TextStyle(
+            fontSize: 13,
+            color: colors.textSecondary.withValues(alpha: 0.7),
+          ),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            size: 20,
+            color: colors.textSecondary,
+          ),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: Icon(
+                    Icons.clear_rounded,
+                    size: 18,
+                    color: colors.textSecondary,
+                  ),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() => _searchQuery = '');
+                  },
+                )
+              : null,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryChips(dynamic colors) {
+    return SizedBox(
+      height: 34,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _categoryFilters.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, idx) {
+          final cat = _categoryFilters[idx];
+          final isSelected = _selectedCategory == cat.id;
+
+          return InkWell(
+            onTap: () => setState(() => _selectedCategory = cat.id),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 6,
+              ),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? colors.cyan.withValues(alpha: 0.18)
+                    : colors.surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isSelected ? colors.cyan : colors.border,
+                  width: isSelected ? 1.5 : 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    cat.icon,
+                    size: 14,
+                    color: isSelected
+                        ? colors.cyan
+                        : colors.textSecondary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    cat.label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: isSelected
+                          ? FontWeight.w800
+                          : FontWeight.w600,
+                      color: isSelected
+                          ? colors.cyan
+                          : colors.textSecondary,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

@@ -252,6 +252,8 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
       return true;
     }).toList();
 
+    final isDesktop = MediaQuery.of(context).size.width > 800;
+
     return Scaffold(
       backgroundColor: colors.screen,
       body: RefreshIndicator(
@@ -261,136 +263,124 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            // Revolut Gradient Header
-            SliverToBoxAdapter(
-              child: ThemeGradientHeader(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Activity',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        color: colors.textMain,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Global Ledger Audit & Expense Timeline',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Sticky Search & Filter Section
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Search Bar
-                    Container(
-                      decoration: BoxDecoration(
-                        color: colors.surface,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: colors.border),
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        style: TextStyle(color: colors.textMain, fontSize: 14),
-                        decoration: InputDecoration(
-                          hintText: 'Search activity, groups, or comments...',
-                          hintStyle: TextStyle(
-                            color: colors.textSecondary,
-                            fontSize: 13,
-                          ),
-                          prefixIcon: Icon(
-                            Icons.search_rounded,
-                            color: colors.textSecondary,
-                            size: 20,
-                          ),
-                          suffixIcon: _searchQuery.isNotEmpty
-                              ? IconButton(
-                                  icon: Icon(
-                                    Icons.clear_rounded,
-                                    color: colors.textSecondary,
-                                    size: 18,
-                                  ),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                  },
-                                )
-                              : null,
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Filter Pills
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
+            if (isDesktop) ...[
+              // Desktop Toolbar Header
+              SliverToBoxAdapter(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 880),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
                       child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _buildFilterPill(
-                            title: 'All (${allItems.length})',
-                            isSelected: _selectedFilter == ActivityFilter.all,
-                            onTap: () => setState(
-                                () => _selectedFilter = ActivityFilter.all),
-                            colors: colors,
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Activity',
+                                style: TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w900,
+                                  color: colors.textMain,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Global Ledger Audit & Expense Timeline',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.textSecondary,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          _buildFilterPill(
-                            title: 'Expenses ($expensesCount)',
-                            isSelected:
-                                _selectedFilter == ActivityFilter.expenses,
-                            onTap: () => setState(() =>
-                                _selectedFilter = ActivityFilter.expenses),
-                            colors: colors,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildFilterPill(
-                            title: 'Comments ($commentsCount)',
-                            isSelected:
-                                _selectedFilter == ActivityFilter.comments,
-                            onTap: () => setState(() =>
-                                _selectedFilter = ActivityFilter.comments),
-                            colors: colors,
+                          Row(
+                            children: [
+                              SizedBox(
+                                width: 280,
+                                child: _buildSearchBar(colors),
+                              ),
+                              const SizedBox(width: 12),
+                              _buildFilterPills(
+                                colors: colors,
+                                allCount: allItems.length,
+                                expensesCount: expensesCount,
+                                commentsCount: commentsCount,
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-
-                    // Section Label
-                    Text(
-                      'RECENT TIMELINE',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.0,
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+            ] else ...[
+              // Mobile Gradient Header
+              SliverToBoxAdapter(
+                child: ThemeGradientHeader(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Activity',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          color: colors.textMain,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Global Ledger Audit & Expense Timeline',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Mobile Sticky Search & Filter Section
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSearchBar(colors),
+                      const SizedBox(height: 12),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: _buildFilterPills(
+                          colors: colors,
+                          allCount: allItems.length,
+                          expensesCount: expensesCount,
+                          commentsCount: commentsCount,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'RECENT TIMELINE',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.0,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
 
             // Content Feed
             if (filteredItems.isEmpty)
@@ -416,9 +406,14 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final item = filteredItems[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _buildActivityCard(item, colors),
+                      return Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 880),
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _buildActivityCard(item, colors),
+                          ),
+                        ),
                       );
                     },
                     childCount: filteredItems.length,
@@ -428,6 +423,84 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSearchBar(dynamic colors) {
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+      ),
+      child: TextField(
+        controller: _searchController,
+        style: TextStyle(color: colors.textMain, fontSize: 14),
+        decoration: InputDecoration(
+          hintText: 'Search activity, groups, or comments...',
+          hintStyle: TextStyle(
+            color: colors.textSecondary,
+            fontSize: 13,
+          ),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: colors.textSecondary,
+            size: 20,
+          ),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: Icon(
+                    Icons.clear_rounded,
+                    color: colors.textSecondary,
+                    size: 18,
+                  ),
+                  onPressed: () {
+                    _searchController.clear();
+                  },
+                )
+              : null,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterPills({
+    required dynamic colors,
+    required int allCount,
+    required int expensesCount,
+    required int commentsCount,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildFilterPill(
+          title: 'All ($allCount)',
+          isSelected: _selectedFilter == ActivityFilter.all,
+          onTap: () => setState(() => _selectedFilter = ActivityFilter.all),
+          colors: colors,
+        ),
+        const SizedBox(width: 8),
+        _buildFilterPill(
+          title: 'Expenses ($expensesCount)',
+          isSelected: _selectedFilter == ActivityFilter.expenses,
+          onTap: () => setState(() => _selectedFilter = ActivityFilter.expenses),
+          colors: colors,
+        ),
+        const SizedBox(width: 8),
+        _buildFilterPill(
+          title: 'Comments ($commentsCount)',
+          isSelected: _selectedFilter == ActivityFilter.comments,
+          onTap: () => setState(() => _selectedFilter = ActivityFilter.comments),
+          colors: colors,
+        ),
+      ],
     );
   }
 
