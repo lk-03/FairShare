@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../theme/app_colors.dart';
 import '../../core/models/profile.dart';
 import '../../core/widgets/fairshare_bottom_nav.dart';
 import '../../core/widgets/fairshare_desktop_sidebar.dart';
@@ -138,7 +139,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final isDesktop = MediaQuery.of(context).size.width > 800;
 
           if (isDesktop) {
+            final colors = context.colors;
             return Scaffold(
+              backgroundColor: colors.screen,
               body: Row(
                 children: [
                   FairShareDesktopSidebar(
@@ -151,7 +154,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     },
                   ),
                   Expanded(
-                    child: Center(
+                    child: Align(
+                      alignment: Alignment.topCenter,
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 1100),
                         child: navigationShell,

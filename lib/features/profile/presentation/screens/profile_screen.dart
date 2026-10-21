@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../config/theme/app_colors.dart';
+import '../../../../core/utils/apk_download_launcher.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/avatar_picker_modal.dart';
 import '../../../../core/widgets/theme_gradient_header.dart';
@@ -433,6 +435,23 @@ class ProfileScreen extends ConsumerWidget {
                           ThemeSettingsSheet.show(context);
                         },
                       ),
+
+                      // Download Android App (APK) on Web
+                      if (kIsWeb) ...[
+                        const SizedBox(height: 10),
+                        _buildOptionTile(
+                          context: context,
+                          icon: Icons.android_rounded,
+                          iconBg: colors.cyan.withValues(alpha: 0.15),
+                          iconColor: colors.cyan,
+                          title: 'Download Android App (APK)',
+                          subtitle:
+                              'Get the native Android APK directly from GitHub Releases',
+                          onTap: () {
+                            launchApkDownload(context);
+                          },
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 24),

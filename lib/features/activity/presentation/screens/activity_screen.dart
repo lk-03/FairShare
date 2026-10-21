@@ -175,7 +175,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                   },
                 ),
 
-                const Divider(height: 16),
+                Divider(height: 16, color: colors.border),
 
                 // Action: Go to Group
                 ListTile(

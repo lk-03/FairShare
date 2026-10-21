@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/theme_provider.dart';
 import '../../data/providers/auth_provider.dart';
+import '../utils/apk_download_launcher.dart';
 import 'app_logo.dart';
 import 'user_avatar.dart';
 
@@ -95,7 +96,7 @@ class FairShareDesktopSidebar extends ConsumerWidget {
             ),
           ),
 
-          const Divider(height: 1, thickness: 1),
+          Divider(height: 1, thickness: 1, color: colors.border),
           const SizedBox(height: 16),
 
           // Nav Items
@@ -182,7 +183,56 @@ class FairShareDesktopSidebar extends ConsumerWidget {
             ),
           ),
 
-          const Divider(height: 1, thickness: 1),
+          // Download Android APK Action Button
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: InkWell(
+              onTap: () => launchApkDownload(context),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 9,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.cyan.withValues(alpha: isDark ? 0.1 : 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: colors.cyan.withValues(alpha: 0.28),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.android_rounded,
+                      size: 18,
+                      color: colors.cyan,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Download APK',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: colors.cyan,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_outward_rounded,
+                      size: 14,
+                      color: colors.cyan.withValues(alpha: 0.8),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          Divider(height: 1, thickness: 1, color: colors.border),
 
           // User Footer Profile & Theme Switcher
           Padding(
