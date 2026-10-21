@@ -42,6 +42,13 @@ class _MockGroups extends GroupsNotifier {
     state = AsyncValue.data(updated);
     return true;
   }
+
+  @override
+  Future<({bool success, String? nextAdminName})> leaveGroup(String groupId) async {
+    final updated = (_groups).where((g) => g.id != groupId).toList();
+    state = AsyncValue.data(updated);
+    return (success: true, nextAdminName: 'Sam Altman');
+  }
 }
 
 class _MockExpenses extends GroupExpensesNotifier {
@@ -204,7 +211,7 @@ void main() {
     expect(find.text('Delete Group'), findsOneWidget);
   });
 
-  testWidgets('Kicking member with unsettled balance shows warning dialog',
+  testWidgets('Kicking member with unsettled balance shows blocking dialog and prevents removal',
       (tester) async {
     tester.view.physicalSize = const Size(800, 1600);
     addTearDown(tester.view.resetPhysicalSize);
@@ -240,16 +247,156 @@ void main() {
     await tester.tap(kickButtons);
     await tester.pumpAndSettle();
 
-    // Verify unsettled balance warning dialog
-    expect(find.text('Unsettled Balance Warning'), findsOneWidget);
+    // Verify unsettled balance blocking dialog
+    expect(find.text('Cannot Remove Member'), findsOneWidget);
     expect(find.textContaining('currently owes ₹600.00'), findsOneWidget);
-    expect(find.text('Remove Member'), findsOneWidget);
+    expect(find.text('Close'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Remove Member'), findsNothing);
+
+    // Tap Close
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+
+    // Sam Altman is still in the members roster
+    expect(find.text('Sam Altman'), findsOneWidget);
+  });
+
+  testWidgets('Kicking member with settled balance (0.00) confirms and removes member',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final prefs = await SharedPreferences.getInstance();
+    final cacheService = LocalCacheService(prefs);
+    await cacheService.saveExpenses('cohort_test_1', []);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          localCacheServiceProvider.overrideWithValue(cacheService),
+          currentUserProvider.overrideWith(() => _MockCurrentUser(testUser)),
+          groupsProvider.overrideWith(() => _MockGroups([testGroup])),
+          groupExpensesProvider('cohort_test_1')
+              .overrideWith(() => _MockExpenses('cohort_test_1', [])),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.buildTheme(brightness: Brightness.dark),
+          home: const GroupSettingsScreen(groupId: 'cohort_test_1'),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Find kick button for Sam Altman
+    final kickButtons = find.byIcon(Icons.person_remove_rounded);
+    expect(kickButtons, findsOneWidget);
+
+    await tester.ensureVisible(kickButtons);
+    await tester.tap(kickButtons);
+    await tester.pumpAndSettle();
+
+    // Verify Remove Member confirmation dialog
+    expect(find.text('Remove Member'), findsWidgets);
+    expect(find.textContaining('Are you sure you want to remove Sam Altman'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Remove Member'), findsOneWidget);
 
     // Tap Remove Member
     await tester.tap(find.widgetWithText(ElevatedButton, 'Remove Member'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('was removed from the group'), findsOneWidget);
+  });
+
+  testWidgets('Leaving group with unsettled balance shows blocking dialog and prevents exit',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final prefs = await SharedPreferences.getInstance();
+    final cacheService = LocalCacheService(prefs);
+    await cacheService.saveExpenses('cohort_test_1', [testExpense]);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          localCacheServiceProvider.overrideWithValue(cacheService),
+          currentUserProvider.overrideWith(() => _MockCurrentUser(testUser)),
+          groupsProvider.overrideWith(() => _MockGroups([testGroup])),
+          groupExpensesProvider('cohort_test_1')
+              .overrideWith(() => _MockExpenses('cohort_test_1', [testExpense])),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.buildTheme(brightness: Brightness.dark),
+          home: const GroupSettingsScreen(groupId: 'cohort_test_1'),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final leaveTile = find.widgetWithText(ListTile, 'Leave Group');
+    await tester.ensureVisible(leaveTile);
+    await tester.tap(leaveTile);
+    await tester.pumpAndSettle();
+
+    // Verify Cannot Leave Group blocking dialog
+    expect(find.text('Cannot Leave Group'), findsOneWidget);
+    expect(find.textContaining('You are currently owed ₹600.00'), findsOneWidget);
+    expect(find.text('Close'), findsOneWidget);
+    expect(find.text('View Balances'), findsOneWidget);
+
+    // Dismiss dialog
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cannot Leave Group'), findsNothing);
+  });
+
+  testWidgets('Leaving group with settled balance (0.00) confirms and allows leaving',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final prefs = await SharedPreferences.getInstance();
+    final cacheService = LocalCacheService(prefs);
+    await cacheService.saveExpenses('cohort_test_1', []);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          localCacheServiceProvider.overrideWithValue(cacheService),
+          currentUserProvider.overrideWith(() => _MockCurrentUser(testUser)),
+          groupsProvider.overrideWith(() => _MockGroups([testGroup])),
+          groupExpensesProvider('cohort_test_1')
+              .overrideWith(() => _MockExpenses('cohort_test_1', [])),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.buildTheme(brightness: Brightness.dark),
+          home: const GroupSettingsScreen(groupId: 'cohort_test_1'),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final leaveTile = find.widgetWithText(ListTile, 'Leave Group');
+    await tester.ensureVisible(leaveTile);
+    await tester.tap(leaveTile);
+    await tester.pumpAndSettle();
+
+    // Verify confirmation dialog
+    expect(find.textContaining('Are you sure you want to leave "Flat 402 - Bangalore"?'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Leave Group'), findsOneWidget);
+
+    // Tap Leave Group
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Leave Group'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Left "Flat 402 - Bangalore"'), findsOneWidget);
   });
 
   testWidgets('Restoring deleted expense in trash triggers restore',

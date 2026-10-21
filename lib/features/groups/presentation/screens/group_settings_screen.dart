@@ -123,6 +123,91 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) {
+        if (hasUnsettledBalance) {
+          return AlertDialog(
+            backgroundColor: colors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: BorderSide(color: colors.border),
+            ),
+            title: Row(
+              children: [
+                Icon(
+                  Icons.block_rounded,
+                  color: colors.crimson,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Cannot Remove Member',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: colors.textMain,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${member.displayName} has an unsettled balance in "${group.name}".',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textMain,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: colors.crimson.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: colors.crimson.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 18, color: colors.crimson),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            netBalance > 0.01
+                                ? '${member.displayName} is currently owed ₹${netBalance.toStringAsFixed(2)}. All balances and debts must be fully settled before this member can be removed.'
+                                : '${member.displayName} currently owes ₹${netBalance.abs().toStringAsFixed(2)}. All debts must be fully settled before this member can be removed.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: colors.crimson,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(
+                  'Close',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
         return AlertDialog(
           backgroundColor: colors.surface,
           shape: RoundedRectangleBorder(
@@ -132,16 +217,14 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
           title: Row(
             children: [
               Icon(
-                hasUnsettledBalance
-                    ? Icons.warning_amber_rounded
-                    : Icons.person_remove_rounded,
-                color: hasUnsettledBalance ? colors.amber : colors.crimson,
+                Icons.person_remove_rounded,
+                color: colors.crimson,
                 size: 24,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  hasUnsettledBalance ? 'Unsettled Balance Warning' : 'Remove Member',
+                  'Remove Member',
                   style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
@@ -151,52 +234,15 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
               ),
             ],
           ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-              Text(
-                'Are you sure you want to remove ${member.displayName} from "${group.name}"?',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textMain,
-                ),
-              ),
-              if (hasUnsettledBalance) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: colors.amber.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: colors.amber.withValues(alpha: 0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, size: 18, color: colors.amber),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          netBalance > 0.01
-                              ? '${member.displayName} is currently owed ₹${netBalance.toStringAsFixed(2)}. Removing them will leave their balance unsettled.'
-                              : '${member.displayName} currently owes ₹${netBalance.abs().toStringAsFixed(2)}. Removing them will leave their debt unsettled.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: colors.amber,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
+          content: Text(
+            'Are you sure you want to remove ${member.displayName} from "${group.name}"?',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: colors.textMain,
+            ),
           ),
-        ),
-        actions: [
+          actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
               child: Text(
@@ -326,8 +372,115 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
     }
   }
 
-  Future<void> _handleLeaveGroup(Group group) async {
+  Future<void> _handleLeaveGroup(Group group, double myBalance) async {
     final colors = context.colors;
+    final hasUnsettledBalance = myBalance.abs() > 0.01;
+
+    if (hasUnsettledBalance) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) {
+          return AlertDialog(
+            backgroundColor: colors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: BorderSide(color: colors.border),
+            ),
+            title: Row(
+              children: [
+                Icon(
+                  Icons.block_rounded,
+                  color: colors.crimson,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Cannot Leave Group',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: colors.textMain,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'You have an unsettled balance in "${group.name}".',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textMain,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: colors.crimson.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: colors.crimson.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 18, color: colors.crimson),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            myBalance > 0.01
+                                ? 'You are currently owed ₹${myBalance.toStringAsFixed(2)}. All pending debts and balances must be settled before you can leave.'
+                                : 'You currently owe ₹${myBalance.abs().toStringAsFixed(2)}. Please settle all pending debts before leaving.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: colors.crimson,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text(
+                  'Close',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colors.cyan,
+                  foregroundColor: const Color(0xFF0F172A),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  context.pop();
+                },
+                child: const Text('View Balances', style: TextStyle(fontWeight: FontWeight.w800)),
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) {
@@ -378,7 +531,11 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
       final res = await ref.read(groupsProvider.notifier).leaveGroup(group.id);
       if (!mounted) return;
       if (res.success) {
-        context.go('/groups');
+        if (GoRouter.maybeOf(context) != null) {
+          context.go('/groups');
+        } else if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -392,7 +549,7 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Could not leave group. You may be the only member.'),
+            content: Text('Could not leave group. You may have an unsettled balance or be the only member.'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -451,7 +608,11 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
     if (confirmed == true && mounted) {
       await ref.read(groupsProvider.notifier).deleteGroup(group.id);
       if (!mounted) return;
-      context.go('/groups');
+      if (GoRouter.maybeOf(context) != null) {
+        context.go('/groups');
+      } else if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('"${group.name}" moved to Trash for 15-day recovery'),
@@ -491,6 +652,7 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
     final members = ref.watch(groupMembersProvider(group.id));
     final memberBalances = ref.watch(groupMemberBalancesProvider(group.id));
     final trashExpenses = ref.watch(groupTrashExpensesProvider(group.id));
+    final myBalance = currentUser?.id != null ? (memberBalances[currentUser!.id] ?? 0.0) : 0.0;
 
     final isCurrentAdmin = currentUser == null ||
         group.createdBy == currentUser.id ||
@@ -603,7 +765,7 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
                   colors: colors,
                 ),
                 const SizedBox(height: 12),
-                _buildDangerZoneCard(group, isCurrentAdmin, colors),
+                _buildDangerZoneCard(group, isCurrentAdmin, myBalance, colors),
               ],
             ),
           ),
@@ -987,8 +1149,12 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
             ),
             trailing: (isCurrentAdmin && !isCurrentUser && member.role != 'admin')
                 ? IconButton(
-                    icon: Icon(Icons.person_remove_rounded, size: 20, color: colors.crimson),
-                    tooltip: 'Remove from group',
+                    icon: Icon(
+                      Icons.person_remove_rounded,
+                      size: 20,
+                      color: isSettled ? colors.crimson : colors.crimson.withValues(alpha: 0.4),
+                    ),
+                    tooltip: isSettled ? 'Remove from group' : 'Cannot remove: unsettled balance',
                     onPressed: () => _handleKickMember(group, member, balance),
                   )
                 : null,
@@ -1199,7 +1365,12 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
     );
   }
 
-  Widget _buildDangerZoneCard(Group group, bool isCurrentAdmin, AppThemeColors colors) {
+  Widget _buildDangerZoneCard(
+    Group group,
+    bool isCurrentAdmin,
+    double myBalance,
+    AppThemeColors colors,
+  ) {
     return Material(
       color: colors.surface,
       shape: RoundedRectangleBorder(
@@ -1236,7 +1407,7 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
                 color: colors.textSecondary,
               ),
             ),
-            onTap: () => _handleLeaveGroup(group),
+            onTap: () => _handleLeaveGroup(group, myBalance),
           ),
 
           if (isCurrentAdmin) ...[

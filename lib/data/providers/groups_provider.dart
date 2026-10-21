@@ -4,6 +4,7 @@ import '../../core/models/group_member.dart';
 import '../../core/models/comment.dart';
 import '../repositories/group_repository.dart';
 import 'auth_provider.dart';
+import 'expenses_provider.dart';
 
 final groupRepositoryProvider = Provider<GroupRepository>((ref) {
   final supabase = ref.watch(supabaseServiceProvider);
@@ -165,6 +166,12 @@ class GroupsNotifier extends Notifier<AsyncValue<List<Group>>> {
   }
 
   Future<bool> kickMember(String groupId, String userId) async {
+    final balances = ref.read(groupMemberBalancesProvider(groupId));
+    final memberBalance = balances[userId] ?? 0.0;
+    if (memberBalance.abs() > 0.01) {
+      return false;
+    }
+
     final repo = ref.read(groupRepositoryProvider);
     final success = await repo.removeMemberFromCohort(groupId, userId);
 
@@ -185,6 +192,12 @@ class GroupsNotifier extends Notifier<AsyncValue<List<Group>>> {
   Future<({bool success, String? nextAdminName})> leaveGroup(String groupId) async {
     final currentUser = ref.read(currentUserProvider);
     if (currentUser == null) return (success: false, nextAdminName: null);
+
+    final balances = ref.read(groupMemberBalancesProvider(groupId));
+    final myBalance = balances[currentUser.id] ?? 0.0;
+    if (myBalance.abs() > 0.01) {
+      return (success: false, nextAdminName: null);
+    }
 
     final currentGroups = state.value ?? [];
     final group = currentGroups.where((g) => g.id == groupId).firstOrNull;
