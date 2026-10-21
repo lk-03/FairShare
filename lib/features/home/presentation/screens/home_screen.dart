@@ -133,6 +133,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final isDesktop = MediaQuery.of(context).size.width > 800;
 
     return Scaffold(
       backgroundColor: colors.screen,
@@ -206,27 +207,57 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               // Surface Content
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 36),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // UPI Setup Reminder Banner (if not yet configured)
-                    const UpiSetupBanner(),
+                child: isDesktop
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Left Column: UPI Banner + Groups Overview
+                          Expanded(
+                            flex: 5,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const UpiSetupBanner(),
+                                HomeGroupsSection(
+                                  onCreateGroup: _handleCreateGroup,
+                                  onJoinGroup: _handleJoinGroup,
+                                  onGroupTap: _handleGroupTap,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 28),
+                          // Right Column: Recent Activity Feed
+                          Expanded(
+                            flex: 5,
+                            child: HomeRecentActivitySection(
+                              onAddExpense: _handleAddExpense,
+                              onExpenseTap: _handleExpenseTap,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // UPI Setup Reminder Banner (if not yet configured)
+                          const UpiSetupBanner(),
 
-                    // Groups horizontal section
-                    HomeGroupsSection(
-                      onCreateGroup: _handleCreateGroup,
-                      onJoinGroup: _handleJoinGroup,
-                      onGroupTap: _handleGroupTap,
-                    ),
-                    const SizedBox(height: 28),
+                          // Groups horizontal section
+                          HomeGroupsSection(
+                            onCreateGroup: _handleCreateGroup,
+                            onJoinGroup: _handleJoinGroup,
+                            onGroupTap: _handleGroupTap,
+                          ),
+                          const SizedBox(height: 28),
 
-                    // Recent activity section
-                    HomeRecentActivitySection(
-                      onAddExpense: _handleAddExpense,
-                      onExpenseTap: _handleExpenseTap,
-                    ),
-                  ],
-                ),
+                          // Recent activity section
+                          HomeRecentActivitySection(
+                            onAddExpense: _handleAddExpense,
+                            onExpenseTap: _handleExpenseTap,
+                          ),
+                        ],
+                      ),
               ),
             ],
           ),

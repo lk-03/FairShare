@@ -82,10 +82,12 @@ class EmptyState extends StatelessWidget {
 
         if (primaryActionLabel != null || secondaryActionLabel != null) ...[
           const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
             children: [
-              if (secondaryActionLabel != null && onSecondaryAction != null) ...[
+              if (secondaryActionLabel != null && onSecondaryAction != null)
                 OutlinedButton(
                   onPressed: onSecondaryAction,
                   style: OutlinedButton.styleFrom(
@@ -105,8 +107,6 @@ class EmptyState extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (primaryActionLabel != null) const SizedBox(width: 12),
-              ],
               if (primaryActionLabel != null && onPrimaryAction != null)
                 FilledButton(
                   onPressed: onPrimaryAction,

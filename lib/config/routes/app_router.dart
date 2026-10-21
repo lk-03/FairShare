@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/models/profile.dart';
 import '../../core/widgets/fairshare_bottom_nav.dart';
+import '../../core/widgets/fairshare_desktop_sidebar.dart';
 import '../../data/providers/auth_provider.dart';
 import '../../features/activity/presentation/screens/activity_screen.dart';
 import '../../features/auth/presentation/screens/auth_screen.dart';
@@ -70,7 +71,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'welcome',
         builder: (context, state) {
           final mode = state.uri.queryParameters['mode'];
-          return WelcomeScreen(mode: mode);
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: WelcomeScreen(mode: mode),
+            ),
+          );
         },
       ),
       GoRoute(
@@ -106,7 +112,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'group-detail',
         builder: (context, state) {
           final id = state.pathParameters['id'] ?? '';
-          return GroupDetailScreen(groupId: id);
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1100),
+              child: GroupDetailScreen(groupId: id),
+            ),
+          );
         },
       ),
       GoRoute(
@@ -114,11 +125,44 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'group-settings',
         builder: (context, state) {
           final id = state.pathParameters['id'] ?? '';
-          return GroupSettingsScreen(groupId: id);
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1100),
+              child: GroupSettingsScreen(groupId: id),
+            ),
+          );
         },
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
+          final isDesktop = MediaQuery.of(context).size.width > 800;
+
+          if (isDesktop) {
+            return Scaffold(
+              body: Row(
+                children: [
+                  FairShareDesktopSidebar(
+                    currentIndex: navigationShell.currentIndex,
+                    onTabSelected: (index) {
+                      navigationShell.goBranch(
+                        index,
+                        initialLocation: index == navigationShell.currentIndex,
+                      );
+                    },
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1100),
+                        child: navigationShell,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
           return Scaffold(
             body: navigationShell,
             bottomNavigationBar: FairShareBottomNav(

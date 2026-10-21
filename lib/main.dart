@@ -76,24 +76,9 @@ class _FairShareAppState extends ConsumerState<FairShareApp> {
       routerConfig: router,
       builder: (context, child) {
         if (child == null) return const SizedBox.shrink();
-        final mediaQuery = MediaQuery.of(context);
-        final isWide = mediaQuery.size.width > 600;
-        final responsiveMediaQuery = isWide
-            ? mediaQuery.copyWith(
-                size: Size(600, mediaQuery.size.height),
-              )
-            : mediaQuery;
-
         return Container(
           color: Theme.of(context).scaffoldBackgroundColor,
-          alignment: Alignment.center,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
-            child: MediaQuery(
-              data: responsiveMediaQuery,
-              child: child,
-            ),
-          ),
+          child: child,
         );
       },
     );

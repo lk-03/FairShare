@@ -63,6 +63,7 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDesktop = MediaQuery.of(context).size.width > 800;
     final groupsAsync = ref.watch(groupsProvider);
     final allGroups = groupsAsync.value ?? [];
 
@@ -261,13 +262,57 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                 ),
 
                 // Active Groups Section
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      if (filteredActive.isEmpty)
-                        _buildEmptyState(context, colors)
-                      else ...[
+                if (filteredActive.isEmpty)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                    sliver: SliverToBoxAdapter(
+                      child: Column(
+                        children: [
+                          _buildEmptyState(context, colors),
+                          if (deletedCohorts.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            _buildTrashSection(context, colors, isDark, deletedCohorts),
+                          ],
+                        ],
+                      ),
+                    ),
+                  )
+                else if (isDesktop) ...[
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                    sliver: SliverGrid(
+                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: 520,
+                        mainAxisExtent: 108,
+                        crossAxisSpacing: 14,
+                        mainAxisSpacing: 14,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final cohort = filteredActive[index];
+                          return _GroupCard(
+                            cohort: cohort,
+                            onTap: () => context.push('/groups/${cohort.id}'),
+                            onLongPress: () =>
+                                GroupActionSheet.show(context, cohort),
+                          );
+                        },
+                        childCount: filteredActive.length,
+                      ),
+                    ),
+                  ),
+                  if (deletedCohorts.isNotEmpty)
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                      sliver: SliverToBoxAdapter(
+                        child: _buildTrashSection(context, colors, isDark, deletedCohorts),
+                      ),
+                    ),
+                ] else ...[
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
                         ...filteredActive.map((cohort) => Padding(
                               padding: const EdgeInsets.only(bottom: 12),
                               child: _GroupCard(
@@ -277,16 +322,14 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                                     GroupActionSheet.show(context, cohort),
                               ),
                             )),
-                      ],
-
-                      // Trash / Scheduled Deletion Section
-                      if (deletedCohorts.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        _buildTrashSection(context, colors, isDark, deletedCohorts),
-                      ],
-                    ]),
+                        if (deletedCohorts.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          _buildTrashSection(context, colors, isDark, deletedCohorts),
+                        ],
+                      ]),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
