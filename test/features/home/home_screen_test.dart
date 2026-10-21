@@ -338,7 +338,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Welcome back, Lokesh Kumar'), findsOneWidget);
-    expect(find.text('Cloud Sync Active'), findsOneWidget);
+    expect(find.text('Cloud Sync Active'), findsNothing);
+    expect(find.text('Add Expense'), findsOneWidget);
+    expect(find.text('Scan Receipt'), findsOneWidget);
+    expect(find.text('New Group'), findsOneWidget);
+    expect(find.text('Join Group'), findsOneWidget);
   });
 }
 
