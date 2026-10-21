@@ -56,8 +56,39 @@ class CurrentUserNotifier extends Notifier<UserProfile?> {
     final user = cache.getCurrentUser();
     if (user != null) {
       PushNotificationService.syncDeviceToken(user.id);
+      return user;
     }
-    return user;
+
+    final authRepo = ref.watch(authRepositoryProvider);
+    final currentAuth = authRepo.currentAuthUser;
+    if (currentAuth != null) {
+      Future.microtask(() async {
+        try {
+          final synced = await authRepo.syncProfileFromAuthUser(currentAuth);
+          await ref.read(onboardingProvider.notifier).completeOnboarding();
+          state = synced;
+          PushNotificationService.syncDeviceToken(synced.id);
+        } catch (_) {}
+      });
+    }
+
+    ref.listen<AsyncValue<AuthState>>(authStateProvider, (prev, next) {
+      final authUser = next.value?.session?.user;
+      if (authUser != null && state == null) {
+        Future.microtask(() async {
+          try {
+            final synced = await authRepo.syncProfileFromAuthUser(authUser);
+            await ref.read(onboardingProvider.notifier).completeOnboarding();
+            state = synced;
+            PushNotificationService.syncDeviceToken(synced.id);
+          } catch (_) {}
+        });
+      } else if (next.value?.event == AuthChangeEvent.signedOut) {
+        state = null;
+      }
+    });
+
+    return null;
   }
 
   Future<void> refresh() async {

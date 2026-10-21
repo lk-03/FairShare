@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/config/app_config.dart';
@@ -56,10 +57,18 @@ class AuthRepository {
   /// Signs in using native Google Play Services authentication
   Future<UserProfile?> signInWithNativeGoogle() => signInWithGoogle();
 
-  /// Signs in using native Google Play Services authentication
+  /// Signs in using native Google Play Services authentication on mobile, or Web OAuth on web
   Future<UserProfile?> signInWithGoogle() async {
     if (!supabaseService.isConfigured) {
       throw Exception('Supabase is not configured.');
+    }
+
+    if (kIsWeb) {
+      await supabaseService.client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: kIsWeb ? null : 'fairshare://login-callback',
+      );
+      return null;
     }
 
     try {
@@ -83,47 +92,7 @@ class AuthRepository {
         throw Exception('Failed to retrieve user from Supabase after Google Sign-In.');
       }
 
-      final fullName = user.userMetadata?['full_name'] as String? ??
-          user.userMetadata?['name'] as String? ??
-          user.email?.split('@').first ??
-          'User';
-      final avatarUrl = user.userMetadata?['avatar_url'] as String? ??
-          user.userMetadata?['picture'] as String?;
-
-      // Preserve existing profile details if already created
-      final existingProfile = await profileRepository.fetchProfile(user.id);
-
-      final finalFullName = existingProfile?.fullName.isNotEmpty == true
-          ? existingProfile!.fullName
-          : fullName;
-      final finalAvatar = existingProfile?.avatarUrl ?? avatarUrl;
-
-      final updatedProfile = UserProfile(
-        id: user.id,
-        email: user.email,
-        fullName: finalFullName,
-        nickname: existingProfile?.nickname,
-        username: existingProfile?.username,
-        avatarUrl: finalAvatar,
-        vpaId: existingProfile?.vpaId,
-        phoneNumber: existingProfile?.phoneNumber,
-        authProvider: 'google',
-        createdAt: existingProfile?.createdAt ?? DateTime.now(),
-      );
-
-      await supabaseService.client.from('profiles').upsert({
-        'id': user.id,
-        'email': user.email,
-        'full_name': finalFullName,
-        'nickname': existingProfile?.nickname,
-        'username': existingProfile?.username,
-        'avatar_url': finalAvatar,
-        'vpa_id': existingProfile?.vpaId,
-        'auth_provider': 'google',
-      });
-
-      await cacheService.saveCurrentUser(updatedProfile);
-      return updatedProfile;
+      return await syncProfileFromAuthUser(user);
     } catch (e) {
       final err = e.toString();
       if (err.contains('CAPACITY_REACHED') ||
@@ -139,6 +108,51 @@ class AuthRepository {
       }
       rethrow;
     }
+  }
+
+  /// Synchronizes or creates a profile from an authenticated Supabase user (e.g. after Web OAuth or Native Google sign-in)
+  Future<UserProfile> syncProfileFromAuthUser(User user) async {
+    final fullName = user.userMetadata?['full_name'] as String? ??
+        user.userMetadata?['name'] as String? ??
+        user.email?.split('@').first ??
+        'User';
+    final avatarUrl = user.userMetadata?['avatar_url'] as String? ??
+        user.userMetadata?['picture'] as String?;
+
+    // Preserve existing profile details if already created
+    final existingProfile = await profileRepository.fetchProfile(user.id);
+
+    final finalFullName = existingProfile?.fullName.isNotEmpty == true
+        ? existingProfile!.fullName
+        : fullName;
+    final finalAvatar = existingProfile?.avatarUrl ?? avatarUrl;
+
+    final updatedProfile = UserProfile(
+      id: user.id,
+      email: user.email,
+      fullName: finalFullName,
+      nickname: existingProfile?.nickname,
+      username: existingProfile?.username,
+      avatarUrl: finalAvatar,
+      vpaId: existingProfile?.vpaId,
+      phoneNumber: existingProfile?.phoneNumber,
+      authProvider: 'google',
+      createdAt: existingProfile?.createdAt ?? DateTime.now(),
+    );
+
+    await supabaseService.client.from('profiles').upsert({
+      'id': user.id,
+      'email': user.email,
+      'full_name': finalFullName,
+      'nickname': existingProfile?.nickname,
+      'username': existingProfile?.username,
+      'avatar_url': finalAvatar,
+      'vpa_id': existingProfile?.vpaId,
+      'auth_provider': 'google',
+    });
+
+    await cacheService.saveCurrentUser(updatedProfile);
+    return updatedProfile;
   }
 
   /// Signs in with email and password
