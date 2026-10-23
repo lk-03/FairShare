@@ -49,7 +49,7 @@ class AppConfig {
   }
 
   static const String defaultGithubRepo = 'lk-03/FairShare';
-  static const String appVersion = '1.0.0+1';
+  static const String appVersion = '2026.10.23.1';
 
   static String get githubRepo {
     const envRepo = String.fromEnvironment('GITHUB_REPO');
