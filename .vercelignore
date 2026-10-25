@@ -1,0 +1,24 @@
+# Native code and platform builds
+android/
+ios/
+macos/
+windows/
+linux/
+credentials/
+
+# Flutter build artifacts and caches
+.dart_tool/
+.git/
+.github/
+.misc/
+.idea/
+.vscode/
+build/app/
+build/ios/
+build/linux/
+build/macos/
+build/windows/
+
+# Dart source files (already compiled into build/web)
+lib/
+test/
