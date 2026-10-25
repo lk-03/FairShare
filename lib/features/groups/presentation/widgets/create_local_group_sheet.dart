@@ -6,7 +6,6 @@ import '../../../../core/models/group.dart';
 import '../../../../core/models/group_member.dart';
 import '../../../../core/models/profile.dart';
 import '../../../../core/widgets/category_icon.dart';
-import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/groups_provider.dart';
 
 class CreateLocalGroupSheet extends ConsumerStatefulWidget {
@@ -42,7 +41,7 @@ class _CreateLocalGroupSheetState extends ConsumerState<CreateLocalGroupSheet> {
 
   String _selectedCategory = 'dining';
   final String _currency = 'INR';
-  final List<String> _participants = ['Me'];
+  final List<String> _participants = [];
   bool _isCreating = false;
   String? _error;
 
@@ -82,10 +81,6 @@ class _CreateLocalGroupSheetState extends ConsumerState<CreateLocalGroupSheet> {
   }
 
   void _removeParticipant(int index) {
-    if (_participants.length <= 1) {
-      setState(() => _error = 'An outing needs at least 2 people to split');
-      return;
-    }
     setState(() {
       _participants.removeAt(index);
       _error = null;
@@ -95,12 +90,12 @@ class _CreateLocalGroupSheetState extends ConsumerState<CreateLocalGroupSheet> {
   Future<void> _handleCreate() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      setState(() => _error = 'Please enter an outing or group name');
+      setState(() => _error = 'Please enter a group name');
       return;
     }
 
     if (_participants.length < 2) {
-      setState(() => _error = 'Please add at least one other friend to split with');
+      setState(() => _error = 'Please add at least 2 people to the group');
       return;
     }
 
@@ -113,33 +108,23 @@ class _CreateLocalGroupSheetState extends ConsumerState<CreateLocalGroupSheet> {
       final now = DateTime.now();
       final groupId = 'local_${now.millisecondsSinceEpoch}';
 
-      final currentUser = ref.read(currentUserProvider);
-      final myName = currentUser?.displayName.isNotEmpty == true
-          ? currentUser!.displayName
-          : 'Me';
-
       final List<GroupMember> members = [];
       for (int i = 0; i < _participants.length; i++) {
         final pName = _participants[i];
-        final isMe = i == 0;
-        final userId = isMe && currentUser != null
-            ? currentUser.id
-            : 'user_local_${now.microsecondsSinceEpoch}_$i';
-
-        final effectiveName = isMe && pName == 'Me' ? myName : pName;
+        final userId = 'user_local_${now.microsecondsSinceEpoch}_$i';
 
         members.add(
           GroupMember(
             id: 'gm_local_${now.microsecondsSinceEpoch}_$i',
             cohortId: groupId,
             userId: userId,
-            role: isMe ? 'admin' : 'member',
+            role: i == 0 ? 'admin' : 'member',
             joinedAt: now,
-            isPlaceholder: !isMe,
-            originalCsvName: effectiveName,
+            isPlaceholder: true,
+            originalCsvName: pName,
             profile: UserProfile(
               id: userId,
-              fullName: effectiveName,
+              fullName: pName,
               createdAt: now,
             ),
           ),
@@ -226,7 +211,7 @@ class _CreateLocalGroupSheetState extends ConsumerState<CreateLocalGroupSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'New Local Outing',
+                        'New Quick Group',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w900,
@@ -234,7 +219,7 @@ class _CreateLocalGroupSheetState extends ConsumerState<CreateLocalGroupSheet> {
                         ),
                       ),
                       Text(
-                        'Offline on this device · Zero login required',
+                        'Local offline group',
                         style: TextStyle(
                           fontSize: 12,
                           color: colors.textSecondary,
@@ -282,9 +267,9 @@ class _CreateLocalGroupSheetState extends ConsumerState<CreateLocalGroupSheet> {
               ),
             ],
 
-            // Outing Name Input
+            // Group Name Input
             Text(
-              'OUTING / GROUP NAME',
+              'QUICK GROUP NAME',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
@@ -298,7 +283,7 @@ class _CreateLocalGroupSheetState extends ConsumerState<CreateLocalGroupSheet> {
               autofocus: true,
               style: TextStyle(color: colors.textMain, fontSize: 15),
               decoration: InputDecoration(
-                hintText: 'e.g. Goa Trip, Friday Dinner, Social Drinks',
+                hintText: 'e.g. Goa Trip, Friday Dinner, Room 402',
                 hintStyle: TextStyle(color: colors.textSecondary.withValues(alpha: 0.5)),
                 filled: true,
                 fillColor: colors.surface,
@@ -468,47 +453,62 @@ class _CreateLocalGroupSheetState extends ConsumerState<CreateLocalGroupSheet> {
             const SizedBox(height: 12),
 
             // Chips of participants
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _participants.asMap().entries.map((entry) {
-                final idx = entry.key;
-                final p = entry.value;
-                final isMe = idx == 0;
-                return Chip(
-                  avatar: CircleAvatar(
-                    backgroundColor: isMe
-                        ? colors.cyan.withValues(alpha: 0.2)
-                        : colors.accentPill,
-                    child: Text(
-                      p.isNotEmpty ? p[0].toUpperCase() : '?',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: isMe ? colors.cyan : colors.textMain,
+            if (_participants.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: colors.border.withValues(alpha: 0.6)),
+                ),
+                child: Text(
+                  'No people added yet. Add at least 2 people to split with.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _participants.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final p = entry.value;
+                  return Chip(
+                    avatar: CircleAvatar(
+                      backgroundColor: colors.cyan.withValues(alpha: 0.15),
+                      child: Text(
+                        p.isNotEmpty ? p[0].toUpperCase() : '?',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: colors.cyan,
+                        ),
                       ),
                     ),
-                  ),
-                  label: Text(
-                    p,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: colors.textMain,
+                    label: Text(
+                      p,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: colors.textMain,
+                      ),
                     ),
-                  ),
-                  deleteIcon: isMe
-                      ? null
-                      : Icon(Icons.close_rounded, size: 14, color: colors.textSecondary),
-                  onDeleted: isMe ? null : () => _removeParticipant(idx),
-                  backgroundColor: colors.surface,
-                  side: BorderSide(color: isMe ? colors.cyan : colors.border),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                );
-              }).toList(),
-            ),
+                    deleteIcon: Icon(Icons.close_rounded,
+                        size: 14, color: colors.textSecondary),
+                    onDeleted: () => _removeParticipant(idx),
+                    backgroundColor: colors.surface,
+                    side: BorderSide(color: colors.border),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  );
+                }).toList(),
+              ),
             const SizedBox(height: 28),
 
             // Create Button
@@ -535,7 +535,7 @@ class _CreateLocalGroupSheetState extends ConsumerState<CreateLocalGroupSheet> {
                         ),
                       )
                     : const Text(
-                        'Start Outing & Split Expenses',
+                        'Create Quick Group',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w900,

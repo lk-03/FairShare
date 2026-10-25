@@ -467,14 +467,14 @@ class ProfileScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 10),
 
-        // Offline Outings (Local Groups)
+        // Quick Groups
         _buildOptionTile(
           context: context,
           icon: Icons.phonelink_setup_rounded,
           iconBg: colors.amber.withValues(alpha: 0.15),
           iconColor: colors.amber,
-          title: 'Offline Outings (Local Groups)',
-          subtitle: 'Manage local non-synced expense groups on this device',
+          title: 'Quick Groups',
+          subtitle: 'Local offline group',
           onTap: () {
             LocalGroupsHubSheet.show(context);
           },

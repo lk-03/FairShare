@@ -376,6 +376,15 @@ class GroupRepository {
     }
     await cacheService.saveMembers(cohortId, merged);
 
+    final groups = cacheService.getCachedGroups();
+    final updatedGroups = groups.map((g) {
+      if (g.id == cohortId) {
+        return g.copyWith(members: merged);
+      }
+      return g;
+    }).toList();
+    await cacheService.saveGroups(updatedGroups);
+
     if (!supabaseService.isConfigured || !isUuid(cohortId)) {
       return newMembers;
     }
@@ -416,6 +425,15 @@ class GroupRepository {
         currentMembers.where((m) => m.userId != userId).toList();
     await cacheService.saveMembers(cohortId, updatedMembers);
 
+    final groups = cacheService.getCachedGroups();
+    final updatedGroups = groups.map((g) {
+      if (g.id == cohortId) {
+        return g.copyWith(members: updatedMembers);
+      }
+      return g;
+    }).toList();
+    await cacheService.saveGroups(updatedGroups);
+
     if (!supabaseService.isConfigured || !isUuid(cohortId) || !isUuid(userId)) {
       return true;
     }
@@ -424,6 +442,55 @@ class GroupRepository {
       await supabaseService.client
           .from('group_members')
           .delete()
+          .eq('cohort_id', cohortId)
+          .eq('user_id', userId);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Renames a member in a cohort (for local or placeholder members)
+  Future<bool> renameMemberInCohort(
+    String cohortId,
+    String userId,
+    String newName,
+  ) async {
+    final currentMembers = cacheService.getCachedMembers(cohortId);
+    final updatedMembers = currentMembers.map((m) {
+      if (m.userId == userId) {
+        return m.copyWith(
+          originalCsvName: newName,
+          profile: (m.profile ??
+                  UserProfile(
+                    id: userId,
+                    fullName: newName,
+                    createdAt: DateTime.now(),
+                  ))
+              .copyWith(fullName: newName),
+        );
+      }
+      return m;
+    }).toList();
+    await cacheService.saveMembers(cohortId, updatedMembers);
+
+    final groups = cacheService.getCachedGroups();
+    final updatedGroups = groups.map((g) {
+      if (g.id == cohortId) {
+        return g.copyWith(members: updatedMembers);
+      }
+      return g;
+    }).toList();
+    await cacheService.saveGroups(updatedGroups);
+
+    if (!supabaseService.isConfigured || !isUuid(cohortId) || !isUuid(userId)) {
+      return true;
+    }
+
+    try {
+      await supabaseService.client
+          .from('group_members')
+          .update({'original_csv_name': newName})
           .eq('cohort_id', cohortId)
           .eq('user_id', userId);
       return true;

@@ -8,7 +8,11 @@ import 'package:fairshare/core/models/expense.dart';
 import 'package:fairshare/core/models/group.dart';
 import 'package:fairshare/core/models/group_member.dart';
 import 'package:fairshare/core/models/profile.dart';
+import 'package:fairshare/data/local/local_cache_service.dart';
 import 'package:fairshare/data/providers/groups_provider.dart';
+import 'package:fairshare/data/repositories/group_repository.dart';
+import 'package:fairshare/data/repositories/profile_repository.dart';
+import 'package:fairshare/data/services/supabase_service.dart';
 import 'package:fairshare/features/groups/presentation/widgets/create_local_group_sheet.dart';
 import 'package:fairshare/features/groups/presentation/widgets/local_groups_hub_sheet.dart';
 import 'package:fairshare/features/groups/presentation/widgets/settlement_invoice_card.dart';
@@ -78,9 +82,9 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Local Outings'), findsOneWidget);
-    expect(find.text('No Local Outings Yet'), findsOneWidget);
-    expect(find.text('Create Local Outing'), findsOneWidget);
+    expect(find.text('Quick Groups'), findsOneWidget);
+    expect(find.text('No Quick Groups Yet'), findsOneWidget);
+    expect(find.text('New Quick Group'), findsOneWidget);
   });
 
   testWidgets('LocalGroupsHubSheet renders local groups list when present', (tester) async {
@@ -128,22 +132,27 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('New Local Outing'), findsOneWidget);
-    expect(find.text('Offline on this device · Zero login required'), findsOneWidget);
+    expect(find.text('New Quick Group'), findsOneWidget);
+    expect(find.text('Local offline group'), findsOneWidget);
 
-    // Enter Outing Name
+    // Enter Quick Group Name
     final nameField = find.byType(TextField).first;
     await tester.enterText(nameField, 'Dinner with Friends');
     await tester.pumpAndSettle();
 
-    // Add a participant
+    // Add first participant: "Alice"
     final addParticipantField = find.byType(TextField).at(1);
+    await tester.enterText(addParticipantField, 'Alice');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    // Add second participant: "Rahul"
     await tester.enterText(addParticipantField, 'Rahul');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
-    // Verify chips: "Me" (default) and "Rahul"
-    expect(find.text('Me'), findsOneWidget);
+    // Verify chips: "Alice" and "Rahul"
+    expect(find.text('Alice'), findsOneWidget);
     expect(find.text('Rahul'), findsOneWidget);
   });
 
@@ -199,6 +208,60 @@ void main() {
     expect(find.text('WHO PAYS WHOM'), findsOneWidget);
     expect(find.text('Sam'), findsWidgets);
     expect(find.text('Me'), findsWidgets);
+  });
+
+  test('GroupRepository correctly adds, renames, and removes members for local cohorts in cache', () async {
+    final prefs = await SharedPreferences.getInstance();
+    final cacheService = LocalCacheService(prefs);
+    final repo = GroupRepository(
+      supabaseService: SupabaseService(),
+      profileRepository: ProfileRepository(
+        supabaseService: SupabaseService(),
+        cacheService: cacheService,
+      ),
+      cacheService: cacheService,
+    );
+
+    await cacheService.saveGroups([testLocalGroup]);
+    await cacheService.saveMembers(testLocalGroup.id, testLocalGroup.members);
+
+    // 1. Rename Sam to Samantha
+    final renamed = await repo.renameMemberInCohort(
+      testLocalGroup.id,
+      'local_user_sam',
+      'Samantha',
+    );
+    expect(renamed, isTrue);
+
+    final membersAfterRename = cacheService.getCachedMembers(testLocalGroup.id);
+    expect(membersAfterRename.firstWhere((m) => m.userId == 'local_user_sam').displayName, 'Samantha');
+
+    final cachedGroupAfterRename = cacheService.getCachedGroups().firstWhere((g) => g.id == testLocalGroup.id);
+    expect(cachedGroupAfterRename.members.firstWhere((m) => m.userId == 'local_user_sam').displayName, 'Samantha');
+
+    // 2. Add a new member
+    final newMember = GroupMember(
+      id: 'gm_local_3',
+      cohortId: testLocalGroup.id,
+      userId: 'local_user_alex',
+      role: 'member',
+      joinedAt: DateTime.now(),
+      profile: UserProfile(id: 'local_user_alex', fullName: 'Alex', createdAt: DateTime.now()),
+    );
+    final added = await repo.addMembersToCohort(testLocalGroup.id, [newMember]);
+    expect(added.isNotEmpty, isTrue);
+
+    final membersAfterAdd = cacheService.getCachedMembers(testLocalGroup.id);
+    expect(membersAfterAdd.length, 3);
+    expect(membersAfterAdd.any((m) => m.displayName == 'Alex'), isTrue);
+
+    // 3. Remove a member
+    final removed = await repo.removeMemberFromCohort(testLocalGroup.id, 'local_user_alex');
+    expect(removed, isTrue);
+
+    final membersAfterRemove = cacheService.getCachedMembers(testLocalGroup.id);
+    expect(membersAfterRemove.length, 2);
+    expect(membersAfterRemove.any((m) => m.userId == 'local_user_alex'), isFalse);
   });
 }
 

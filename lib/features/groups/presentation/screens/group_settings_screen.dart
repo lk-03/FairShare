@@ -296,6 +296,144 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
     }
   }
 
+  Future<void> _showAddLocalMemberDialog(Group group) async {
+    final colors = context.colors;
+    final controller = TextEditingController();
+
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: colors.border),
+        ),
+        title: Text(
+          'Add Person',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: colors.textMain,
+          ),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: TextStyle(color: colors.textMain),
+          decoration: InputDecoration(
+            hintText: 'Enter name',
+            hintStyle: TextStyle(color: colors.textSecondary.withValues(alpha: 0.6)),
+            filled: true,
+            fillColor: colors.accentPill,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colors.cyan,
+              foregroundColor: const Color(0xFF0F172A),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              final val = controller.text.trim();
+              if (val.isNotEmpty) Navigator.of(ctx).pop(val);
+            },
+            child: const Text('Add', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+
+    if (name != null && name.isNotEmpty && mounted) {
+      await ref.read(groupsProvider.notifier).addLocalMember(group.id, name);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Added $name to Quick Group'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showRenameLocalMemberDialog(Group group, GroupMember member) async {
+    final colors = context.colors;
+    final controller = TextEditingController(text: member.displayName);
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: colors.border),
+        ),
+        title: Text(
+          'Rename Person',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: colors.textMain,
+          ),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: TextStyle(color: colors.textMain),
+          decoration: InputDecoration(
+            hintText: 'Enter new name',
+            hintStyle: TextStyle(color: colors.textSecondary.withValues(alpha: 0.6)),
+            filled: true,
+            fillColor: colors.accentPill,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colors.cyan,
+              foregroundColor: const Color(0xFF0F172A),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              final val = controller.text.trim();
+              if (val.isNotEmpty) Navigator.of(ctx).pop(val);
+            },
+            child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+
+    if (newName != null && newName.isNotEmpty && newName != member.displayName && mounted) {
+      await ref.read(groupsProvider.notifier).renameMember(group.id, member.userId, newName);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Renamed to $newName'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _handleRestoreExpense(Expense expense) async {
     await ref
         .read(groupExpensesProvider(widget.groupId).notifier)
@@ -1056,14 +1194,37 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
       child: ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        itemCount: members.length,
+        itemCount: group.isLocal ? members.length + 1 : members.length,
         separatorBuilder: (_, _) => Divider(
           color: colors.border.withValues(alpha: 0.5),
           height: 1,
         ),
         itemBuilder: (context, index) {
+          if (group.isLocal && index == members.length) {
+            return ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colors.cyan.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.person_add_rounded, color: colors.cyan, size: 20),
+              ),
+              title: Text(
+                'Add Person to Quick Group',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: colors.cyan,
+                ),
+              ),
+              onTap: () => _showAddLocalMemberDialog(group),
+            );
+          }
+
           final member = members[index];
-          final isAdmin = member.role == 'admin' || member.userId == group.createdBy;
+          final isAdmin = !group.isLocal && (member.role == 'admin' || member.userId == group.createdBy);
           final isCurrentUser = member.userId == currentUserId;
           final balance = memberBalances[member.userId] ?? 0.0;
 
@@ -1092,7 +1253,9 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    isCurrentUser ? '${member.displayName} (You)' : member.displayName,
+                    (!group.isLocal && isCurrentUser)
+                        ? '${member.displayName} (You)'
+                        : member.displayName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -1147,17 +1310,52 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
                 ),
               ],
             ),
-            trailing: (isCurrentAdmin && !isCurrentUser && member.role != 'admin')
-                ? IconButton(
-                    icon: Icon(
-                      Icons.person_remove_rounded,
-                      size: 20,
-                      color: isSettled ? colors.crimson : colors.crimson.withValues(alpha: 0.4),
-                    ),
-                    tooltip: isSettled ? 'Remove from group' : 'Cannot remove: unsettled balance',
-                    onPressed: () => _handleKickMember(group, member, balance),
+            trailing: group.isLocal
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          Icons.edit_outlined,
+                          size: 18,
+                          color: colors.cyan,
+                        ),
+                        tooltip: 'Rename',
+                        onPressed: () => _showRenameLocalMemberDialog(group, member),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          Icons.person_remove_rounded,
+                          size: 18,
+                          color: isSettled ? colors.crimson : colors.crimson.withValues(alpha: 0.35),
+                        ),
+                        tooltip: isSettled ? 'Remove' : 'Cannot remove: unsettled balance',
+                        onPressed: () {
+                          if (members.length <= 2) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Quick Group must have at least 2 people'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                            return;
+                          }
+                          _handleKickMember(group, member, balance);
+                        },
+                      ),
+                    ],
                   )
-                : null,
+                : (isCurrentAdmin && !isCurrentUser && member.role != 'admin')
+                    ? IconButton(
+                        icon: Icon(
+                          Icons.person_remove_rounded,
+                          size: 20,
+                          color: isSettled ? colors.crimson : colors.crimson.withValues(alpha: 0.4),
+                        ),
+                        tooltip: isSettled ? 'Remove from group' : 'Cannot remove: unsettled balance',
+                        onPressed: () => _handleKickMember(group, member, balance),
+                      )
+                    : null,
           );
         },
       ),
@@ -1381,37 +1579,40 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
         children: [
-          // Leave Group
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: colors.amber.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
+          // Leave Group (online groups only)
+          if (!group.isLocal) ...[
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colors.amber.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.exit_to_app_rounded, color: colors.amber, size: 20),
               ),
-              child: Icon(Icons.exit_to_app_rounded, color: colors.amber, size: 20),
-            ),
-            title: Text(
-              'Leave Group',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: colors.textMain,
+              title: Text(
+                'Leave Group',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: colors.textMain,
+                ),
               ),
-            ),
-            subtitle: Text(
-              'Remove yourself from this group. Admin role transfers if applicable.',
-              style: TextStyle(
-                fontSize: 11,
-                color: colors.textSecondary,
+              subtitle: Text(
+                'Remove yourself from this group. Admin role transfers if applicable.',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colors.textSecondary,
+                ),
               ),
+              onTap: () => _handleLeaveGroup(group, myBalance),
             ),
-            onTap: () => _handleLeaveGroup(group, myBalance),
-          ),
+          ],
 
           if (isCurrentAdmin) ...[
-            Divider(color: colors.border.withValues(alpha: 0.5), height: 16),
+            if (!group.isLocal)
+              Divider(color: colors.border.withValues(alpha: 0.5), height: 16),
             // Delete Group
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -1424,7 +1625,7 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
                 child: Icon(Icons.delete_forever_rounded, color: colors.crimson, size: 20),
               ),
               title: Text(
-                'Delete Group',
+                group.isLocal ? 'Delete Quick Group' : 'Delete Group',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -1432,7 +1633,9 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
                 ),
               ),
               subtitle: Text(
-                'Move group to Trash with 15-day recovery before permanent purge.',
+                group.isLocal
+                    ? 'Permanently delete this Quick Group and all its expenses from this device.'
+                    : 'Move group to Trash with 15-day recovery before permanent purge.',
                 style: TextStyle(
                   fontSize: 11,
                   color: colors.textSecondary,

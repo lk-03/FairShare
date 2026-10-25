@@ -761,7 +761,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         children: [
                           Flexible(
                             child: Text(
-                              'Offline Outings',
+                              'Quick Group',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -794,7 +794,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Split dinners or trips locally without an account',
+                        'Local offline group',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(

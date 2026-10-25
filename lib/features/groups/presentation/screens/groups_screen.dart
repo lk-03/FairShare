@@ -168,7 +168,7 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                                     onPressed: () => LocalGroupsHubSheet.show(context),
                                     icon: Icon(Icons.phonelink_setup_rounded, size: 16, color: colors.amber),
                                     label: Text(
-                                      'Offline Outings',
+                                      'Quick Group',
                                       style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w700,
@@ -334,7 +334,7 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                 children: [
                   // Offline Outing Option
                   _buildSpeedDialItem(
-                    label: 'Offline Outing (Local)',
+                    label: 'Quick Group',
                     icon: Icons.phonelink_setup_rounded,
                     iconColor: colors.amber,
                     iconBg: colors.amber.withValues(alpha: 0.18),

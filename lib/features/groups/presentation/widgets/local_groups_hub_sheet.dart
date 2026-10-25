@@ -77,7 +77,7 @@ class LocalGroupsHubSheet extends ConsumerWidget {
                     Row(
                       children: [
                         Text(
-                          'Local Outings',
+                          'Quick Groups',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w900,
@@ -106,7 +106,7 @@ class LocalGroupsHubSheet extends ConsumerWidget {
                       ],
                     ),
                     Text(
-                      'Stored on device · Zero login required',
+                      'Local offline group',
                       style: TextStyle(
                         fontSize: 12,
                         color: colors.textSecondary,
@@ -119,7 +119,7 @@ class LocalGroupsHubSheet extends ConsumerWidget {
 
               // '+' New Outing Action Button
               IconButton.filledTonal(
-                tooltip: 'Create New Outing',
+                tooltip: 'New Quick Group',
                 icon: const Icon(Icons.add_rounded, size: 22),
                 style: IconButton.styleFrom(
                   backgroundColor: colors.cyan.withValues(alpha: 0.15),
@@ -179,7 +179,7 @@ class LocalGroupsHubSheet extends ConsumerWidget {
             ),
             const SizedBox(height: 18),
             Text(
-              'No Local Outings Yet',
+              'No Quick Groups Yet',
               style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
@@ -188,7 +188,7 @@ class LocalGroupsHubSheet extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Create a quick local outing to split dinner, drinks, or road trips with friends without anyone needing to sign up or log in.',
+              'Create a quick group to split dinner, drinks, or road trips locally on your device without anyone needing an account.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
@@ -204,7 +204,7 @@ class LocalGroupsHubSheet extends ConsumerWidget {
                 onPressed: () => CreateLocalGroupSheet.show(context),
                 icon: const Icon(Icons.add_rounded, size: 20),
                 label: const Text(
-                  'Create Local Outing',
+                  'New Quick Group',
                   style: TextStyle(fontWeight: FontWeight.w800),
                 ),
                 style: ElevatedButton.styleFrom(

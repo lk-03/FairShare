@@ -250,7 +250,7 @@ class _CreateGroupSheetState extends ConsumerState<CreateGroupSheet> {
                             Icon(Icons.phonelink_setup_rounded, size: 16, color: colors.textSecondary),
                             const SizedBox(width: 6),
                             Text(
-                              'Offline Outing',
+                              'Quick Group',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,

@@ -177,7 +177,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
             _buildTopBar(group, colors, isDesktop, expenses, members, debts, memberBalances),
 
             // Segmented Sub-Tab Switcher
-            _buildSubTabSelector(colors, pendingNeeds),
+            _buildSubTabSelector(colors, pendingNeeds, group.isLocal),
 
             // Swipeable Content
             Expanded(
@@ -206,9 +206,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.stretch,
                                     children: [
-                                      _buildBalanceHero(group, userBalance, totalSpent, colors),
+                                      _buildBalanceHero(group, userBalance, totalSpent, colors, expenses, debts),
                                       const SizedBox(height: 20),
-                                      _buildMemberRail(members, group, currentUser?.id, colors),
+                                      _buildMemberRail(members, group, currentUser?.id, colors, memberBalances),
                                       const SizedBox(height: 20),
                                       _buildDebtsSection(group, debts, expenses, members, currentUser?.id, colors, memberBalances),
                                     ],
@@ -216,7 +216,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                                 ),
                                 const SizedBox(width: 24),
                                 Expanded(
-                                  child: _buildExpensesSection(expenses, members, currentUser?.id, colors),
+                                  child: _buildExpensesSection(group, expenses, members, currentUser?.id, colors),
                                 ),
                               ],
                             )
@@ -224,11 +224,11 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 // Group Net Balance Hero Card
-                                _buildBalanceHero(group, userBalance, totalSpent, colors),
+                                _buildBalanceHero(group, userBalance, totalSpent, colors, expenses, debts),
                                 const SizedBox(height: 20),
 
                                 // Horizontal Member Rail
-                                _buildMemberRail(members, group, currentUser?.id, colors),
+                                _buildMemberRail(members, group, currentUser?.id, colors, memberBalances),
                                 const SizedBox(height: 24),
 
                                 // Debts to Settle Section
@@ -236,7 +236,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                                 const SizedBox(height: 24),
 
                                 // Chronological Expenses Section
-                                _buildExpensesSection(expenses, members, currentUser?.id, colors),
+                                _buildExpensesSection(group, expenses, members, currentUser?.id, colors),
                                 const SizedBox(height: 80), // Padding for floating button
                               ],
                             ),
@@ -261,28 +261,29 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                     ),
                   ),
 
-                  // Tab 2: House Cart
-                  RefreshIndicator(
-                    onRefresh: _refresh,
-                    color: colors.cyan,
-                    backgroundColor: colors.surface,
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 960),
-                        child: SingleChildScrollView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              NeedsListView(cohortId: widget.groupId),
-                              const SizedBox(height: 40),
-                            ],
+                  // Tab 2: House Cart (Cloud Groups Only)
+                  if (!group.isLocal)
+                    RefreshIndicator(
+                      onRefresh: _refresh,
+                      color: colors.cyan,
+                      backgroundColor: colors.surface,
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 960),
+                          child: SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                NeedsListView(cohortId: widget.groupId),
+                                const SizedBox(height: 40),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -308,7 +309,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     );
   }
 
-  Widget _buildSubTabSelector(AppThemeColors colors, int pendingNeeds) {
+  Widget _buildSubTabSelector(AppThemeColors colors, int pendingNeeds, bool isLocal) {
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 8, 20, 6),
       padding: const EdgeInsets.all(4),
@@ -338,17 +339,19 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               colors: colors,
             ),
           ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: _buildSubTabItem(
-              title: 'House Cart',
-              icon: Icons.shopping_cart_outlined,
-              badgeCount: pendingNeeds,
-              isSelected: _selectedTab == 2,
-              onTap: () => _onTabTapped(2),
-              colors: colors,
+          if (!isLocal) ...[
+            const SizedBox(width: 4),
+            Expanded(
+              child: _buildSubTabItem(
+                title: 'House Cart',
+                icon: Icons.shopping_cart_outlined,
+                badgeCount: pendingNeeds,
+                isSelected: _selectedTab == 2,
+                onTap: () => _onTabTapped(2),
+                colors: colors,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -656,7 +659,96 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     double userBalance,
     double totalSpent,
     AppThemeColors colors,
+    List<Expense> expenses,
+    List<DirectDebt> debts,
   ) {
+    if (group.isLocal) {
+      final isAllSettled = debts.isEmpty;
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: colors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'TOTAL GROUP SPEND',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.0,
+                    color: colors.textSecondary,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: colors.cyan.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: colors.cyan.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    'QUICK GROUP',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: colors.cyan,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              CurrencyFormatter.formatINR(totalSpent),
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.5,
+                color: colors.textMain,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: isAllSettled ? colors.emerald : colors.amber,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${expenses.length} expense${expenses.length == 1 ? "" : "s"} • ${isAllSettled ? "All settled up" : "${debts.length} pending settlement${debts.length == 1 ? "" : "s"}"}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
     final isSettled = userBalance.abs() < 0.01;
     final isOwed = userBalance > 0.01;
     final balanceColor = isSettled
@@ -759,6 +851,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     Group group,
     String? currentUserId,
     AppThemeColors colors,
+    Map<String, double> memberBalances,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -840,75 +933,126 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
-                  children: members.map((m) {
-                    final isMe = m.userId == currentUserId;
-                    final name = isMe ? 'You' : m.displayName;
-                    final isAdmin = m.role == 'admin';
+                  children: [
+                    ...members.map((m) {
+                      final isMe = !group.isLocal && m.userId == currentUserId;
+                      final name = isMe ? 'You' : m.displayName;
+                      final isAdmin = m.role == 'admin';
 
-                    return InkWell(
-                      onTap: () => MemberProfileSheet.show(context, member: m, cohort: group),
-                      borderRadius: BorderRadius.circular(18),
-                      child: Container(
-                        width: 90,
-                        margin: const EdgeInsets.only(right: 12),
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                        decoration: BoxDecoration(
-                          color: colors.surface,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: colors.border),
-                        ),
-                        child: Column(
-                          children: [
-                            Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                UserAvatar(
-                                  avatarUrl: m.profile?.avatarUrl,
-                                  name: name,
-                                  userId: m.userId,
-                                  radius: 20,
-                                ),
-                                if (isAdmin)
-                                  Positioned(
-                                    top: -4,
-                                    right: -4,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(2),
-                                      decoration: BoxDecoration(
-                                        color: colors.amber,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(Icons.star_rounded, size: 10, color: Colors.white),
-                                    ),
+                      return InkWell(
+                        onTap: () {
+                          if (group.isLocal) {
+                            _showLocalMemberActionsDialog(m, group, memberBalances);
+                          } else {
+                            MemberProfileSheet.show(context, member: m, cohort: group);
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(18),
+                        child: Container(
+                          width: 90,
+                          margin: const EdgeInsets.only(right: 12),
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: colors.surface,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: colors.border),
+                          ),
+                          child: Column(
+                            children: [
+                              Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  UserAvatar(
+                                    avatarUrl: m.profile?.avatarUrl,
+                                    name: name,
+                                    userId: m.userId,
+                                    radius: 20,
                                   ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: colors.textMain,
+                                  if (isAdmin)
+                                    Positioned(
+                                      top: -4,
+                                      right: -4,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(2),
+                                        decoration: BoxDecoration(
+                                          color: colors.amber,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.star_rounded, size: 10, color: Colors.white),
+                                      ),
+                                    ),
+                                ],
                               ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              isAdmin ? 'Admin' : 'Member',
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w600,
-                                color: colors.textSecondary,
+                              const SizedBox(height: 8),
+                              Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: colors.textMain,
+                                ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 2),
+                              Text(
+                                isAdmin ? 'Admin' : 'Member',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                    if (group.isLocal)
+                      InkWell(
+                        onTap: () => _showAddLocalMemberDialog(group),
+                        borderRadius: BorderRadius.circular(18),
+                        child: Container(
+                          width: 80,
+                          margin: const EdgeInsets.only(right: 12),
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: colors.surface,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: colors.cyan.withValues(alpha: 0.3)),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              CircleAvatar(
+                                radius: 20,
+                                backgroundColor: colors.cyan.withValues(alpha: 0.12),
+                                child: Icon(Icons.person_add_rounded, color: colors.cyan, size: 20),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '+ Add',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: colors.cyan,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Friend',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    );
-                  }).toList(),
+                  ],
                 ),
               ),
             ],
@@ -1093,6 +1237,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   }
 
   Widget _buildExpensesSection(
+    Group group,
     List<Expense> expenses,
     List<GroupMember> members,
     String? currentUserId,
@@ -1132,15 +1277,23 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
             final isPaidByMe = exp.paidByUserId == currentUserId;
             final payerMember = members.where((m) => m.userId == exp.paidByUserId).firstOrNull;
             final String payerLabel;
-            if (hasMultiplePayers) {
-              final myPayer = exp.payers.where((p) => p.userId == currentUserId).firstOrNull;
-              payerLabel = myPayer != null
-                  ? '${exp.payers.length} people (inc. You)'
-                  : '${exp.payers.length} people';
+            if (group.isLocal) {
+              if (hasMultiplePayers) {
+                payerLabel = '${exp.payers.length} people';
+              } else {
+                payerLabel = payerMember?.displayName ?? exp.paidByName ?? 'A member';
+              }
             } else {
-              payerLabel = isPaidByMe
-                  ? 'You'
-                  : (payerMember?.displayName ?? exp.paidByName ?? 'A member');
+              if (hasMultiplePayers) {
+                final myPayer = exp.payers.where((p) => p.userId == currentUserId).firstOrNull;
+                payerLabel = myPayer != null
+                    ? '${exp.payers.length} people (inc. You)'
+                    : '${exp.payers.length} people';
+              } else {
+                payerLabel = isPaidByMe
+                    ? 'You'
+                    : (payerMember?.displayName ?? exp.paidByName ?? 'A member');
+              }
             }
 
             final isReceiver = currentUserId != null && exp.splits.any((s) => s.userId == currentUserId);
@@ -1151,7 +1304,11 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
             final Color primaryTrailingColor;
             final String secondaryTrailingText;
 
-            if (isSettlement) {
+            if (group.isLocal) {
+              primaryTrailingText = CurrencyFormatter.formatINR(exp.totalAmount);
+              primaryTrailingColor = colors.textMain;
+              secondaryTrailingText = isSettlement ? 'settlement' : '';
+            } else if (isSettlement) {
               if (isPaidByMe) {
                 primaryTrailingText = 'Paid ${CurrencyFormatter.formatINR(exp.totalAmount)}';
                 primaryTrailingColor = colors.emerald;
@@ -1229,15 +1386,17 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                         color: primaryTrailingColor,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      secondaryTrailingText,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textSecondary,
+                    if (secondaryTrailingText.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        secondaryTrailingText,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textSecondary,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -1246,5 +1405,490 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           }),
       ],
     );
+  }
+
+  Future<void> _showAddLocalMemberDialog(Group group) async {
+    final controller = TextEditingController();
+    final colors = context.colors;
+
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: colors.border),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.person_add_rounded, color: colors.cyan, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Add Person',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: colors.textMain,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Enter their name to add them to this Quick Group:',
+              style: TextStyle(fontSize: 13, color: colors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              style: TextStyle(color: colors.textMain, fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'e.g. Charlie',
+                hintStyle: TextStyle(
+                    color: colors.textSecondary.withValues(alpha: 0.5)),
+                filled: true,
+                fillColor: colors.accentPill,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.cyan, width: 1.5),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colors.cyan,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              final val = controller.text.trim();
+              if (val.isNotEmpty) Navigator.pop(ctx, val);
+            },
+            child:
+                const Text('Add', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+
+    if (name != null && name.isNotEmpty && mounted) {
+      await ref.read(groupsProvider.notifier).addLocalMember(group.id, name);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Added "$name" to the group')),
+        );
+      }
+    }
+  }
+
+  void _showLocalMemberActionsDialog(
+    GroupMember member,
+    Group group,
+    Map<String, double> memberBalances,
+  ) {
+    final colors = context.colors;
+    final netBalance = memberBalances[member.userId] ?? 0.0;
+    final isSettled = netBalance.abs() <= 0.01;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundColor: colors.cyan.withValues(alpha: 0.15),
+                    child: Text(
+                      member.displayName.isNotEmpty
+                          ? member.displayName[0].toUpperCase()
+                          : '?',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: colors.cyan,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          member.displayName,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: colors.textMain,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          isSettled
+                              ? 'Balance: All settled up (₹0.00)'
+                              : (netBalance > 0.01
+                                  ? 'Balance: Owed ${CurrencyFormatter.formatINR(netBalance)}'
+                                  : 'Balance: Owes ${CurrencyFormatter.formatINR(netBalance.abs())}'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isSettled
+                                ? colors.textSecondary
+                                : (netBalance > 0.01
+                                    ? colors.emerald
+                                    : colors.crimson),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Divider(color: colors.border, height: 1),
+              const SizedBox(height: 8),
+
+              // Rename Option
+              ListTile(
+                leading: Icon(Icons.edit_outlined, color: colors.cyan),
+                title: Text(
+                  'Rename Person',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, color: colors.textMain),
+                ),
+                subtitle: Text(
+                  'Update name in this Quick Group',
+                  style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showRenameLocalMemberDialog(member, group);
+                },
+              ),
+
+              // Remove Option
+              ListTile(
+                leading: Icon(
+                  Icons.person_remove_rounded,
+                  color: isSettled
+                      ? colors.crimson
+                      : colors.crimson.withValues(alpha: 0.4),
+                ),
+                title: Text(
+                  'Remove from Group',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: isSettled ? colors.crimson : colors.textSecondary,
+                  ),
+                ),
+                subtitle: Text(
+                  isSettled
+                      ? 'Remove this participant'
+                      : 'Cannot remove: has unsettled balance',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isSettled ? colors.textSecondary : colors.crimson,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _handleRemoveLocalMember(member, group, netBalance);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showRenameLocalMemberDialog(
+    GroupMember member,
+    Group group,
+  ) async {
+    final controller = TextEditingController(text: member.displayName);
+    final colors = context.colors;
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: colors.border),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.edit_outlined, color: colors.cyan, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Rename Person',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: colors.textMain,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Enter new name for ${member.displayName}:',
+              style: TextStyle(fontSize: 13, color: colors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              style: TextStyle(color: colors.textMain, fontSize: 14),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: colors.accentPill,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.cyan, width: 1.5),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colors.cyan,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              final val = controller.text.trim();
+              if (val.isNotEmpty) Navigator.pop(ctx, val);
+            },
+            child:
+                const Text('Save', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+
+    if (newName != null && newName.isNotEmpty && newName != member.displayName && mounted) {
+      await ref
+          .read(groupsProvider.notifier)
+          .renameMember(group.id, member.userId, newName);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Renamed to "$newName" successfully')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleRemoveLocalMember(
+    GroupMember member,
+    Group group,
+    double netBalance,
+  ) async {
+    final colors = context.colors;
+
+    // Strict zero-balance enforcement
+    if (netBalance.abs() > 0.01) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: colors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: colors.border),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.block_rounded, color: colors.crimson, size: 24),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Cannot Remove Person',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: colors.textMain,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${member.displayName} has an unsettled balance in "${group.name}".',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textMain,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colors.crimson.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: colors.crimson.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  netBalance > 0.01
+                      ? '${member.displayName} is currently owed ${CurrencyFormatter.formatINR(netBalance)}. All debts and balances must be settled first.'
+                      : '${member.displayName} currently owes ${CurrencyFormatter.formatINR(netBalance.abs())}. All debts must be settled first.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colors.crimson,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(
+                'Close',
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (group.members.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot remove the only person in the group')),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: colors.border),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.person_remove_rounded, color: colors.crimson, size: 24),
+            const SizedBox(width: 8),
+            Text(
+              'Remove Person',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: colors.textMain,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to remove ${member.displayName} from "${group.name}"?',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: colors.textMain,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colors.crimson,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await ref.read(groupsProvider.notifier).kickMember(group.id, member.userId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${member.displayName} was removed from the group')),
+        );
+      }
+    }
   }
 }

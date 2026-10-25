@@ -203,6 +203,84 @@ class GroupsNotifier extends Notifier<AsyncValue<List<Group>>> {
     return success;
   }
 
+  /// Adds a local participant to a local group
+  Future<GroupMember?> addLocalMember(String groupId, String name) async {
+    final cleanName = name.trim();
+    if (cleanName.isEmpty) return null;
+
+    final now = DateTime.now();
+    final newUserId = 'user_local_${now.microsecondsSinceEpoch}';
+    final newMember = GroupMember(
+      id: 'gm_local_${now.microsecondsSinceEpoch}',
+      cohortId: groupId,
+      userId: newUserId,
+      role: 'member',
+      joinedAt: now,
+      isPlaceholder: true,
+      originalCsvName: cleanName,
+      profile: UserProfile(
+        id: newUserId,
+        fullName: cleanName,
+        createdAt: now,
+      ),
+    );
+
+    final repo = ref.read(groupRepositoryProvider);
+    await repo.addMembersToCohort(groupId, [newMember]);
+
+    final currentGroups = state.value ?? [];
+    final updated = currentGroups.map((g) {
+      if (g.id == groupId) {
+        return g.copyWith(
+          members: [...g.members, newMember],
+        );
+      }
+      return g;
+    }).toList();
+    state = AsyncValue.data(updated);
+    return newMember;
+  }
+
+  /// Renames a member in a group
+  Future<bool> renameMember(
+    String groupId,
+    String userId,
+    String newName,
+  ) async {
+    final cleanName = newName.trim();
+    if (cleanName.isEmpty) return false;
+
+    final repo = ref.read(groupRepositoryProvider);
+    final success =
+        await repo.renameMemberInCohort(groupId, userId, cleanName);
+
+    final currentGroups = state.value ?? [];
+    final updated = currentGroups.map((g) {
+      if (g.id == groupId) {
+        return g.copyWith(
+          members: g.members.map((m) {
+            if (m.userId == userId) {
+              return m.copyWith(
+                originalCsvName: cleanName,
+                profile: (m.profile ??
+                        UserProfile(
+                          id: userId,
+                          fullName: cleanName,
+                          createdAt: DateTime.now(),
+                        ))
+                    .copyWith(fullName: cleanName),
+              );
+            }
+            return m;
+          }).toList(),
+        );
+      }
+      return g;
+    }).toList();
+    state = AsyncValue.data(updated);
+    return success;
+  }
+
   /// Handles leaving a cohort with automatic admin succession if user is admin
   Future<({bool success, String? nextAdminName})> leaveGroup(String groupId) async {
     final currentUser = ref.read(currentUserProvider);
