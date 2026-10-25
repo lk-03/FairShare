@@ -1,0 +1,1894 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import '../../../../config/theme/app_colors.dart';
+import '../../../../core/models/direct_debt.dart';
+import '../../../../core/models/expense.dart';
+import '../../../../core/models/group.dart';
+import '../../../../core/models/group_member.dart';
+import '../../../../core/utils/currency_formatter.dart';
+import '../../../../core/widgets/category_icon.dart';
+import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/group_avatar.dart';
+import '../../../../data/providers/auth_provider.dart';
+import '../../../../data/providers/expenses_provider.dart';
+import '../../../../data/providers/groups_provider.dart';
+import '../../../../data/providers/needs_provider.dart';
+import '../../../expenses/presentation/widgets/add_expense_sheet.dart';
+import '../../../expenses/presentation/widgets/expense_details_sheet.dart';
+import '../../../../core/widgets/user_avatar.dart';
+import '../../../expenses/presentation/widgets/settle_up_sheet.dart';
+import '../../../needs/presentation/widgets/needs_list_view.dart';
+import '../widgets/edit_group_sheet.dart';
+import '../widgets/group_qr_sheet.dart';
+import '../widgets/member_profile_sheet.dart';
+import '../widgets/monthly_spendings_tab.dart';
+import '../widgets/settlement_share_sheet.dart';
+
+class GroupDetailScreen extends ConsumerStatefulWidget {
+  final String groupId;
+
+  const GroupDetailScreen({
+    super.key,
+    required this.groupId,
+  });
+
+  @override
+  ConsumerState<GroupDetailScreen> createState() => _GroupDetailScreenState();
+}
+
+class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
+  int _selectedTab = 0; // 0: Ledger, 1: Spendings, 2: House Cart
+  bool _isMembersExpanded = false;
+  late final PageController _pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _selectedTab);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(groupsProvider.notifier).loadUserGroups();
+      ref.read(groupExpensesProvider(widget.groupId).notifier).loadExpenses();
+      ref.read(groupNeedsProvider(widget.groupId).notifier).loadNeeds();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onTabTapped(int index) {
+    if (_selectedTab == index) return;
+    setState(() => _selectedTab = index);
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOutCubic,
+    );
+  }
+
+  Future<void> _refresh() async {
+    await Future.wait([
+      ref.read(groupsProvider.notifier).loadUserGroups(),
+      ref.read(groupExpensesProvider(widget.groupId).notifier).loadExpenses(),
+      ref.read(groupNeedsProvider(widget.groupId).notifier).loadNeeds(),
+    ]);
+  }
+
+  void _handleAddExpense() {
+    AddExpenseSheet.show(context, cohortId: widget.groupId);
+  }
+
+  void _handleExpenseTap(Expense expense) {
+    ExpenseDetailsSheet.show(
+      context,
+      expense: expense,
+      cohortId: widget.groupId,
+    );
+  }
+
+  void _handleSettleUp(DirectDebt debt) {
+    SettleUpSheet.show(
+      context,
+      cohortId: widget.groupId,
+      debt: debt,
+    );
+  }
+
+  void _handleShowQR(Group group) {
+    GroupQrSheet.show(context, group);
+  }
+
+  void _handleEditGroup(Group group) {
+    EditGroupSheet.show(
+      context,
+      group,
+      onDeleted: () {
+        if (mounted) context.go('/home');
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    final groupsAsync = ref.watch(groupsProvider);
+    final groups = groupsAsync.value ?? [];
+    final group = groups.where((g) => g.id == widget.groupId).firstOrNull;
+
+    if (group == null) {
+      if (groupsAsync.isLoading || groupsAsync.isRefreshing) {
+        return Scaffold(
+          backgroundColor: colors.screen,
+          body: Center(
+            child: SizedBox(
+              width: 32,
+              height: 32,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation<Color>(colors.cyan),
+              ),
+            ),
+          ),
+        );
+      }
+      return Scaffold(
+        backgroundColor: colors.screen,
+        appBar: AppBar(
+          backgroundColor: colors.screen,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_rounded, color: colors.textMain),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        body: Center(
+          child: Text(
+            'Group not found',
+            style: TextStyle(color: colors.textSecondary, fontSize: 16),
+          ),
+        ),
+      );
+    }
+
+    final members = ref.watch(groupMembersProvider(widget.groupId));
+    final expensesAsync = ref.watch(groupExpensesProvider(widget.groupId));
+    final expenses = expensesAsync.value ?? [];
+    final debts = ref.watch(groupDebtsProvider(widget.groupId));
+    final memberBalances = ref.watch(groupMemberBalancesProvider(widget.groupId));
+    final userBalance = ref.watch(userNetBalanceProvider(widget.groupId));
+    final totalSpent = ref.watch(groupTotalSpendingProvider(widget.groupId));
+    final currentUser = ref.watch(currentUserProvider);
+
+    final needs = ref.watch(groupNeedsProvider(widget.groupId)).value ?? [];
+    final pendingNeeds = needs.where((n) => !n.isCompleted).length;
+    final isDesktop = MediaQuery.of(context).size.width > 800;
+
+    return Scaffold(
+      backgroundColor: colors.screen,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Top App Bar
+            _buildTopBar(group, colors, isDesktop, expenses, members, debts, memberBalances),
+
+            // Segmented Sub-Tab Switcher
+            _buildSubTabSelector(colors, pendingNeeds, group.isLocal),
+
+            // Swipeable Content
+            Expanded(
+              child: PageView(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  setState(() {
+                    _selectedTab = index;
+                  });
+                },
+                children: [
+                  // Tab 0: General Ledger
+                  RefreshIndicator(
+                    onRefresh: _refresh,
+                    color: colors.cyan,
+                    backgroundColor: colors.surface,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      child: isDesktop
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SizedBox(
+                                  width: 380,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      _buildBalanceHero(group, userBalance, totalSpent, colors, expenses, debts),
+                                      const SizedBox(height: 20),
+                                      _buildMemberRail(members, group, currentUser?.id, colors, memberBalances),
+                                      const SizedBox(height: 20),
+                                      _buildDebtsSection(group, debts, expenses, members, currentUser?.id, colors, memberBalances),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 24),
+                                Expanded(
+                                  child: _buildExpensesSection(group, expenses, members, currentUser?.id, colors),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // Group Net Balance Hero Card
+                                _buildBalanceHero(group, userBalance, totalSpent, colors, expenses, debts),
+                                const SizedBox(height: 20),
+
+                                // Horizontal Member Rail
+                                _buildMemberRail(members, group, currentUser?.id, colors, memberBalances),
+                                const SizedBox(height: 24),
+
+                                // Debts to Settle Section
+                                _buildDebtsSection(group, debts, expenses, members, currentUser?.id, colors, memberBalances),
+                                const SizedBox(height: 24),
+
+                                // Chronological Expenses Section
+                                _buildExpensesSection(group, expenses, members, currentUser?.id, colors),
+                                const SizedBox(height: 80), // Padding for floating button
+                              ],
+                            ),
+                    ),
+                  ),
+
+                  // Tab 1: Spendings
+                  RefreshIndicator(
+                    onRefresh: _refresh,
+                    color: colors.cyan,
+                    backgroundColor: colors.surface,
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 960),
+                        child: MonthlySpendingsTab(
+                          cohort: group,
+                          expenses: expenses,
+                          members: members,
+                          currentUserId: currentUser?.id ?? '',
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Tab 2: House Cart (Cloud Groups Only)
+                  if (!group.isLocal)
+                    RefreshIndicator(
+                      onRefresh: _refresh,
+                      color: colors.cyan,
+                      backgroundColor: colors.surface,
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 960),
+                          child: SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                NeedsListView(cohortId: widget.groupId),
+                                const SizedBox(height: 40),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: (!isDesktop && _selectedTab == 0)
+          ? FloatingActionButton.extended(
+              onPressed: _handleAddExpense,
+              backgroundColor: colors.cyan,
+              foregroundColor: const Color(0xFF0F172A),
+              icon: const Icon(Icons.add_rounded, size: 22),
+              label: const Text(
+                'Add Expense',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildSubTabSelector(AppThemeColors colors, int pendingNeeds, bool isLocal) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 8, 20, 6),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildSubTabItem(
+              title: 'General Ledger',
+              icon: Icons.receipt_long_rounded,
+              isSelected: _selectedTab == 0,
+              onTap: () => _onTabTapped(0),
+              colors: colors,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: _buildSubTabItem(
+              title: 'Spendings',
+              icon: Icons.pie_chart_outline_rounded,
+              isSelected: _selectedTab == 1,
+              onTap: () => _onTabTapped(1),
+              colors: colors,
+            ),
+          ),
+          if (!isLocal) ...[
+            const SizedBox(width: 4),
+            Expanded(
+              child: _buildSubTabItem(
+                title: 'House Cart',
+                icon: Icons.shopping_cart_outlined,
+                badgeCount: pendingNeeds,
+                isSelected: _selectedTab == 2,
+                onTap: () => _onTabTapped(2),
+                colors: colors,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubTabItem({
+    required String title,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required AppThemeColors colors,
+    int? badgeCount,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? colors.cyan.withValues(alpha: 0.18)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: isSelected
+              ? Border.all(color: colors.cyan.withValues(alpha: 0.4))
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? colors.cyan : colors.textSecondary,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? colors.cyan : colors.textSecondary,
+              ),
+            ),
+            if (badgeCount != null && badgeCount > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: isSelected ? colors.cyan : colors.accentPill,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$badgeCount',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: isSelected ? Colors.white : colors.cyan,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopBar(
+    Group group,
+    AppThemeColors colors,
+    bool isDesktop,
+    List<Expense> expenses,
+    List<GroupMember> members,
+    List<DirectDebt> debts,
+    Map<String, double> memberBalances,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: colors.screen,
+        border: Border(bottom: BorderSide(color: colors.border.withValues(alpha: 0.5))),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                final onboarding = ref.read(onboardingProvider);
+                if (onboarding.hasCompletedOnboarding) {
+                  context.go('/home');
+                } else {
+                  context.go('/welcome');
+                }
+              }
+            },
+            icon: Icon(Icons.arrow_back_rounded, color: colors.textMain),
+            tooltip: 'Back',
+          ),
+          const SizedBox(width: 4),
+          GroupAvatar(
+            avatarUrl: group.avatarUrl,
+            category: group.category,
+            size: 36,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        group.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: colors.textMain,
+                        ),
+                      ),
+                    ),
+                    if (group.isOffline) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: colors.amber.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Offline',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: colors.amber,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                Row(
+                  children: [
+                    Text(
+                      group.category[0].toUpperCase() + group.category.substring(1),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      width: 3,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: colors.textSecondary,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${group.members.length} members',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (isDesktop) ...[
+            ElevatedButton.icon(
+              onPressed: _handleAddExpense,
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text(
+                'Add Expense',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colors.cyan,
+                foregroundColor: const Color(0xFF0F172A),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          IconButton(
+            onPressed: () => SettlementShareSheet.show(
+              context,
+              group: group,
+              expenses: expenses,
+              members: members,
+              debts: debts,
+              memberBalances: memberBalances,
+            ),
+            icon: Icon(Icons.share_rounded, color: colors.cyan),
+            tooltip: 'Share Settlement Invoice',
+          ),
+          if (!group.isOffline) ...[
+            IconButton(
+              onPressed: () => _handleShowQR(group),
+              icon: Icon(Icons.qr_code_rounded, color: colors.cyan),
+              tooltip: 'Invite QR Code',
+            ),
+            IconButton(
+              onPressed: () => context.push('/groups/${group.id}/settings'),
+              icon: Icon(Icons.settings_outlined, color: colors.textSecondary),
+              tooltip: 'Group Settings',
+            ),
+          ],
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert_rounded, color: colors.textSecondary),
+            color: colors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: colors.border),
+            ),
+            onSelected: (action) {
+              if (action == 'settings') {
+                context.push('/groups/${group.id}/settings');
+              } else if (action == 'edit') {
+                _handleEditGroup(group);
+              } else if (action == 'qr') {
+                _handleShowQR(group);
+              } else if (action == 'share_invoice') {
+                SettlementShareSheet.show(
+                  context,
+                  group: group,
+                  expenses: expenses,
+                  members: members,
+                  debts: debts,
+                  memberBalances: memberBalances,
+                );
+              }
+            },
+            itemBuilder: (ctx) => [
+              PopupMenuItem(
+                value: 'share_invoice',
+                child: Row(
+                  children: [
+                    Icon(Icons.share_rounded, size: 18, color: colors.cyan),
+                    const SizedBox(width: 10),
+                    Text('Share Invoice', style: TextStyle(fontSize: 13, color: colors.cyan, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+              if (!group.isOffline) ...[
+                PopupMenuItem(
+                  value: 'settings',
+                  child: Row(
+                    children: [
+                      Icon(Icons.settings_outlined, size: 18, color: colors.textSecondary),
+                      const SizedBox(width: 10),
+                      Text('Group Settings', style: TextStyle(fontSize: 13, color: colors.textMain)),
+                    ],
+                  ),
+                ),
+              ],
+              PopupMenuItem(
+                value: 'edit',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_outlined, size: 18, color: colors.textSecondary),
+                    const SizedBox(width: 10),
+                    Text('Edit Group Info', style: TextStyle(fontSize: 13, color: colors.textMain)),
+                  ],
+                ),
+              ),
+              if (!group.isOffline) ...[
+                PopupMenuItem(
+                  value: 'qr',
+                  child: Row(
+                    children: [
+                      Icon(Icons.qr_code_2_rounded, size: 18, color: colors.textSecondary),
+                      const SizedBox(width: 10),
+                      Text('Invite Members', style: TextStyle(fontSize: 13, color: colors.textMain)),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBalanceHero(
+    Group group,
+    double userBalance,
+    double totalSpent,
+    AppThemeColors colors,
+    List<Expense> expenses,
+    List<DirectDebt> debts,
+  ) {
+    if (group.isLocal) {
+      final isAllSettled = debts.isEmpty;
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: colors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'TOTAL GROUP SPEND',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.0,
+                    color: colors.textSecondary,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: colors.cyan.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: colors.cyan.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    'QUICK GROUP',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: colors.cyan,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              CurrencyFormatter.formatINR(totalSpent),
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.5,
+                color: colors.textMain,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: isAllSettled ? colors.emerald : colors.amber,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${expenses.length} expense${expenses.length == 1 ? "" : "s"} • ${isAllSettled ? "All settled up" : "${debts.length} pending settlement${debts.length == 1 ? "" : "s"}"}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    final isSettled = userBalance.abs() < 0.01;
+    final isOwed = userBalance > 0.01;
+    final balanceColor = isSettled
+        ? colors.textSecondary
+        : (isOwed ? colors.emerald : colors.crimson);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: colors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'YOUR GROUP BALANCE',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.0,
+                  color: colors.textSecondary,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: colors.accentPill,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  'Total Spend: ${CurrencyFormatter.formatINR(totalSpent)}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: colors.cyan,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isSettled
+                ? '₹0.00'
+                : (isOwed
+                    ? '+${CurrencyFormatter.formatINR(userBalance)}'
+                    : '-${CurrencyFormatter.formatINR(userBalance.abs())}'),
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.5,
+              color: balanceColor,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: balanceColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                isSettled
+                    ? 'You are all settled up in this cohort'
+                    : (isOwed
+                        ? 'You are owed ${CurrencyFormatter.formatINR(userBalance)} in total'
+                        : 'You owe ${CurrencyFormatter.formatINR(userBalance.abs())} in total'),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMemberRail(
+    List<GroupMember> members,
+    Group group,
+    String? currentUserId,
+    AppThemeColors colors,
+    Map<String, double> memberBalances,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () => setState(() => _isMembersExpanded = !_isMembersExpanded),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'MEMBERS (${members.length})',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.0,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(
+                      _isMembersExpanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      size: 18,
+                      color: colors.cyan,
+                    ),
+                  ],
+                ),
+                if (!_isMembersExpanded && members.isNotEmpty)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        height: 22,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (int i = 0; i < (members.length > 3 ? 3 : members.length); i++)
+                              Align(
+                                widthFactor: 0.7,
+                                child: UserAvatar(
+                                  avatarUrl: members[i].profile?.avatarUrl,
+                                  name: members[i].displayName,
+                                  userId: members[i].userId,
+                                  radius: 10,
+                                  borderWidth: 1.5,
+                                  borderColor: colors.screen,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Tap to expand',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: colors.cyan,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedCrossFade(
+          firstChild: const SizedBox.shrink(),
+          secondChild: Column(
+            children: [
+              const SizedBox(height: 12),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    ...members.map((m) {
+                      final isMe = !group.isLocal && m.userId == currentUserId;
+                      final name = isMe ? 'You' : m.displayName;
+                      final isAdmin = m.role == 'admin';
+
+                      return InkWell(
+                        onTap: () {
+                          if (group.isLocal) {
+                            _showLocalMemberActionsDialog(m, group, memberBalances);
+                          } else {
+                            MemberProfileSheet.show(context, member: m, cohort: group);
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(18),
+                        child: Container(
+                          width: 90,
+                          margin: const EdgeInsets.only(right: 12),
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: colors.surface,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: colors.border),
+                          ),
+                          child: Column(
+                            children: [
+                              Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  UserAvatar(
+                                    avatarUrl: m.profile?.avatarUrl,
+                                    name: name,
+                                    userId: m.userId,
+                                    radius: 20,
+                                  ),
+                                  if (isAdmin)
+                                    Positioned(
+                                      top: -4,
+                                      right: -4,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(2),
+                                        decoration: BoxDecoration(
+                                          color: colors.amber,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.star_rounded, size: 10, color: Colors.white),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: colors.textMain,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                isAdmin ? 'Admin' : 'Member',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                    if (group.isLocal)
+                      InkWell(
+                        onTap: () => _showAddLocalMemberDialog(group),
+                        borderRadius: BorderRadius.circular(18),
+                        child: Container(
+                          width: 80,
+                          margin: const EdgeInsets.only(right: 12),
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: colors.surface,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: colors.cyan.withValues(alpha: 0.3)),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              CircleAvatar(
+                                radius: 20,
+                                backgroundColor: colors.cyan.withValues(alpha: 0.12),
+                                child: Icon(Icons.person_add_rounded, color: colors.cyan, size: 20),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '+ Add',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: colors.cyan,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Friend',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          crossFadeState: _isMembersExpanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 250),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDebtsSection(
+    Group group,
+    List<DirectDebt> debts,
+    List<Expense> expenses,
+    List<GroupMember> members,
+    String? currentUserId,
+    AppThemeColors colors,
+    Map<String, double> memberBalances,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'DEBTS TO SETTLE',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+                color: colors.textSecondary,
+              ),
+            ),
+            if (debts.isNotEmpty || group.isOffline)
+              InkWell(
+                onTap: () => SettlementShareSheet.show(
+                  context,
+                  group: group,
+                  expenses: expenses,
+                  members: members,
+                  debts: debts,
+                  memberBalances: memberBalances,
+                ),
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  child: Row(
+                    children: [
+                      Icon(Icons.share_rounded, size: 13, color: colors.cyan),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Share Invoice',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: colors.cyan,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        if (debts.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: colors.border),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.check_circle_outline_rounded, color: colors.emerald, size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'All settled up! No outstanding balances between members.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ...debts.map((debt) {
+            final isMePayer = debt.fromUserId == currentUserId;
+            final isMePayee = debt.toUserId == currentUserId;
+
+            final payerName = isMePayer
+                ? 'You'
+                : (debt.fromProfile?.displayName ?? 'A member');
+            final payeeName = isMePayee
+                ? 'You'
+                : (debt.toProfile?.displayName ?? 'A member');
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: colors.border),
+              ),
+              child: Row(
+                children: [
+                  UserAvatar(
+                    avatarUrl: debt.fromProfile?.avatarUrl,
+                    name: payerName,
+                    userId: debt.fromUserId,
+                    radius: 18,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        RichText(
+                          text: TextSpan(
+                            style: TextStyle(fontSize: 13, color: colors.textMain),
+                            children: [
+                              TextSpan(
+                                text: payerName,
+                                style: const TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                              const TextSpan(text: ' owes '),
+                              TextSpan(
+                                text: payeeName,
+                                style: const TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          CurrencyFormatter.formatINR(debt.amount),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            color: colors.cyan,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => _handleSettleUp(debt),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: colors.cyan,
+                      foregroundColor: const Color(0xFF0F172A),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Settle Up',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _buildExpensesSection(
+    Group group,
+    List<Expense> expenses,
+    List<GroupMember> members,
+    String? currentUserId,
+    AppThemeColors colors,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'EXPENSES (${expenses.length})',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+                color: colors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        if (expenses.isEmpty)
+          EmptyState(
+            title: 'No Expenses Yet',
+            description: 'Log group purchases, bills, and tickets to start splitting fairly.',
+            primaryActionLabel: 'Add Expense',
+            onPrimaryAction: _handleAddExpense,
+          )
+        else
+          ...expenses.map((exp) {
+            final isSettlement = exp.category == 'settlement';
+            final formattedDate = DateFormat('MMM d, h:mm a').format(exp.createdAt);
+            final hasMultiplePayers = exp.payers.length > 1;
+            final isPaidByMe = exp.paidByUserId == currentUserId;
+            final payerMember = members.where((m) => m.userId == exp.paidByUserId).firstOrNull;
+            final String payerLabel;
+            if (group.isLocal) {
+              if (hasMultiplePayers) {
+                payerLabel = '${exp.payers.length} people';
+              } else {
+                payerLabel = payerMember?.displayName ?? exp.paidByName ?? 'A member';
+              }
+            } else {
+              if (hasMultiplePayers) {
+                final myPayer = exp.payers.where((p) => p.userId == currentUserId).firstOrNull;
+                payerLabel = myPayer != null
+                    ? '${exp.payers.length} people (inc. You)'
+                    : '${exp.payers.length} people';
+              } else {
+                payerLabel = isPaidByMe
+                    ? 'You'
+                    : (payerMember?.displayName ?? exp.paidByName ?? 'A member');
+              }
+            }
+
+            final isReceiver = currentUserId != null && exp.splits.any((s) => s.userId == currentUserId);
+            final netBalance = currentUserId != null ? exp.userNetBalance(currentUserId) : 0.0;
+            final isInvolved = currentUserId != null ? exp.isUserInvolved(currentUserId) : false;
+
+            final String primaryTrailingText;
+            final Color primaryTrailingColor;
+            final String secondaryTrailingText;
+
+            if (group.isLocal) {
+              primaryTrailingText = CurrencyFormatter.formatINR(exp.totalAmount);
+              primaryTrailingColor = colors.textMain;
+              secondaryTrailingText = isSettlement ? 'settlement' : '';
+            } else if (isSettlement) {
+              if (isPaidByMe) {
+                primaryTrailingText = 'Paid ${CurrencyFormatter.formatINR(exp.totalAmount)}';
+                primaryTrailingColor = colors.emerald;
+                secondaryTrailingText = 'settlement';
+              } else if (isReceiver) {
+                primaryTrailingText = 'Got ${CurrencyFormatter.formatINR(exp.totalAmount)}';
+                primaryTrailingColor = colors.emerald;
+                secondaryTrailingText = 'settlement';
+              } else {
+                primaryTrailingText = CurrencyFormatter.formatINR(exp.totalAmount);
+                primaryTrailingColor = colors.textSecondary;
+                secondaryTrailingText = 'settlement';
+              }
+            } else {
+              secondaryTrailingText = 'total ${CurrencyFormatter.formatINR(exp.totalAmount)}';
+              if (netBalance > 0.005) {
+                primaryTrailingText = '+${CurrencyFormatter.formatINR(netBalance)}';
+                primaryTrailingColor = colors.emerald;
+              } else if (netBalance < -0.005) {
+                primaryTrailingText = '-${CurrencyFormatter.formatINR(netBalance.abs())}';
+                primaryTrailingColor = colors.crimson;
+              } else if (isInvolved) {
+                primaryTrailingText = '₹0.00';
+                primaryTrailingColor = colors.textSecondary;
+              } else {
+                primaryTrailingText = 'not involved';
+                primaryTrailingColor = colors.textSecondary;
+              }
+            }
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: colors.border),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(18),
+                child: ListTile(
+                onTap: () => _handleExpenseTap(exp),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                leading: CategoryIcon(
+                  category: exp.category,
+                  size: 26,
+                  variant: CategoryIconVariant.solid,
+                ),
+                title: Text(
+                  exp.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: colors.textMain,
+                  ),
+                ),
+                subtitle: Text(
+                  'Paid by $payerLabel • $formattedDate',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.textSecondary,
+                  ),
+                ),
+                trailing: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      primaryTrailingText,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: primaryTrailingColor,
+                      ),
+                    ),
+                    if (secondaryTrailingText.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        secondaryTrailingText,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  Future<void> _showAddLocalMemberDialog(Group group) async {
+    final controller = TextEditingController();
+    final colors = context.colors;
+
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: colors.border),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.person_add_rounded, color: colors.cyan, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Add Person',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: colors.textMain,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Enter their name to add them to this Quick Group:',
+              style: TextStyle(fontSize: 13, color: colors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              style: TextStyle(color: colors.textMain, fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'e.g. Charlie',
+                hintStyle: TextStyle(
+                    color: colors.textSecondary.withValues(alpha: 0.5)),
+                filled: true,
+                fillColor: colors.accentPill,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.cyan, width: 1.5),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colors.cyan,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              final val = controller.text.trim();
+              if (val.isNotEmpty) Navigator.pop(ctx, val);
+            },
+            child:
+                const Text('Add', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+
+    if (name != null && name.isNotEmpty && mounted) {
+      await ref.read(groupsProvider.notifier).addLocalMember(group.id, name);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Added "$name" to the group')),
+        );
+      }
+    }
+  }
+
+  void _showLocalMemberActionsDialog(
+    GroupMember member,
+    Group group,
+    Map<String, double> memberBalances,
+  ) {
+    final colors = context.colors;
+    final netBalance = memberBalances[member.userId] ?? 0.0;
+    final isSettled = netBalance.abs() <= 0.01;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundColor: colors.cyan.withValues(alpha: 0.15),
+                    child: Text(
+                      member.displayName.isNotEmpty
+                          ? member.displayName[0].toUpperCase()
+                          : '?',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: colors.cyan,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          member.displayName,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: colors.textMain,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          isSettled
+                              ? 'Balance: All settled up (₹0.00)'
+                              : (netBalance > 0.01
+                                  ? 'Balance: Owed ${CurrencyFormatter.formatINR(netBalance)}'
+                                  : 'Balance: Owes ${CurrencyFormatter.formatINR(netBalance.abs())}'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isSettled
+                                ? colors.textSecondary
+                                : (netBalance > 0.01
+                                    ? colors.emerald
+                                    : colors.crimson),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Divider(color: colors.border, height: 1),
+              const SizedBox(height: 8),
+
+              // Rename Option
+              ListTile(
+                leading: Icon(Icons.edit_outlined, color: colors.cyan),
+                title: Text(
+                  'Rename Person',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, color: colors.textMain),
+                ),
+                subtitle: Text(
+                  'Update name in this Quick Group',
+                  style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showRenameLocalMemberDialog(member, group);
+                },
+              ),
+
+              // Remove Option
+              ListTile(
+                leading: Icon(
+                  Icons.person_remove_rounded,
+                  color: isSettled
+                      ? colors.crimson
+                      : colors.crimson.withValues(alpha: 0.4),
+                ),
+                title: Text(
+                  'Remove from Group',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: isSettled ? colors.crimson : colors.textSecondary,
+                  ),
+                ),
+                subtitle: Text(
+                  isSettled
+                      ? 'Remove this participant'
+                      : 'Cannot remove: has unsettled balance',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isSettled ? colors.textSecondary : colors.crimson,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _handleRemoveLocalMember(member, group, netBalance);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showRenameLocalMemberDialog(
+    GroupMember member,
+    Group group,
+  ) async {
+    final controller = TextEditingController(text: member.displayName);
+    final colors = context.colors;
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: colors.border),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.edit_outlined, color: colors.cyan, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Rename Person',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: colors.textMain,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Enter new name for ${member.displayName}:',
+              style: TextStyle(fontSize: 13, color: colors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              style: TextStyle(color: colors.textMain, fontSize: 14),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: colors.accentPill,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.cyan, width: 1.5),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colors.cyan,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              final val = controller.text.trim();
+              if (val.isNotEmpty) Navigator.pop(ctx, val);
+            },
+            child:
+                const Text('Save', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+
+    if (newName != null && newName.isNotEmpty && newName != member.displayName && mounted) {
+      await ref
+          .read(groupsProvider.notifier)
+          .renameMember(group.id, member.userId, newName);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Renamed to "$newName" successfully')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleRemoveLocalMember(
+    GroupMember member,
+    Group group,
+    double netBalance,
+  ) async {
+    final colors = context.colors;
+
+    // Strict zero-balance enforcement
+    if (netBalance.abs() > 0.01) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: colors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: colors.border),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.block_rounded, color: colors.crimson, size: 24),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Cannot Remove Person',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: colors.textMain,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${member.displayName} has an unsettled balance in "${group.name}".',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textMain,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colors.crimson.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: colors.crimson.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  netBalance > 0.01
+                      ? '${member.displayName} is currently owed ${CurrencyFormatter.formatINR(netBalance)}. All debts and balances must be settled first.'
+                      : '${member.displayName} currently owes ${CurrencyFormatter.formatINR(netBalance.abs())}. All debts must be settled first.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colors.crimson,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(
+                'Close',
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (group.members.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot remove the only person in the group')),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: colors.border),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.person_remove_rounded, color: colors.crimson, size: 24),
+            const SizedBox(width: 8),
+            Text(
+              'Remove Person',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: colors.textMain,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to remove ${member.displayName} from "${group.name}"?',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: colors.textMain,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colors.crimson,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await ref.read(groupsProvider.notifier).kickMember(group.id, member.userId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${member.displayName} was removed from the group')),
+        );
+      }
+    }
+  }
+}

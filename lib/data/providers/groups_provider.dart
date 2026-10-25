@@ -1,0 +1,408 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/models/group.dart';
+import '../../core/models/group_member.dart';
+import '../../core/models/comment.dart';
+import '../../core/models/profile.dart';
+import '../repositories/group_repository.dart';
+import 'auth_provider.dart';
+import 'expenses_provider.dart';
+
+final groupRepositoryProvider = Provider<GroupRepository>((ref) {
+  final supabase = ref.watch(supabaseServiceProvider);
+  final profileRepo = ref.watch(profileRepositoryProvider);
+  final cache = ref.watch(localCacheServiceProvider);
+  return GroupRepository(
+    supabaseService: supabase,
+    profileRepository: profileRepo,
+    cacheService: cache,
+  );
+});
+
+class GroupsNotifier extends Notifier<AsyncValue<List<Group>>> {
+  @override
+  AsyncValue<List<Group>> build() {
+    final cache = ref.watch(localCacheServiceProvider);
+    final cached = cache.getCachedGroups();
+    return AsyncValue.data(cached);
+  }
+
+  Future<void> loadUserGroups() async {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null) {
+      final cache = ref.read(localCacheServiceProvider);
+      state = AsyncValue.data(cache.getLocalGroups());
+      return;
+    }
+
+    state = const AsyncValue.loading();
+    try {
+      final repo = ref.read(groupRepositoryProvider);
+      final result = await repo.fetchUserCohorts(currentUser.id);
+      state = AsyncValue.data(result.cohorts);
+
+      // Auto-purge any groups in trash > 15 days
+      await repo.purgeExpiredDeletedCohorts(result.cohorts);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+
+  Future<Group> createGroup(Group group) async {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null && !group.isLocal && !group.id.startsWith('local_')) {
+      throw Exception('Must be logged in to create a cloud group');
+    }
+
+    final creator = currentUser ??
+        UserProfile(
+          id: 'local_creator',
+          fullName: 'Me',
+          createdAt: DateTime.now(),
+        );
+
+    final repo = ref.read(groupRepositoryProvider);
+    final result = await repo.createCohort(group, creator);
+
+    final currentGroups = state.value ?? [];
+    state = AsyncValue.data([
+      result.cohort,
+      ...currentGroups.where((g) => g.id != result.cohort.id)
+    ]);
+    return result.cohort;
+  }
+
+  Future<void> updateGroup(String groupId, Map<String, dynamic> updates) async {
+    final repo = ref.read(groupRepositoryProvider);
+    await repo.updateCohort(groupId, updates);
+
+    final currentGroups = state.value ?? [];
+    final updated = currentGroups.map((g) {
+      if (g.id == groupId) {
+        return g.copyWith(
+          name: updates['name'] as String? ?? g.name,
+          description: updates['description'] as String? ?? g.description,
+          category: updates['category'] as String? ?? g.category,
+          customIcon: updates['custom_icon'] as String? ?? g.customIcon,
+          avatarUrl: updates['avatar_url'] as String? ?? g.avatarUrl,
+          currency: updates['currency'] as String? ?? g.currency,
+          createdBy: updates['created_by'] as String? ?? g.createdBy,
+        );
+      }
+      return g;
+    }).toList();
+    state = AsyncValue.data(updated);
+  }
+
+  Future<Group?> joinGroupByInviteCode(String inviteCode) async {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null) {
+      throw Exception('Must be logged in to join a group');
+    }
+
+    final repo = ref.read(groupRepositoryProvider);
+    final result = await repo.joinCohortByInviteCode(inviteCode, currentUser);
+    if (result == null) return null;
+
+    final currentGroups = state.value ?? [];
+    final filtered = currentGroups.where((g) => g.id != result.cohort.id).toList();
+    state = AsyncValue.data([result.cohort, ...filtered]);
+    return result.cohort;
+  }
+
+  Future<void> toggleArchiveGroup(String groupId) async {
+    final currentGroups = state.value ?? [];
+    final group = currentGroups.where((g) => g.id == groupId).firstOrNull;
+    if (group == null) return;
+
+    final nextArchived = !group.isArchived;
+    final repo = ref.read(groupRepositoryProvider);
+    await repo.toggleArchiveCohort(groupId, nextArchived);
+
+    final updated = currentGroups.map((g) {
+      if (g.id == groupId) {
+        return g.copyWith(
+          isArchived: nextArchived,
+          archivedAt: nextArchived ? DateTime.now() : null,
+          updatedAt: DateTime.now(),
+        );
+      }
+      return g;
+    }).toList();
+    state = AsyncValue.data(updated);
+  }
+
+  Future<void> deleteGroup(String groupId) async {
+    final repo = ref.read(groupRepositoryProvider);
+    await repo.deleteCohort(groupId);
+
+    final currentGroups = state.value ?? [];
+    final now = DateTime.now();
+    final updated = currentGroups.map((g) {
+      if (g.id == groupId) {
+        return g.copyWith(isDeleted: true, deletedAt: now, updatedAt: now);
+      }
+      return g;
+    }).toList();
+    state = AsyncValue.data(updated);
+
+    // If active group was deleted, reset active group
+    final activeId = ref.read(activeGroupIdProvider);
+    if (activeId == groupId) {
+      ref.read(activeGroupIdProvider.notifier).setActiveGroupId(null);
+    }
+  }
+
+  Future<void> restoreGroup(String groupId) async {
+    final repo = ref.read(groupRepositoryProvider);
+    await repo.restoreDeletedCohort(groupId);
+
+    final currentGroups = state.value ?? [];
+    final now = DateTime.now();
+    final updated = currentGroups.map((g) {
+      if (g.id == groupId) {
+        return g.copyWith(isDeleted: false, deletedAt: null, updatedAt: now);
+      }
+      return g;
+    }).toList();
+    state = AsyncValue.data(updated);
+  }
+
+  Future<void> deleteGroupPermanently(String groupId) async {
+    final repo = ref.read(groupRepositoryProvider);
+    await repo.deleteCohortPermanently(groupId);
+
+    final currentGroups = state.value ?? [];
+    state = AsyncValue.data(currentGroups.where((g) => g.id != groupId).toList());
+
+    final activeId = ref.read(activeGroupIdProvider);
+    if (activeId == groupId) {
+      ref.read(activeGroupIdProvider.notifier).setActiveGroupId(null);
+    }
+  }
+
+  Future<bool> kickMember(String groupId, String userId) async {
+    final balances = ref.read(groupMemberBalancesProvider(groupId));
+    final memberBalance = balances[userId] ?? 0.0;
+    if (memberBalance.abs() > 0.01) {
+      return false;
+    }
+
+    final repo = ref.read(groupRepositoryProvider);
+    final success = await repo.removeMemberFromCohort(groupId, userId);
+
+    final currentGroups = state.value ?? [];
+    final updated = currentGroups.map((g) {
+      if (g.id == groupId) {
+        return g.copyWith(
+          members: g.members.where((m) => m.userId != userId).toList(),
+        );
+      }
+      return g;
+    }).toList();
+    state = AsyncValue.data(updated);
+    return success;
+  }
+
+  /// Adds a local participant to a local group
+  Future<GroupMember?> addLocalMember(String groupId, String name) async {
+    final cleanName = name.trim();
+    if (cleanName.isEmpty) return null;
+
+    final now = DateTime.now();
+    final newUserId = 'user_local_${now.microsecondsSinceEpoch}';
+    final newMember = GroupMember(
+      id: 'gm_local_${now.microsecondsSinceEpoch}',
+      cohortId: groupId,
+      userId: newUserId,
+      role: 'member',
+      joinedAt: now,
+      isPlaceholder: true,
+      originalCsvName: cleanName,
+      profile: UserProfile(
+        id: newUserId,
+        fullName: cleanName,
+        createdAt: now,
+      ),
+    );
+
+    final repo = ref.read(groupRepositoryProvider);
+    await repo.addMembersToCohort(groupId, [newMember]);
+
+    final currentGroups = state.value ?? [];
+    final updated = currentGroups.map((g) {
+      if (g.id == groupId) {
+        return g.copyWith(
+          members: [...g.members, newMember],
+        );
+      }
+      return g;
+    }).toList();
+    state = AsyncValue.data(updated);
+    return newMember;
+  }
+
+  /// Renames a member in a group
+  Future<bool> renameMember(
+    String groupId,
+    String userId,
+    String newName,
+  ) async {
+    final cleanName = newName.trim();
+    if (cleanName.isEmpty) return false;
+
+    final repo = ref.read(groupRepositoryProvider);
+    final success =
+        await repo.renameMemberInCohort(groupId, userId, cleanName);
+
+    final currentGroups = state.value ?? [];
+    final updated = currentGroups.map((g) {
+      if (g.id == groupId) {
+        return g.copyWith(
+          members: g.members.map((m) {
+            if (m.userId == userId) {
+              return m.copyWith(
+                originalCsvName: cleanName,
+                profile: (m.profile ??
+                        UserProfile(
+                          id: userId,
+                          fullName: cleanName,
+                          createdAt: DateTime.now(),
+                        ))
+                    .copyWith(fullName: cleanName),
+              );
+            }
+            return m;
+          }).toList(),
+        );
+      }
+      return g;
+    }).toList();
+    state = AsyncValue.data(updated);
+    return success;
+  }
+
+  /// Handles leaving a cohort with automatic admin succession if user is admin
+  Future<({bool success, String? nextAdminName})> leaveGroup(String groupId) async {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null) return (success: false, nextAdminName: null);
+
+    final balances = ref.read(groupMemberBalancesProvider(groupId));
+    final myBalance = balances[currentUser.id] ?? 0.0;
+    if (myBalance.abs() > 0.01) {
+      return (success: false, nextAdminName: null);
+    }
+
+    final currentGroups = state.value ?? [];
+    final group = currentGroups.where((g) => g.id == groupId).firstOrNull;
+    if (group == null) return (success: false, nextAdminName: null);
+
+    final members = group.members;
+    final currentMember = members.where((m) => m.userId == currentUser.id).firstOrNull;
+    final isAdmin = group.createdBy == currentUser.id || currentMember?.role == 'admin';
+
+    final remaining = members.where(
+      (m) => m.userId != currentUser.id && !m.isPlaceholder,
+    ).toList();
+
+    if (remaining.isEmpty) {
+      // User is the sole member, cannot leave without deleting
+      return (success: false, nextAdminName: null);
+    }
+
+    final repo = ref.read(groupRepositoryProvider);
+
+    if (isAdmin) {
+      // Sort oldest member first
+      remaining.sort((a, b) => a.joinedAt.compareTo(b.joinedAt));
+      final nextAdmin = remaining.first;
+      final nextAdminName = nextAdmin.profile?.displayName ?? 'A member';
+
+      // 1. Promote nextAdmin to admin
+      await repo.updateMemberRole(groupId, nextAdmin.userId, 'admin');
+      // 2. Transfer createdBy
+      await repo.updateCohort(groupId, {'created_by': nextAdmin.userId});
+      // 3. Remove currentUser
+      await repo.removeMemberFromCohort(groupId, currentUser.id);
+
+      // System notification comment
+      final comment = TransactionComment(
+        id: 'comment_sys_${DateTime.now().millisecondsSinceEpoch}',
+        cohortId: groupId,
+        userId: currentUser.id,
+        content:
+            'System: ${currentUser.displayName} left the group. $nextAdminName is now the group admin.',
+        createdAt: DateTime.now(),
+      );
+      final cache = ref.read(localCacheServiceProvider);
+      final comments = cache.getCachedComments(groupId);
+      await cache.saveComments(groupId, [...comments, comment]);
+
+      // Remove from local groups
+      state = AsyncValue.data(currentGroups.where((g) => g.id != groupId).toList());
+      final activeId = ref.read(activeGroupIdProvider);
+      if (activeId == groupId) {
+        ref.read(activeGroupIdProvider.notifier).setActiveGroupId(null);
+      }
+
+      return (success: true, nextAdminName: nextAdminName);
+    } else {
+      await repo.removeMemberFromCohort(groupId, currentUser.id);
+      state = AsyncValue.data(currentGroups.where((g) => g.id != groupId).toList());
+      final activeId = ref.read(activeGroupIdProvider);
+      if (activeId == groupId) {
+        ref.read(activeGroupIdProvider.notifier).setActiveGroupId(null);
+      }
+      return (success: true, nextAdminName: null);
+    }
+  }
+}
+
+final groupsProvider =
+    NotifierProvider<GroupsNotifier, AsyncValue<List<Group>>>(() {
+  return GroupsNotifier();
+});
+
+class ActiveGroupIdNotifier extends Notifier<String?> {
+  @override
+  String? build() {
+    final cache = ref.watch(localCacheServiceProvider);
+    return cache.getActiveGroupId();
+  }
+
+  Future<void> setActiveGroupId(String? id) async {
+    final cache = ref.read(localCacheServiceProvider);
+    await cache.saveActiveGroupId(id);
+    state = id;
+  }
+}
+
+final activeGroupIdProvider =
+    NotifierProvider<ActiveGroupIdNotifier, String?>(() {
+  return ActiveGroupIdNotifier();
+});
+
+final activeGroupProvider = Provider<Group?>((ref) {
+  final groups = ref.watch(groupsProvider).value ?? [];
+  final activeId = ref.watch(activeGroupIdProvider);
+  if (activeId == null) return groups.firstOrNull;
+  return groups.where((g) => g.id == activeId).firstOrNull ?? groups.firstOrNull;
+});
+
+final groupMembersProvider =
+    Provider.family<List<GroupMember>, String>((ref, groupId) {
+  final groups = ref.watch(groupsProvider).value ?? [];
+  final group = groups.where((g) => g.id == groupId).firstOrNull;
+  if (group != null && group.members.isNotEmpty) {
+    return group.members;
+  }
+  final cache = ref.watch(localCacheServiceProvider);
+  return cache.getCachedMembers(groupId);
+});
+
+/// Filtered list of local offline groups
+final localGroupsProvider = Provider<List<Group>>((ref) {
+  final groups = ref.watch(groupsProvider).value ?? [];
+  return groups
+      .where((g) => (g.isLocal || g.id.startsWith('local_')) && !g.isDeleted)
+      .toList();
+});
