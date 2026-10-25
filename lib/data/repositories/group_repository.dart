@@ -37,6 +37,11 @@ class GroupRepository {
     }
 
     try {
+      final cachedCohorts = cacheService.getCachedGroups();
+      final localCohorts = cachedCohorts
+          .where((g) => g.isLocal || g.id.startsWith('local_'))
+          .toList();
+
       // 1. Get all cohort IDs the user is a member of
       final memberRows = await supabaseService.client
           .from('group_members')
@@ -49,7 +54,12 @@ class GroupRepository {
           .toList();
 
       if (cohortIds.isEmpty) {
-        return (cohorts: <Group>[], members: <String, List<GroupMember>>{});
+        final Map<String, List<GroupMember>> localMembers = {};
+        for (final lc in localCohorts) {
+          localMembers[lc.id] = cacheService.getCachedMembers(lc.id);
+        }
+        await cacheService.saveGroups(localCohorts);
+        return (cohorts: localCohorts, members: localMembers);
       }
 
       // 2. Fetch cohort details
@@ -68,6 +78,9 @@ class GroupRepository {
       final Map<String, List<GroupMember>> membersMap = {};
       for (final cid in cohortIds) {
         membersMap[cid] = [];
+      }
+      for (final lc in localCohorts) {
+        membersMap[lc.id] = cacheService.getCachedMembers(lc.id);
       }
 
       final cachedCurrentUser = cacheService.getCurrentUser();
@@ -88,13 +101,16 @@ class GroupRepository {
         return group.copyWith(members: roster);
       }).toList();
 
+      // Combine local groups and cloud groups
+      final combinedCohorts = [...localCohorts, ...cohorts];
+
       // Persist to local cache
-      await cacheService.saveGroups(cohorts);
+      await cacheService.saveGroups(combinedCohorts);
       for (final entry in membersMap.entries) {
         await cacheService.saveMembers(entry.key, entry.value);
       }
 
-      return (cohorts: cohorts, members: membersMap);
+      return (cohorts: combinedCohorts, members: membersMap);
     } catch (e, st) {
       debugPrint('[GroupRepository] fetchUserCohorts error: $e\n$st');
       final cachedCohorts = cacheService.getCachedGroups();
@@ -128,17 +144,28 @@ class GroupRepository {
       profile: effectiveCreator,
     );
 
+    final initialMembers = cohort.members.isNotEmpty
+        ? cohort.members
+        : [fallbackMember];
+
     final updatedCohort = cohort.copyWith(
       inviteCode: inviteCode,
       createdBy: effectiveCreator.id,
-      members: [fallbackMember],
+      members: initialMembers,
     );
 
-    if (!supabaseService.isConfigured || !isUuid(effectiveCreator.id)) {
+    if (cohort.isLocal ||
+        cohort.id.startsWith('local_') ||
+        !supabaseService.isConfigured ||
+        !isUuid(effectiveCreator.id)) {
       final groups = cacheService.getCachedGroups();
-      await cacheService.saveGroups([updatedCohort, ...groups]);
-      await cacheService.saveMembers(updatedCohort.id, [fallbackMember]);
-      return (cohort: updatedCohort, member: fallbackMember);
+      final merged = [
+        updatedCohort,
+        ...groups.where((g) => g.id != updatedCohort.id)
+      ];
+      await cacheService.saveGroups(merged);
+      await cacheService.saveMembers(updatedCohort.id, initialMembers);
+      return (cohort: updatedCohort, member: initialMembers.first);
     }
 
     try {

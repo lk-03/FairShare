@@ -6,6 +6,7 @@ import '../../../../core/models/group.dart';
 import '../../../../core/widgets/category_icon.dart';
 import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/groups_provider.dart';
+import '../../../groups/presentation/widgets/create_local_group_sheet.dart';
 import '../../../profile/presentation/widgets/csv_import_sheet.dart';
 
 class CreateGroupSheet extends ConsumerStatefulWidget {
@@ -188,7 +189,83 @@ class _CreateGroupSheetState extends ConsumerState<CreateGroupSheet> {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+
+            // Group Type Switcher
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: colors.accentPill,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: colors.border),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: colors.surface,
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.cloud_outlined, size: 16, color: colors.cyan),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Cloud Group',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: colors.cyan,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        CreateLocalGroupSheet.show(
+                          context,
+                          onGroupCreated: widget.onGroupCreated,
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.phonelink_setup_rounded, size: 16, color: colors.textSecondary),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Offline Outing',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: colors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
 
             if (_error != null) ...[
               Container(

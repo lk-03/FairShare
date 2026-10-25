@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/group.dart';
 import '../../core/models/group_member.dart';
 import '../../core/models/comment.dart';
+import '../../core/models/profile.dart';
 import '../repositories/group_repository.dart';
 import 'auth_provider.dart';
 import 'expenses_provider.dart';
@@ -27,7 +28,11 @@ class GroupsNotifier extends Notifier<AsyncValue<List<Group>>> {
 
   Future<void> loadUserGroups() async {
     final currentUser = ref.read(currentUserProvider);
-    if (currentUser == null) return;
+    if (currentUser == null) {
+      final cache = ref.read(localCacheServiceProvider);
+      state = AsyncValue.data(cache.getLocalGroups());
+      return;
+    }
 
     state = const AsyncValue.loading();
     try {
@@ -44,15 +49,25 @@ class GroupsNotifier extends Notifier<AsyncValue<List<Group>>> {
 
   Future<Group> createGroup(Group group) async {
     final currentUser = ref.read(currentUserProvider);
-    if (currentUser == null) {
-      throw Exception('Must be logged in or guest to create a group');
+    if (currentUser == null && !group.isLocal && !group.id.startsWith('local_')) {
+      throw Exception('Must be logged in to create a cloud group');
     }
 
+    final creator = currentUser ??
+        UserProfile(
+          id: 'local_creator',
+          fullName: 'Me',
+          createdAt: DateTime.now(),
+        );
+
     final repo = ref.read(groupRepositoryProvider);
-    final result = await repo.createCohort(group, currentUser);
+    final result = await repo.createCohort(group, creator);
 
     final currentGroups = state.value ?? [];
-    state = AsyncValue.data([result.cohort, ...currentGroups]);
+    state = AsyncValue.data([
+      result.cohort,
+      ...currentGroups.where((g) => g.id != result.cohort.id)
+    ]);
     return result.cohort;
   }
 
@@ -304,4 +319,12 @@ final groupMembersProvider =
   }
   final cache = ref.watch(localCacheServiceProvider);
   return cache.getCachedMembers(groupId);
+});
+
+/// Filtered list of local offline groups
+final localGroupsProvider = Provider<List<Group>>((ref) {
+  final groups = ref.watch(groupsProvider).value ?? [];
+  return groups
+      .where((g) => (g.isLocal || g.id.startsWith('local_')) && !g.isDeleted)
+      .toList();
 });

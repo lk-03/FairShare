@@ -12,6 +12,7 @@ import '../../../../data/providers/groups_provider.dart';
 import '../../../home/presentation/widgets/create_group_sheet.dart';
 import '../../../home/presentation/widgets/join_group_sheet.dart';
 import '../widgets/group_action_sheet.dart';
+import '../widgets/local_groups_hub_sheet.dart';
 
 class GroupsScreen extends ConsumerStatefulWidget {
   const GroupsScreen({super.key});
@@ -152,6 +153,26 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                                         fontSize: 13,
                                         fontWeight: FontWeight.w700,
                                         color: colors.cyan,
+                                      ),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      side: BorderSide(color: colors.border),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  OutlinedButton.icon(
+                                    onPressed: () => LocalGroupsHubSheet.show(context),
+                                    icon: Icon(Icons.phonelink_setup_rounded, size: 16, color: colors.amber),
+                                    label: Text(
+                                      'Offline Outings',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: colors.amber,
                                       ),
                                     ),
                                     style: OutlinedButton.styleFrom(
@@ -311,6 +332,20 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Offline Outing Option
+                  _buildSpeedDialItem(
+                    label: 'Offline Outing (Local)',
+                    icon: Icons.phonelink_setup_rounded,
+                    iconColor: colors.amber,
+                    iconBg: colors.amber.withValues(alpha: 0.18),
+                    borderColor: colors.amber.withValues(alpha: 0.35),
+                    onTap: () {
+                      setState(() => _fabOpen = false);
+                      LocalGroupsHubSheet.show(context);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
                   // Join Group Option
                   _buildSpeedDialItem(
                     label: 'Join Group',
@@ -1077,6 +1112,30 @@ class _GroupCard extends ConsumerWidget {
                                     fontSize: 9,
                                     fontWeight: FontWeight.w700,
                                     color: colors.cyan,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            if (cohort.isOffline) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: colors.amber.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: colors.amber.withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Offline',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    color: colors.amber,
                                   ),
                                 ),
                               ),

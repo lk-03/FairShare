@@ -6,6 +6,7 @@ import '../../../../core/models/profile.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/repositories/auth_repository.dart';
+import '../../../groups/presentation/widgets/local_groups_hub_sheet.dart';
 
 enum AuthMode {
   options,
@@ -687,6 +688,130 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               fontSize: 13,
               fontWeight: FontWeight.w800,
               color: colors.cyan,
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Divider
+        Row(
+          children: [
+            Expanded(child: Divider(color: colors.border.withValues(alpha: 0.6))),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                'OR',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.0,
+                  color: colors.textSecondary.withValues(alpha: 0.7),
+                ),
+              ),
+            ),
+            Expanded(child: Divider(color: colors.border.withValues(alpha: 0.6))),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // 4: Zero-Login Offline Outings Button
+        InkWell(
+          onTap: () => LocalGroupsHubSheet.show(context),
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: colors.cyan.withValues(alpha: 0.35),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: colors.cyan.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: colors.cyan.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.phonelink_setup_rounded,
+                    color: colors.cyan,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'Offline Outings',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: colors.textMain,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 1.5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colors.amber.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'Zero Login',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: colors.amber,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Split dinners or trips locally without an account',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 13,
+                  color: colors.textSecondary,
+                ),
+              ],
             ),
           ),
         ),

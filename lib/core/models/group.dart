@@ -14,6 +14,7 @@ class Group {
   final DateTime? archivedAt;
   final bool isDeleted;
   final DateTime? deletedAt;
+  final bool isLocal;
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<GroupMember> members;
@@ -32,12 +33,14 @@ class Group {
     this.archivedAt,
     this.isDeleted = false,
     this.deletedAt,
+    this.isLocal = false,
     required this.createdAt,
     required this.updatedAt,
     this.members = const [],
   });
 
   int get memberCount => members.length;
+  bool get isOffline => isLocal || id.startsWith('local_');
 
   /// Returns remaining days before permanent purge if [isDeleted] is true
   int get daysUntilPermanentDeletion {
@@ -79,6 +82,9 @@ class Group {
           : (json['deletedAt'] != null
               ? DateTime.tryParse(json['deletedAt'].toString())
               : null),
+      isLocal: json['is_local'] as bool? ??
+          json['isLocal'] as bool? ??
+          ((json['id'] as String?)?.startsWith('local_') ?? false),
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
           : (json['createdAt'] != null
@@ -108,6 +114,7 @@ class Group {
       if (archivedAt != null) 'archived_at': archivedAt!.toIso8601String(),
       'is_deleted': isDeleted,
       if (deletedAt != null) 'deleted_at': deletedAt!.toIso8601String(),
+      if (isLocal) 'is_local': true,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       if (members.isNotEmpty) 'members': members.map((m) => m.toJson()).toList(),
@@ -128,6 +135,7 @@ class Group {
     DateTime? archivedAt,
     bool? isDeleted,
     DateTime? deletedAt,
+    bool? isLocal,
     DateTime? createdAt,
     DateTime? updatedAt,
     List<GroupMember>? members,
@@ -146,6 +154,7 @@ class Group {
       archivedAt: archivedAt ?? this.archivedAt,
       isDeleted: isDeleted ?? this.isDeleted,
       deletedAt: deletedAt ?? this.deletedAt,
+      isLocal: isLocal ?? this.isLocal,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       members: members ?? this.members,

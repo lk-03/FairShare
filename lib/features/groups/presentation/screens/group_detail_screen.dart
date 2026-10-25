@@ -24,6 +24,7 @@ import '../widgets/edit_group_sheet.dart';
 import '../widgets/group_qr_sheet.dart';
 import '../widgets/member_profile_sheet.dart';
 import '../widgets/monthly_spendings_tab.dart';
+import '../widgets/settlement_share_sheet.dart';
 
 class GroupDetailScreen extends ConsumerStatefulWidget {
   final String groupId;
@@ -158,6 +159,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     final expensesAsync = ref.watch(groupExpensesProvider(widget.groupId));
     final expenses = expensesAsync.value ?? [];
     final debts = ref.watch(groupDebtsProvider(widget.groupId));
+    final memberBalances = ref.watch(groupMemberBalancesProvider(widget.groupId));
     final userBalance = ref.watch(userNetBalanceProvider(widget.groupId));
     final totalSpent = ref.watch(groupTotalSpendingProvider(widget.groupId));
     final currentUser = ref.watch(currentUserProvider);
@@ -172,7 +174,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
         child: Column(
           children: [
             // Top App Bar
-            _buildTopBar(group, colors, isDesktop),
+            _buildTopBar(group, colors, isDesktop, expenses, members, debts, memberBalances),
 
             // Segmented Sub-Tab Switcher
             _buildSubTabSelector(colors, pendingNeeds),
@@ -208,7 +210,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                                       const SizedBox(height: 20),
                                       _buildMemberRail(members, group, currentUser?.id, colors),
                                       const SizedBox(height: 20),
-                                      _buildDebtsSection(debts, currentUser?.id, colors),
+                                      _buildDebtsSection(group, debts, expenses, members, currentUser?.id, colors, memberBalances),
                                     ],
                                   ),
                                 ),
@@ -230,7 +232,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                                 const SizedBox(height: 24),
 
                                 // Debts to Settle Section
-                                _buildDebtsSection(debts, currentUser?.id, colors),
+                                _buildDebtsSection(group, debts, expenses, members, currentUser?.id, colors, memberBalances),
                                 const SizedBox(height: 24),
 
                                 // Chronological Expenses Section
@@ -416,7 +418,15 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     );
   }
 
-  Widget _buildTopBar(Group group, AppThemeColors colors, bool isDesktop) {
+  Widget _buildTopBar(
+    Group group,
+    AppThemeColors colors,
+    bool isDesktop,
+    List<Expense> expenses,
+    List<GroupMember> members,
+    List<DirectDebt> debts,
+    Map<String, double> memberBalances,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -426,7 +436,18 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
       child: Row(
         children: [
           IconButton(
-            onPressed: () => context.pop(),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                final onboarding = ref.read(onboardingProvider);
+                if (onboarding.hasCompletedOnboarding) {
+                  context.go('/home');
+                } else {
+                  context.go('/welcome');
+                }
+              }
+            },
             icon: Icon(Icons.arrow_back_rounded, color: colors.textMain),
             tooltip: 'Back',
           ),
@@ -442,15 +463,39 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  group.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: colors.textMain,
-                  ),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        group.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: colors.textMain,
+                        ),
+                      ),
+                    ),
+                    if (group.isOffline) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: colors.amber.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Offline',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: colors.amber,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 Row(
                   children: [
@@ -506,15 +551,29 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
             const SizedBox(width: 8),
           ],
           IconButton(
-            onPressed: () => _handleShowQR(group),
-            icon: Icon(Icons.qr_code_rounded, color: colors.cyan),
-            tooltip: 'Invite QR Code',
+            onPressed: () => SettlementShareSheet.show(
+              context,
+              group: group,
+              expenses: expenses,
+              members: members,
+              debts: debts,
+              memberBalances: memberBalances,
+            ),
+            icon: Icon(Icons.share_rounded, color: colors.cyan),
+            tooltip: 'Share Settlement Invoice',
           ),
-          IconButton(
-            onPressed: () => context.push('/groups/${group.id}/settings'),
-            icon: Icon(Icons.settings_outlined, color: colors.textSecondary),
-            tooltip: 'Group Settings',
-          ),
+          if (!group.isOffline) ...[
+            IconButton(
+              onPressed: () => _handleShowQR(group),
+              icon: Icon(Icons.qr_code_rounded, color: colors.cyan),
+              tooltip: 'Invite QR Code',
+            ),
+            IconButton(
+              onPressed: () => context.push('/groups/${group.id}/settings'),
+              icon: Icon(Icons.settings_outlined, color: colors.textSecondary),
+              tooltip: 'Group Settings',
+            ),
+          ],
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert_rounded, color: colors.textSecondary),
             color: colors.surface,
@@ -529,19 +588,40 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                 _handleEditGroup(group);
               } else if (action == 'qr') {
                 _handleShowQR(group);
+              } else if (action == 'share_invoice') {
+                SettlementShareSheet.show(
+                  context,
+                  group: group,
+                  expenses: expenses,
+                  members: members,
+                  debts: debts,
+                  memberBalances: memberBalances,
+                );
               }
             },
             itemBuilder: (ctx) => [
               PopupMenuItem(
-                value: 'settings',
+                value: 'share_invoice',
                 child: Row(
                   children: [
-                    Icon(Icons.settings_outlined, size: 18, color: colors.textSecondary),
+                    Icon(Icons.share_rounded, size: 18, color: colors.cyan),
                     const SizedBox(width: 10),
-                    Text('Group Settings', style: TextStyle(fontSize: 13, color: colors.textMain)),
+                    Text('Share Invoice', style: TextStyle(fontSize: 13, color: colors.cyan, fontWeight: FontWeight.w700)),
                   ],
                 ),
               ),
+              if (!group.isOffline) ...[
+                PopupMenuItem(
+                  value: 'settings',
+                  child: Row(
+                    children: [
+                      Icon(Icons.settings_outlined, size: 18, color: colors.textSecondary),
+                      const SizedBox(width: 10),
+                      Text('Group Settings', style: TextStyle(fontSize: 13, color: colors.textMain)),
+                    ],
+                  ),
+                ),
+              ],
               PopupMenuItem(
                 value: 'edit',
                 child: Row(
@@ -552,16 +632,18 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                   ],
                 ),
               ),
-              PopupMenuItem(
-                value: 'qr',
-                child: Row(
-                  children: [
-                    Icon(Icons.qr_code_2_rounded, size: 18, color: colors.textSecondary),
-                    const SizedBox(width: 10),
-                    Text('Invite Members', style: TextStyle(fontSize: 13, color: colors.textMain)),
-                  ],
+              if (!group.isOffline) ...[
+                PopupMenuItem(
+                  value: 'qr',
+                  child: Row(
+                    children: [
+                      Icon(Icons.qr_code_2_rounded, size: 18, color: colors.textSecondary),
+                      const SizedBox(width: 10),
+                      Text('Invite Members', style: TextStyle(fontSize: 13, color: colors.textMain)),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ],
@@ -841,21 +923,59 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   }
 
   Widget _buildDebtsSection(
+    Group group,
     List<DirectDebt> debts,
+    List<Expense> expenses,
+    List<GroupMember> members,
     String? currentUserId,
     AppThemeColors colors,
+    Map<String, double> memberBalances,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'DEBTS TO SETTLE',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.0,
-            color: colors.textSecondary,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'DEBTS TO SETTLE',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+                color: colors.textSecondary,
+              ),
+            ),
+            if (debts.isNotEmpty || group.isOffline)
+              InkWell(
+                onTap: () => SettlementShareSheet.show(
+                  context,
+                  group: group,
+                  expenses: expenses,
+                  members: members,
+                  debts: debts,
+                  memberBalances: memberBalances,
+                ),
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  child: Row(
+                    children: [
+                      Icon(Icons.share_rounded, size: 13, color: colors.cyan),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Share Invoice',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: colors.cyan,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 10),
 

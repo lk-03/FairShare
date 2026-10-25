@@ -21,8 +21,13 @@ class ExpenseRepository {
 
   /// Fetches all expenses and their associated splits for a specific cohort
   Future<List<Expense>> fetchExpensesForCohort(String cohortId) async {
-    if (!supabaseService.isConfigured || !isUuid(cohortId)) {
-      return cacheService.getCachedExpenses(cohortId).where((e) => !e.isDeleted).toList();
+    if (!supabaseService.isConfigured ||
+        !isUuid(cohortId) ||
+        cohortId.startsWith('local_')) {
+      return cacheService
+          .getCachedExpenses(cohortId)
+          .where((e) => !e.isDeleted)
+          .toList();
     }
 
     try {
@@ -95,7 +100,9 @@ class ExpenseRepository {
       [effectiveExpense, ...currentExpenses],
     );
 
-    if (!supabaseService.isConfigured || !isUuid(expense.cohortId)) {
+    if (!supabaseService.isConfigured ||
+        !isUuid(expense.cohortId) ||
+        expense.cohortId.startsWith('local_')) {
       return effectiveExpense;
     }
 

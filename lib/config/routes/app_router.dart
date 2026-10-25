@@ -52,9 +52,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       final isAuthRoute =
           location == '/welcome' || location == '/login' || location == '/signup';
+      final isLocalGroupRoute = location.startsWith('/groups/local_');
 
       if (!hasCompleted) {
-        // User hasn't finished onboarding: must be on welcome/auth routes
+        // User hasn't finished onboarding: allow offline local groups, otherwise keep on auth routes
+        if (isLocalGroupRoute) return null;
         if (!isAuthRoute) return '/welcome';
         return null;
       }

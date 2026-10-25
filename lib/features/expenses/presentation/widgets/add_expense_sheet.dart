@@ -93,7 +93,9 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
     _selectedDate = exp?.createdAt ?? DateTime.now();
 
     final currentUser = ref.read(currentUserProvider);
-    _paidByUserId = exp?.paidByUserId ?? (currentUser?.id ?? '');
+    final members = ref.read(groupMembersProvider(widget.cohortId));
+    final fallbackUserId = members.isNotEmpty ? members.first.userId : '';
+    _paidByUserId = exp?.paidByUserId ?? (currentUser?.id ?? fallbackUserId);
 
     if (_payers.isEmpty && _paidByUserId.isNotEmpty && exp != null) {
       _payers = [ExpensePayer(userId: _paidByUserId, amount: exp.totalAmount)];
@@ -397,6 +399,10 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
         ),
       );
       return;
+    }
+
+    if (_paidByUserId.isEmpty && members.isNotEmpty) {
+      _paidByUserId = members.first.userId;
     }
 
     if (_payers.isEmpty) {

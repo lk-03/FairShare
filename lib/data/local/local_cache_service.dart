@@ -86,6 +86,13 @@ class LocalCacheService {
     return [];
   }
 
+  /// Returns only local offline groups that are not deleted
+  List<Group> getLocalGroups() {
+    return getCachedGroups()
+        .where((g) => (g.isLocal || g.id.startsWith('local_')) && !g.isDeleted)
+        .toList();
+  }
+
   // --- Cached Group Members ---
 
   Future<void> saveMembers(String groupId, List<GroupMember> members) async {

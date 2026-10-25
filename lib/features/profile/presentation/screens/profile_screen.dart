@@ -17,6 +17,7 @@ import '../widgets/set_upi_sheet.dart';
 import '../widgets/csv_import_sheet.dart';
 import '../widgets/theme_settings_sheet.dart';
 import '../widgets/upi_setup_banner.dart';
+import '../../../groups/presentation/widgets/local_groups_hub_sheet.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -462,6 +463,20 @@ class ProfileScreen extends ConsumerWidget {
           subtitle: 'Import historical expenses into new or existing groups',
           onTap: () {
             CsvImportSheet.show(context);
+          },
+        ),
+        const SizedBox(height: 10),
+
+        // Offline Outings (Local Groups)
+        _buildOptionTile(
+          context: context,
+          icon: Icons.phonelink_setup_rounded,
+          iconBg: colors.amber.withValues(alpha: 0.15),
+          iconColor: colors.amber,
+          title: 'Offline Outings (Local Groups)',
+          subtitle: 'Manage local non-synced expense groups on this device',
+          onTap: () {
+            LocalGroupsHubSheet.show(context);
           },
         ),
         const SizedBox(height: 10),
