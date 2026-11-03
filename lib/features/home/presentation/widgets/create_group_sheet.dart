@@ -2,10 +2,14 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../config/theme/app_colors.dart';
+import '../../../../core/models/friend.dart';
 import '../../../../core/models/group.dart';
+import '../../../../core/models/group_member.dart';
 import '../../../../core/widgets/category_icon.dart';
+import '../../../../core/widgets/user_avatar.dart';
 import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/groups_provider.dart';
+import '../../../friends/presentation/widgets/friends_picker_modal.dart';
 import '../../../groups/presentation/widgets/create_local_group_sheet.dart';
 import '../../../profile/presentation/widgets/csv_import_sheet.dart';
 
@@ -36,6 +40,7 @@ class _CreateGroupSheetState extends ConsumerState<CreateGroupSheet> {
   final _descController = TextEditingController();
   String _selectedCategory = 'house';
   final String _currency = 'INR';
+  List<Friend> _selectedFriends = [];
   bool _isCreating = false;
   String? _error;
 
@@ -54,6 +59,18 @@ class _CreateGroupSheetState extends ConsumerState<CreateGroupSheet> {
     _nameController.dispose();
     _descController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickFriends() async {
+    final picked = await FriendsPickerModal.show(
+      context,
+      initiallySelected: _selectedFriends,
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _selectedFriends = picked;
+      });
+    }
   }
 
   String _generateInviteCode(String groupName) {
@@ -99,6 +116,18 @@ class _CreateGroupSheetState extends ConsumerState<CreateGroupSheet> {
       );
 
       final created = await ref.read(groupsProvider.notifier).createGroup(newGroup);
+      if (_selectedFriends.isNotEmpty) {
+        final friendMembers = _selectedFriends.map((f) => GroupMember(
+          id: 'm_${DateTime.now().millisecondsSinceEpoch}_${f.id}',
+          cohortId: created.id,
+          userId: f.friendUserId,
+          profile: f.profile,
+          joinedAt: DateTime.now(),
+        )).toList();
+        await ref.read(groupRepositoryProvider).addMembersToCohort(created.id, friendMembers);
+        ref.invalidate(groupMembersProvider(created.id));
+      }
+
       if (mounted) {
         widget.onGroupCreated?.call(created);
         Navigator.of(context).pop(created);
@@ -428,6 +457,90 @@ class _CreateGroupSheetState extends ConsumerState<CreateGroupSheet> {
                 );
               }).toList(),
             ),
+            const SizedBox(height: 20),
+
+            // Add Friends Section
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'ADD FRIENDS (OPTIONAL)',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                    color: colors.cyan,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _pickFriends,
+                  icon: const Icon(Icons.person_add_alt_1_rounded, size: 16),
+                  label: Text(_selectedFriends.isEmpty ? 'Select Friends' : 'Edit (${_selectedFriends.length})'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: colors.cyan,
+                    visualDensity: VisualDensity.compact,
+                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            if (_selectedFriends.isEmpty)
+              InkWell(
+                onTap: _pickFriends,
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: colors.accentPill,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: colors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.people_outline_rounded, size: 18, color: colors.textSecondary),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Tap to invite friends from your hub',
+                        style: TextStyle(fontSize: 13, color: colors.textSecondary),
+                      ),
+                      const Spacer(),
+                      Icon(Icons.chevron_right_rounded, size: 18, color: colors.textSecondary),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _selectedFriends.map((f) {
+                  return Chip(
+                    avatar: UserAvatar(
+                      avatarUrl: f.avatarUrl,
+                      name: f.displayName,
+                      radius: 12,
+                    ),
+                    label: Text(
+                      f.displayName,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textMain,
+                      ),
+                    ),
+                    deleteIcon: const Icon(Icons.close_rounded, size: 16),
+                    onDeleted: () {
+                      setState(() {
+                        _selectedFriends.removeWhere((item) => item.id == f.id);
+                      });
+                    },
+                    backgroundColor: colors.surfaceElevated,
+                    side: BorderSide(color: colors.borderSubtle),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  );
+                }).toList(),
+              ),
             const SizedBox(height: 24),
 
             // Submit Button

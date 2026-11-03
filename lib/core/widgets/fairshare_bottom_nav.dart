@@ -29,9 +29,9 @@ class FairShareBottomNav extends StatelessWidget {
         inactiveIcon: Icons.people_outline_rounded,
       ),
       _NavTabItem(
-        label: 'Activity',
-        activeIcon: Icons.access_time_filled_rounded,
-        inactiveIcon: Icons.access_time_rounded,
+        label: 'Hub',
+        activeIcon: Icons.diversity_3_rounded,
+        inactiveIcon: Icons.diversity_3_outlined,
       ),
       _NavTabItem(
         label: 'Profile',

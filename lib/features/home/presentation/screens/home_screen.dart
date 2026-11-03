@@ -105,14 +105,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _handleJoinGroup() {
     JoinGroupSheet.show(
       context,
-      onScanQr: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('QR Code scanner opening...'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      },
+      onScanQr: () => context.push('/scan'),
     );
   }
 

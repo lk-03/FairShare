@@ -3,11 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../core/models/expense.dart';
+import '../../../../core/models/friend.dart';
+import '../../../../core/models/group_member.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/widgets/category_icon.dart';
 import '../../../../core/widgets/user_avatar.dart';
 import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/expenses_provider.dart';
+import '../../../../data/providers/friends_provider.dart';
 import '../../../../data/providers/groups_provider.dart';
 import 'add_expense_sheet.dart';
 import 'transaction_comments_section.dart';
@@ -15,17 +18,23 @@ import 'transaction_comments_section.dart';
 class ExpenseDetailsSheet extends ConsumerWidget {
   final Expense expense;
   final String cohortId;
+  final String? friendshipId;
+  final Friend? friend;
 
   const ExpenseDetailsSheet({
     super.key,
     required this.expense,
-    required this.cohortId,
+    this.cohortId = '',
+    this.friendshipId,
+    this.friend,
   });
 
   static Future<void> show(
     BuildContext context, {
     required Expense expense,
-    required String cohortId,
+    String cohortId = '',
+    String? friendshipId,
+    Friend? friend,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -35,6 +44,8 @@ class ExpenseDetailsSheet extends ConsumerWidget {
       builder: (_) => ExpenseDetailsSheet(
         expense: expense,
         cohortId: cohortId,
+        friendshipId: friendshipId,
+        friend: friend,
       ),
     );
   }
@@ -61,8 +72,15 @@ class ExpenseDetailsSheet extends ConsumerWidget {
 
     if (confirmed != true) return;
 
+    final is1on1 = expense.is1on1 || (friendshipId != null && friendshipId!.isNotEmpty);
+    final fid = friendshipId ?? expense.friendshipId ?? friend?.id;
+
     try {
-      await ref.read(groupExpensesProvider(cohortId).notifier).deleteExpense(expense.id);
+      if (is1on1 && fid != null) {
+        await ref.read(friendExpensesProvider(fid).notifier).deleteExpense(expense.id);
+      } else {
+        await ref.read(groupExpensesProvider(cohortId).notifier).deleteExpense(expense.id);
+      }
       if (context.mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -89,6 +107,8 @@ class ExpenseDetailsSheet extends ConsumerWidget {
     AddExpenseSheet.show(
       context,
       cohortId: cohortId,
+      friendshipId: friendshipId ?? expense.friendshipId,
+      friend: friend,
       existingExpense: expense,
     );
   }
@@ -97,7 +117,24 @@ class ExpenseDetailsSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final currentUser = ref.watch(currentUserProvider);
-    final members = ref.watch(groupMembersProvider(cohortId));
+    final members = (friend != null)
+        ? [
+            GroupMember(
+              id: 'member_me',
+              cohortId: friendshipId ?? '',
+              userId: currentUser?.id ?? '',
+              profile: currentUser,
+              joinedAt: DateTime.now(),
+            ),
+            GroupMember(
+              id: 'member_friend',
+              cohortId: friendshipId ?? '',
+              userId: friend!.friendUserId,
+              profile: friend!.profile,
+              joinedAt: DateTime.now(),
+            ),
+          ]
+        : (cohortId.isNotEmpty ? ref.watch(groupMembersProvider(cohortId)) : <GroupMember>[]);
 
     final hasMultiplePayers = expense.payers.length > 1;
     final payerMember = members.where((m) => m.userId == expense.paidByUserId).firstOrNull;
@@ -423,10 +460,11 @@ class ExpenseDetailsSheet extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // Discussion & Notes Audit Section
-          TransactionCommentsSection(
-            expenseId: expense.id,
-            cohortId: cohortId,
-          ),
+          if (cohortId.isNotEmpty)
+            TransactionCommentsSection(
+              expenseId: expense.id,
+              cohortId: cohortId,
+            ),
         ],
       ),
     ),

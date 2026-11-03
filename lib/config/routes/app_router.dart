@@ -6,11 +6,13 @@ import '../../core/models/profile.dart';
 import '../../core/widgets/fairshare_bottom_nav.dart';
 import '../../core/widgets/fairshare_desktop_sidebar.dart';
 import '../../data/providers/auth_provider.dart';
-import '../../features/activity/presentation/screens/activity_screen.dart';
 import '../../features/auth/presentation/screens/auth_screen.dart';
+import '../../features/friends/presentation/screens/friend_detail_screen.dart';
+import '../../features/friends/presentation/screens/friends_activity_hub_screen.dart';
 import '../../features/groups/presentation/screens/group_detail_screen.dart';
 import '../../features/groups/presentation/screens/group_settings_screen.dart';
 import '../../features/groups/presentation/screens/groups_screen.dart';
+import '../../features/groups/presentation/screens/qr_scan_screen.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/onboarding/presentation/screens/welcome_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
@@ -136,6 +138,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
+      GoRoute(
+        path: '/friends/:id',
+        name: 'friend-detail',
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 880),
+              child: FriendDetailScreen(friendId: id),
+            ),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/scan',
+        name: 'scan',
+        builder: (context, state) => const QrScanScreen(),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           final isDesktop = MediaQuery.of(context).size.width > 800;
@@ -205,10 +225,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
+                path: '/hub',
+                name: 'hub',
+                builder: (context, state) {
+                  final tab = state.uri.queryParameters['tab'];
+                  final initialTab = tab == 'activity' ? 1 : 0;
+                  return FriendsActivityHubScreen(initialTab: initialTab);
+                },
+              ),
+              GoRoute(
                 path: '/activity',
                 name: 'activity',
                 builder: (context, state) =>
-                    const ActivityScreen(),
+                    const FriendsActivityHubScreen(initialTab: 1),
               ),
             ],
           ),

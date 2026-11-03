@@ -10,23 +10,27 @@ import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/utils/upi_intent.dart';
 import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/expenses_provider.dart';
+import '../../../../data/providers/friends_provider.dart';
 import '../../../../data/providers/groups_provider.dart';
 import '../../../../core/widgets/user_avatar.dart';
 
 class SettleUpSheet extends ConsumerStatefulWidget {
   final String cohortId;
   final DirectDebt debt;
+  final bool isFriendship;
 
   const SettleUpSheet({
     super.key,
     required this.cohortId,
     required this.debt,
+    this.isFriendship = false,
   });
 
   static Future<void> show(
     BuildContext context, {
     required String cohortId,
     required DirectDebt debt,
+    bool isFriendship = false,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -36,6 +40,7 @@ class SettleUpSheet extends ConsumerStatefulWidget {
       builder: (_) => SettleUpSheet(
         cohortId: cohortId,
         debt: debt,
+        isFriendship: isFriendship,
       ),
     );
   }
@@ -172,9 +177,18 @@ class _SettleUpSheetState extends ConsumerState<SettleUpSheet> {
         updatedAt: now,
       );
 
-      await ref
-          .read(groupExpensesProvider(widget.cohortId).notifier)
-          .addExpense(settlementExpense);
+      if (widget.isFriendship || widget.cohortId.startsWith('local_friend_')) {
+        await ref
+            .read(friendExpensesProvider(widget.cohortId).notifier)
+            .addExpense(settlementExpense.copyWith(
+              friendshipId: widget.cohortId,
+              cohortId: '',
+            ));
+      } else {
+        await ref
+            .read(groupExpensesProvider(widget.cohortId).notifier)
+            .addExpense(settlementExpense);
+      }
 
       if (!mounted) return;
       Navigator.of(context).pop();

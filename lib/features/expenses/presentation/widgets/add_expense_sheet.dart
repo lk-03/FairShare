@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../core/models/expense.dart';
+import '../../../../core/models/friend.dart';
+import '../../../../core/models/profile.dart';
 import '../../../../core/models/group_member.dart';
 import '../../../../core/models/split.dart';
 import '../../../../core/utils/cart_matching_helper.dart';
@@ -11,6 +13,7 @@ import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/widgets/category_icon.dart';
 import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/expenses_provider.dart';
+import '../../../../data/providers/friends_provider.dart';
 import '../../../../data/providers/groups_provider.dart';
 import '../../../../data/providers/needs_provider.dart';
 import 'adjust_split_sheet.dart';
@@ -20,19 +23,25 @@ import 'payer_selection_sheet.dart';
 
 class AddExpenseSheet extends ConsumerStatefulWidget {
   final String cohortId;
+  final String? friendshipId;
+  final Friend? friend;
   final Expense? existingExpense;
   final bool autoOpenScanner;
 
   const AddExpenseSheet({
     super.key,
-    required this.cohortId,
+    this.cohortId = '',
+    this.friendshipId,
+    this.friend,
     this.existingExpense,
     this.autoOpenScanner = false,
   });
 
   static Future<Expense?> show(
     BuildContext context, {
-    required String cohortId,
+    String cohortId = '',
+    String? friendshipId,
+    Friend? friend,
     Expense? existingExpense,
     bool autoOpenScanner = false,
   }) {
@@ -43,6 +52,8 @@ class AddExpenseSheet extends ConsumerStatefulWidget {
       backgroundColor: Colors.transparent,
       builder: (_) => AddExpenseSheet(
         cohortId: cohortId,
+        friendshipId: friendshipId,
+        friend: friend,
         existingExpense: existingExpense,
         autoOpenScanner: autoOpenScanner,
       ),
@@ -93,7 +104,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
     _selectedDate = exp?.createdAt ?? DateTime.now();
 
     final currentUser = ref.read(currentUserProvider);
-    final members = ref.read(groupMembersProvider(widget.cohortId));
+    final members = _resolveMembers();
     final fallbackUserId = members.isNotEmpty ? members.first.userId : '';
     _paidByUserId = exp?.paidByUserId ?? (currentUser?.id ?? fallbackUserId);
 
@@ -110,6 +121,34 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
         }
       });
     }
+  }
+
+  List<GroupMember> _resolveMembers() {
+    if (widget.friend != null) {
+      final currentUser = ref.read(currentUserProvider);
+      final myId = currentUser?.id ?? 'local_user';
+      final myMember = GroupMember(
+        id: 'member_me',
+        cohortId: widget.friendshipId ?? '',
+        userId: myId,
+        profile: currentUser ??
+            UserProfile(
+              id: 'local_user',
+              fullName: 'You',
+              createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+            ),
+        joinedAt: DateTime.now(),
+      );
+      final friendMember = GroupMember(
+        id: 'member_friend',
+        cohortId: widget.friendshipId ?? '',
+        userId: widget.friend!.friendUserId,
+        profile: widget.friend!.profile,
+        joinedAt: DateTime.now(),
+      );
+      return [myMember, friendMember];
+    }
+    return ref.read(groupMembersProvider(widget.cohortId));
   }
 
   void _onTitleChanged() {
@@ -200,7 +239,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
   }
 
   Future<void> _openReceiptScanner() async {
-    final members = ref.read(groupMembersProvider(widget.cohortId));
+    final members = _resolveMembers();
     final currentUser = ref.read(currentUserProvider);
     final result = await ItemizedReceiptSheet.show(
       context,
@@ -425,7 +464,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
     }
 
     // Detect matching uncompleted House Cart items if creating a new expense
-    if (widget.existingExpense == null) {
+    if (widget.existingExpense == null && widget.friend == null && widget.cohortId.isNotEmpty) {
       final needsAsync = ref.read(groupNeedsProvider(widget.cohortId));
       final uncompletedNeeds = (needsAsync.value ?? []).where((n) => !n.isCompleted).toList();
       if (uncompletedNeeds.isNotEmpty) {
@@ -468,6 +507,9 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
           )
           .displayName;
 
+      final is1on1 = widget.friend != null || (widget.friendshipId != null && widget.friendshipId!.isNotEmpty);
+      final destFriendshipId = widget.friendshipId ?? widget.friend?.id;
+
       if (widget.existingExpense != null) {
         final updated = widget.existingExpense!.copyWith(
           title: title,
@@ -482,12 +524,17 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
               : null,
           paidByName: payerName,
         );
-        await ref.read(groupExpensesProvider(widget.cohortId).notifier).updateExpense(updated);
+        if (is1on1 && destFriendshipId != null) {
+          await ref.read(friendExpensesProvider(destFriendshipId).notifier).addExpense(updated);
+        } else {
+          await ref.read(groupExpensesProvider(widget.cohortId).notifier).updateExpense(updated);
+        }
         if (mounted) Navigator.of(context).pop(updated);
       } else {
         final newExpense = Expense(
           id: 'exp_${DateTime.now().millisecondsSinceEpoch}',
           cohortId: widget.cohortId,
+          friendshipId: is1on1 ? destFriendshipId : null,
           title: title,
           category: _category,
           totalAmount: total,
@@ -503,7 +550,9 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
           paidByName: payerName,
           receiptUrl: null,
         );
-        final saved = await ref.read(groupExpensesProvider(widget.cohortId).notifier).addExpense(newExpense);
+        final saved = is1on1 && destFriendshipId != null
+            ? await ref.read(friendExpensesProvider(destFriendshipId).notifier).addExpense(newExpense)
+            : await ref.read(groupExpensesProvider(widget.cohortId).notifier).addExpense(newExpense);
         if (mounted) Navigator.of(context).pop(saved);
       }
     } catch (e) {
@@ -542,7 +591,9 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final members = ref.watch(groupMembersProvider(widget.cohortId));
+    final members = widget.friend != null
+        ? _resolveMembers()
+        : ref.watch(groupMembersProvider(widget.cohortId));
     final cohorts = ref.watch(groupsProvider).value ?? [];
     final currentCohort = cohorts.where((c) => c.id == widget.cohortId).firstOrNull;
     final currentUser = ref.watch(currentUserProvider);
@@ -643,7 +694,9 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
                                 style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                               ),
                               Text(
-                                currentCohort?.name ?? 'Group',
+                                widget.friend != null
+                                    ? widget.friend!.displayName
+                                    : (currentCohort?.name ?? 'Group'),
                                 style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,

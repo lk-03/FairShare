@@ -27,13 +27,6 @@ class _MockGroupsNotifier extends GroupsNotifier {
 
   @override
   AsyncValue<List<Group>> build() => AsyncValue.data(_initial);
-
-  @override
-  Future<Group> createGroup(Group group) async {
-    final current = state.value ?? [];
-    state = AsyncValue.data([...current, group]);
-    return group;
-  }
 }
 
 class _MockGroupExpensesNotifier extends GroupExpensesNotifier {
@@ -42,6 +35,11 @@ class _MockGroupExpensesNotifier extends GroupExpensesNotifier {
 
   @override
   AsyncValue<List<Expense>> build() => AsyncValue.data(_expenses);
+
+  @override
+  Future<void> loadExpenses() async {
+    state = AsyncValue.data(_expenses);
+  }
 }
 
 void main() {
@@ -64,7 +62,7 @@ void main() {
     createdAt: DateTime(2026, 1, 1),
   );
 
-  final testGroup = Group(
+  final testGroup2Members = Group(
     id: 'group_existing_1',
     name: 'Flat 402 - Bangalore',
     currency: 'INR',
@@ -93,7 +91,64 @@ void main() {
     updatedAt: DateTime(2026, 1, 1),
   );
 
-  testWidgets('CsvImportSheet New Group flow pastes CSV and maps identity',
+  final testGroup4Members = Group(
+    id: 'group_existing_2',
+    name: 'Goa Trip 2026',
+    currency: 'INR',
+    category: 'trip',
+    inviteCode: 'GOA123',
+    createdBy: 'user_lk',
+    members: [
+      GroupMember(
+        id: 'gm_1',
+        cohortId: 'group_existing_2',
+        userId: 'user_lk',
+        role: 'admin',
+        joinedAt: DateTime(2026, 1, 1),
+        profile: testUser,
+      ),
+      GroupMember(
+        id: 'gm_2',
+        cohortId: 'group_existing_2',
+        userId: 'user_njj',
+        role: 'member',
+        joinedAt: DateTime(2026, 1, 1),
+        originalCsvName: 'Njj',
+      ),
+      GroupMember(
+        id: 'gm_3',
+        cohortId: 'group_existing_2',
+        userId: 'user_kattu',
+        role: 'member',
+        joinedAt: DateTime(2026, 1, 1),
+        originalCsvName: 'KATTU PUCHI',
+      ),
+      GroupMember(
+        id: 'gm_4',
+        cohortId: 'group_existing_2',
+        userId: 'user_keith',
+        role: 'member',
+        joinedAt: DateTime(2026, 1, 1),
+        originalCsvName: 'keith james',
+      ),
+    ],
+    createdAt: DateTime(2026, 1, 1),
+    updatedAt: DateTime(2026, 1, 1),
+  );
+
+  final testLocalGroup = Group(
+    id: 'local_outing_123',
+    name: 'Weekend Trek',
+    currency: 'INR',
+    category: 'trip',
+    inviteCode: '',
+    isLocal: true,
+    createdBy: 'user_lk',
+    createdAt: DateTime(2026, 1, 1),
+    updatedAt: DateTime(2026, 1, 1),
+  );
+
+  testWidgets('CsvImportSheet blocks import when target group has fewer members than active CSV members',
       (tester) async {
     tester.view.physicalSize = const Size(800, 1600);
     tester.view.devicePixelRatio = 1.0;
@@ -111,7 +166,9 @@ void main() {
           sharedPreferencesProvider.overrideWithValue(prefs),
           localCacheServiceProvider.overrideWithValue(cacheService),
           currentUserProvider.overrideWith(() => _MockCurrentUserNotifier(testUser)),
-          groupsProvider.overrideWith(() => _MockGroupsNotifier([])),
+          groupsProvider.overrideWith(() => _MockGroupsNotifier([testGroup2Members])),
+          groupExpensesProvider('group_existing_1')
+              .overrideWith(() => _MockGroupExpensesNotifier('group_existing_1', [])),
         ],
         child: MaterialApp(
           theme: AppTheme.buildTheme(brightness: Brightness.dark),
@@ -119,7 +176,7 @@ void main() {
             body: Builder(
               builder: (ctx) => Center(
                 child: ElevatedButton(
-                  onPressed: () => CsvImportSheet.show(ctx),
+                  onPressed: () => CsvImportSheet.show(ctx, targetGroup: testGroup2Members),
                   child: const Text('Open'),
                 ),
               ),
@@ -131,82 +188,6 @@ void main() {
 
     await tester.pumpAndSettle();
     await tester.tap(find.text('Open'));
-    await tester.pumpAndSettle();
-
-    // Verify Ingestion UI
-    expect(find.text('Browse & Import CSV File'), findsOneWidget);
-    expect(find.text('New Group'), findsOneWidget);
-    expect(find.text('Existing Group'), findsOneWidget);
-
-    // Open paste accordion
-    final pasteAccordion = find.text('Or paste CSV text directly');
-    await tester.ensureVisible(pasteAccordion);
-    await tester.tap(pasteAccordion);
-    await tester.pumpAndSettle();
-
-    // Enter CSV text
-    final textField = find.byType(TextField);
-    await tester.ensureVisible(textField);
-    await tester.enterText(textField, sampleCsv);
-    await tester.pumpAndSettle();
-
-    // Tap preview
-    final previewBtn = find.text('Preview Pasted CSV');
-    await tester.ensureVisible(previewBtn);
-    await tester.tap(previewBtn);
-    await tester.pumpAndSettle();
-
-    // Verify step 1 Preview elements
-    expect(find.text('NEW GROUP NAME'), findsOneWidget);
-    expect(find.text('WHICH MEMBER IN THIS CSV ARE YOU?'), findsOneWidget);
-    expect(find.text('Create Group & Import (5 Expenses)'), findsOneWidget);
-
-    // Verify parsed member names
-    expect(find.text('LK'), findsWidgets);
-    expect(find.text('Njj'), findsWidgets);
-    expect(find.text('keith james'), findsWidgets);
-  });
-
-  testWidgets('CsvImportSheet Existing Group flow maps CSV members to existing roster',
-      (tester) async {
-    tester.view.physicalSize = const Size(800, 1600);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-
-    final prefs = await SharedPreferences.getInstance();
-    final cacheService = LocalCacheService(prefs);
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          sharedPreferencesProvider.overrideWithValue(prefs),
-          localCacheServiceProvider.overrideWithValue(cacheService),
-          currentUserProvider.overrideWith(() => _MockCurrentUserNotifier(testUser)),
-          groupsProvider.overrideWith(() => _MockGroupsNotifier([testGroup])),
-          groupExpensesProvider('group_existing_1')
-              .overrideWith(() => _MockGroupExpensesNotifier('group_existing_1', [])),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.buildTheme(brightness: Brightness.dark),
-          home: Scaffold(
-            body: Builder(
-              builder: (ctx) => Center(
-                child: ElevatedButton(
-                  onPressed: () => CsvImportSheet.show(ctx, targetGroup: testGroup),
-                  child: const Text('Open Existing Import'),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Open Existing Import'));
     await tester.pumpAndSettle();
 
     // Verify pre-locked target group banner
@@ -231,12 +212,132 @@ void main() {
     await tester.tap(previewBtn);
     await tester.pumpAndSettle();
 
-    // Verify existing group preview
-    expect(find.text('Importing into Existing Group'), findsOneWidget);
-    expect(find.text('MAP CSV MEMBERS TO GROUP ROSTER'), findsOneWidget);
-    expect(find.text('Import History into Flat 402 - Bangalore (5 Expenses)'), findsOneWidget);
+    // Capacity error should block import and show SnackBar
+    expect(find.textContaining('Cannot Import: CSV has 4 active members'), findsOneWidget);
+    // Should stay on Step 0
+    expect(find.text('MAP CSV MEMBERS TO GROUP ROSTER'), findsNothing);
+  });
 
-    // Verify member mapping dropdowns rendered
-    expect(find.text('From CSV'), findsWidgets);
+  testWidgets('CsvImportSheet allows import when group has enough active members',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final prefs = await SharedPreferences.getInstance();
+    final cacheService = LocalCacheService(prefs);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          localCacheServiceProvider.overrideWithValue(cacheService),
+          currentUserProvider.overrideWith(() => _MockCurrentUserNotifier(testUser)),
+          groupsProvider.overrideWith(() => _MockGroupsNotifier([testGroup4Members])),
+          groupExpensesProvider('group_existing_2')
+              .overrideWith(() => _MockGroupExpensesNotifier('group_existing_2', [])),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.buildTheme(brightness: Brightness.dark),
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => Center(
+                child: ElevatedButton(
+                  onPressed: () => CsvImportSheet.show(ctx, targetGroup: testGroup4Members),
+                  child: const Text('Open 4-Member Import'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open 4-Member Import'));
+    await tester.pumpAndSettle();
+
+    // Open paste accordion
+    final pasteAccordion = find.text('Or paste CSV text directly');
+    await tester.ensureVisible(pasteAccordion);
+    await tester.tap(pasteAccordion);
+    await tester.pumpAndSettle();
+
+    // Enter CSV text
+    final textField = find.byType(TextField);
+    await tester.ensureVisible(textField);
+    await tester.enterText(textField, sampleCsv);
+    await tester.pumpAndSettle();
+
+    // Tap preview
+    final previewBtn = find.text('Preview Pasted CSV');
+    await tester.ensureVisible(previewBtn);
+    await tester.tap(previewBtn);
+    await tester.pumpAndSettle();
+
+    // Step 1 should render successfully
+    expect(find.text('Importing into Cloud Group'), findsOneWidget);
+    expect(find.text('Goa Trip 2026'), findsWidgets);
+    expect(find.text('MAP CSV MEMBERS TO GROUP ROSTER'), findsOneWidget);
+    expect(find.text('Active Members'), findsOneWidget);
+    expect(find.text('Import History into Goa Trip 2026 (5 Expenses)'), findsOneWidget);
+
+    // Tap Import History button
+    final importBtn = find.text('Import History into Goa Trip 2026 (5 Expenses)');
+    await tester.ensureVisible(importBtn);
+    await tester.tap(importBtn);
+    await tester.pumpAndSettle();
+
+    // Verify cache updated with 5 expenses
+    final saved = cacheService.getCachedExpenses('group_existing_2');
+    expect(saved.length, 5);
+  });
+
+  testWidgets('CsvImportSheet shows warning banner when target group is a local group',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final prefs = await SharedPreferences.getInstance();
+    final cacheService = LocalCacheService(prefs);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          localCacheServiceProvider.overrideWithValue(cacheService),
+          currentUserProvider.overrideWith(() => _MockCurrentUserNotifier(testUser)),
+          groupsProvider.overrideWith(() => _MockGroupsNotifier([testLocalGroup])),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.buildTheme(brightness: Brightness.dark),
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => Center(
+                child: ElevatedButton(
+                  onPressed: () => CsvImportSheet.show(ctx, targetGroup: testLocalGroup),
+                  child: const Text('Open Local Import'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open Local Import'));
+    await tester.pumpAndSettle();
+
+    // Verify Cloud Groups Only warning banner
+    expect(find.text('Cloud Groups Only'), findsOneWidget);
+    expect(find.textContaining('Weekend Trek'), findsOneWidget);
   });
 }

@@ -1,3 +1,4 @@
+import 'package:uuid/uuid.dart';
 import '../models/expense.dart';
 import '../models/split.dart';
 
@@ -38,6 +39,9 @@ class SplitwiseParseResult {
   final int totalExpensesCount;
   final int totalPaymentsCount;
   final double totalCost;
+  final Map<String, double> cumulativeNetBalances;
+  final List<String> activeMemberNames;
+  final List<String> settledMemberNames;
 
   const SplitwiseParseResult({
     required this.memberNames,
@@ -46,6 +50,9 @@ class SplitwiseParseResult {
     required this.totalExpensesCount,
     required this.totalPaymentsCount,
     required this.totalCost,
+    this.cumulativeNetBalances = const {},
+    this.activeMemberNames = const [],
+    this.settledMemberNames = const [],
   });
 }
 
@@ -340,6 +347,28 @@ class SplitwiseCsvParser {
       );
     }
 
+    // Calculate cumulative net balance for every member
+    final Map<String, double> cumulativeNetBalances = {};
+    for (final m in rawMemberNames) {
+      cumulativeNetBalances[m] = 0.0;
+    }
+    for (final row in parsedRows) {
+      for (final entry in row.rawNetBalances.entries) {
+        cumulativeNetBalances[entry.key] = (cumulativeNetBalances[entry.key] ?? 0.0) + entry.value;
+      }
+    }
+
+    final List<String> activeMemberNames = [];
+    final List<String> settledMemberNames = [];
+    for (final m in rawMemberNames) {
+      final net = cumulativeNetBalances[m] ?? 0.0;
+      if (net.abs() > 0.01) {
+        activeMemberNames.add(m);
+      } else {
+        settledMemberNames.add(m);
+      }
+    }
+
     return SplitwiseParseResult(
       memberNames: rawMemberNames,
       currency: detectedCurrency,
@@ -347,6 +376,9 @@ class SplitwiseCsvParser {
       totalExpensesCount: expensesCount,
       totalPaymentsCount: paymentsCount,
       totalCost: totalCostSum,
+      cumulativeNetBalances: cumulativeNetBalances,
+      activeMemberNames: activeMemberNames,
+      settledMemberNames: settledMemberNames,
     );
   }
 
@@ -355,6 +387,7 @@ class SplitwiseCsvParser {
     required SplitwiseParsedRow row,
     required String cohortId,
     required Map<String, String> memberNameToUserId,
+    String? expenseId,
   }) {
     final primaryPayerId = memberNameToUserId[row.primaryPayerName] ?? '';
 
@@ -376,8 +409,10 @@ class SplitwiseCsvParser {
       }
     }
 
+    final id = expenseId ?? const Uuid().v4();
+
     return Expense(
-      id: 'exp_sw_${DateTime.now().microsecondsSinceEpoch}_${row.date.millisecondsSinceEpoch}',
+      id: id,
       cohortId: cohortId,
       title: row.description,
       category: row.category,

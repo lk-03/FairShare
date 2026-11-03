@@ -6,6 +6,7 @@ import 'split.dart';
 class Expense {
   final String id;
   final String cohortId;
+  final String? friendshipId;
   final String title;
   final String category;
   final String? customIcon;
@@ -25,7 +26,8 @@ class Expense {
 
   const Expense({
     required this.id,
-    required this.cohortId,
+    this.cohortId = '',
+    this.friendshipId,
     required this.title,
     this.category = 'dining',
     this.customIcon,
@@ -43,6 +45,10 @@ class Expense {
     required this.updatedAt,
     this.paidByName,
   });
+
+  bool get is1on1 => friendshipId != null && friendshipId!.isNotEmpty;
+  bool get isSettlement => category.toLowerCase() == 'settlement';
+  String get destinationId => is1on1 ? friendshipId! : cohortId;
 
   /// Calculates personal share of this expense for a given user ID
   double userShare(String userId) {
@@ -162,6 +168,7 @@ class Expense {
     return Expense(
       id: json['id'] as String,
       cohortId: json['cohort_id'] as String? ?? json['cohortId'] as String? ?? '',
+      friendshipId: json['friendship_id'] as String? ?? json['friendshipId'] as String?,
       title: json['title'] as String? ?? '',
       category: json['category'] as String? ?? 'dining',
       customIcon: json['custom_icon'] as String? ?? json['customIcon'] as String?,
@@ -194,7 +201,8 @@ class Expense {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'cohort_id': cohortId,
+      if (cohortId.isNotEmpty) 'cohort_id': cohortId,
+      if (friendshipId != null && friendshipId!.isNotEmpty) 'friendship_id': friendshipId,
       'title': title,
       'category': category,
       if (customIcon != null) 'custom_icon': customIcon,
@@ -216,6 +224,7 @@ class Expense {
   Expense copyWith({
     String? id,
     String? cohortId,
+    String? friendshipId,
     String? title,
     String? category,
     String? customIcon,
@@ -237,6 +246,7 @@ class Expense {
     return Expense(
       id: id ?? this.id,
       cohortId: cohortId ?? this.cohortId,
+      friendshipId: friendshipId ?? this.friendshipId,
       title: title ?? this.title,
       category: category ?? this.category,
       customIcon: customIcon ?? this.customIcon,

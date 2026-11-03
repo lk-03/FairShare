@@ -102,6 +102,21 @@ void main() {
       expect(SplitwiseCsvParser.cleanMemberName('  Alice  '), 'Alice');
     });
 
+    test('accurately classifies active members with pending balances vs settled members', () {
+      const csv = '''Date,Description,Category,Cost,Currency,Alice,Bob,Charlie
+2026-03-01,Dinner,Dining,300.00,INR,200.00,-100.00,-100.00
+2026-03-02,Bob paid Alice,Payment,100.00,INR,-100.00,100.00,0.00
+''';
+      final result = SplitwiseCsvParser.parseSplitwiseCsv(csv);
+      expect(result.cumulativeNetBalances['Alice'], closeTo(100.0, 0.01));
+      expect(result.cumulativeNetBalances['Bob'], closeTo(0.0, 0.01));
+      expect(result.cumulativeNetBalances['Charlie'], closeTo(-100.0, 0.01));
+
+      expect(result.activeMemberNames, containsAll(['Alice', 'Charlie']));
+      expect(result.activeMemberNames.contains('Bob'), isFalse);
+      expect(result.settledMemberNames, contains('Bob'));
+    });
+
     test('successfully parses actual .misc/export.csv file without errors', () {
       final file = File('.misc/export.csv');
       if (file.existsSync()) {

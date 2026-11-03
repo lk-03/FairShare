@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 import '../../core/models/expense.dart';
 import '../../core/models/split.dart';
 import '../../core/models/comment.dart';
@@ -83,6 +85,72 @@ class ExpenseRepository {
     }
   }
 
+  /// Fetches all expenses and their associated splits for a specific friendship (1-on-1)
+  Future<List<Expense>> fetchExpensesForFriend(String friendshipId) async {
+    if (!supabaseService.isConfigured ||
+        !isUuid(friendshipId) ||
+        friendshipId.startsWith('local_')) {
+      return cacheService
+          .getCachedFriendExpenses(friendshipId)
+          .where((e) => !e.isDeleted)
+          .toList();
+    }
+
+    try {
+      final expenseRows = await supabaseService.client
+          .from('expenses')
+          .select('*')
+          .eq('friendship_id', friendshipId)
+          .order('created_at', ascending: false);
+
+      final rows = (expenseRows as List);
+      if (rows.isEmpty) {
+        await cacheService.saveFriendExpenses(friendshipId, []);
+        return [];
+      }
+
+      final expenseIds = rows
+          .map((r) => r['id'] as String?)
+          .whereType<String>()
+          .toList();
+
+      final splitRows = await supabaseService.client
+          .from('expense_splits')
+          .select('*')
+          .inFilter('expense_id', expenseIds);
+
+      final Map<String, List<ExpenseSplit>> splitsByExpense = {};
+      for (final s in (splitRows as List)) {
+        final raw = s as Map<String, dynamic>;
+        final expId = raw['expense_id'] as String? ?? '';
+        final split = ExpenseSplit(
+          userId: raw['user_id'] as String? ?? '',
+          amount: (raw['amount'] as num?)?.toDouble() ?? 0.0,
+          percentage: (raw['percentage'] as num?)?.toDouble(),
+        );
+        splitsByExpense.putIfAbsent(expId, () => []).add(split);
+      }
+
+      final List<Expense> expenses = rows.map((e) {
+        final raw = e as Map<String, dynamic>;
+        final id = raw['id'] as String;
+        final splits = splitsByExpense[id] ?? [];
+        return Expense.fromJson({
+          ...raw,
+          'splits': splits.map((s) => s.toJson()).toList(),
+        });
+      }).toList();
+
+      await cacheService.saveFriendExpenses(friendshipId, expenses);
+      return expenses.where((e) => !e.isDeleted).toList();
+    } catch (_) {
+      return cacheService
+          .getCachedFriendExpenses(friendshipId)
+          .where((e) => !e.isDeleted)
+          .toList();
+    }
+  }
+
   /// Creates a new expense and its split allocations
   Future<Expense> createExpense(Expense expense) async {
     String paidByUserId = expense.paidByUserId;
@@ -92,17 +160,29 @@ class ExpenseRepository {
     }
 
     final effectiveExpense = expense.copyWith(paidByUserId: paidByUserId);
+    final is1on1 = effectiveExpense.is1on1;
+    final destId = effectiveExpense.destinationId;
 
     // Optimistically update local cache
-    final currentExpenses = cacheService.getCachedExpenses(expense.cohortId);
-    await cacheService.saveExpenses(
-      expense.cohortId,
-      [effectiveExpense, ...currentExpenses],
-    );
+    final currentExpenses = is1on1
+        ? cacheService.getCachedFriendExpenses(destId)
+        : cacheService.getCachedExpenses(destId);
+
+    if (is1on1) {
+      await cacheService.saveFriendExpenses(
+        destId,
+        [effectiveExpense, ...currentExpenses],
+      );
+    } else {
+      await cacheService.saveExpenses(
+        destId,
+        [effectiveExpense, ...currentExpenses],
+      );
+    }
 
     if (!supabaseService.isConfigured ||
-        !isUuid(expense.cohortId) ||
-        expense.cohortId.startsWith('local_')) {
+        !isUuid(destId) ||
+        destId.startsWith('local_')) {
       return effectiveExpense;
     }
 
@@ -118,7 +198,8 @@ class ExpenseRepository {
 
       final insertPayload = <String, dynamic>{
         if (isUuid(expense.id)) 'id': expense.id,
-        'cohort_id': expense.cohortId,
+        if (!is1on1) 'cohort_id': expense.cohortId,
+        if (is1on1) 'friendship_id': expense.friendshipId,
         'title': expense.title,
         'category': expense.category,
         'custom_icon': expense.customIcon,
@@ -167,10 +248,18 @@ class ExpenseRepository {
       final updatedExpenses = currentExpenses
           .where((e) => e.id != expense.id && e.id != savedExpense.id)
           .toList();
-      await cacheService.saveExpenses(
-        expense.cohortId,
-        [savedExpense, ...updatedExpenses],
-      );
+
+      if (is1on1) {
+        await cacheService.saveFriendExpenses(
+          destId,
+          [savedExpense, ...updatedExpenses],
+        );
+      } else {
+        await cacheService.saveExpenses(
+          destId,
+          [savedExpense, ...updatedExpenses],
+        );
+      }
 
       return savedExpense;
     } catch (_) {
@@ -178,14 +267,113 @@ class ExpenseRepository {
     }
   }
 
+  /// Batch creates expenses (e.g. from CSV import) directly into Supabase and local cache
+  Future<List<Expense>> batchCreateExpenses(String cohortId, List<Expense> expenses) async {
+    if (expenses.isEmpty) return [];
+
+    // 1. Optimistically update local cache
+    final existingExpenses = cacheService.getCachedExpenses(cohortId);
+    final combinedExpenses = [...existingExpenses, ...expenses];
+    await cacheService.saveExpenses(cohortId, combinedExpenses);
+
+    // 2. If Supabase is unconfigured or not a UUID, return cached
+    if (!supabaseService.isConfigured || !isUuid(cohortId) || cohortId.startsWith('local_')) {
+      return expenses;
+    }
+
+    try {
+      final List<Map<String, dynamic>> expensePayloads = [];
+      final List<Map<String, dynamic>> splitPayloads = [];
+
+      for (final exp in expenses) {
+        String paidByUserId = exp.paidByUserId;
+        if (!isUuid(paidByUserId)) {
+          final profile = await profileRepository.getCurrentProfile();
+          paidByUserId = profile.id;
+        }
+
+        String? notesPayload = exp.notes;
+        if (exp.payers.length > 1) {
+          final payersJson = jsonEncode(exp.payers.map((p) => p.toJson()).toList());
+          final tag = '[FS_PAYERS: $payersJson]';
+          notesPayload = (notesPayload == null || notesPayload.isEmpty)
+              ? tag
+              : '$notesPayload\n$tag';
+        }
+
+        final expId = isUuid(exp.id) ? exp.id : const Uuid().v4();
+
+        expensePayloads.add({
+          'id': expId,
+          'cohort_id': cohortId,
+          'title': exp.title,
+          'category': exp.category,
+          'custom_icon': exp.customIcon,
+          'total_amount': exp.totalAmount,
+          'currency': exp.currency,
+          'paid_by_user_id': paidByUserId,
+          'split_type': exp.splitType.toDbString(),
+          'receipt_url': exp.receiptUrl,
+          'notes': notesPayload,
+          'created_at': exp.createdAt.toIso8601String(),
+        });
+
+        for (final split in exp.splits) {
+          if (isUuid(split.userId)) {
+            splitPayloads.add({
+              'expense_id': expId,
+              'user_id': split.userId,
+              'amount': split.amount,
+              if (split.percentage != null) 'percentage': split.percentage,
+            });
+          }
+        }
+      }
+
+      // Batch insert into public.expenses in chunks of 50
+      const chunkSize = 50;
+      for (int i = 0; i < expensePayloads.length; i += chunkSize) {
+        final chunk = expensePayloads.sublist(
+          i,
+          (i + chunkSize) > expensePayloads.length ? expensePayloads.length : i + chunkSize,
+        );
+        await supabaseService.client.from('expenses').insert(chunk);
+      }
+
+      // Batch insert into public.expense_splits in chunks
+      for (int i = 0; i < splitPayloads.length; i += chunkSize) {
+        final chunk = splitPayloads.sublist(
+          i,
+          (i + chunkSize) > splitPayloads.length ? splitPayloads.length : i + chunkSize,
+        );
+        await supabaseService.client.from('expense_splits').insert(chunk);
+      }
+
+      return expenses;
+    } catch (e, st) {
+      debugPrint('[ExpenseRepository] batchCreateExpenses error: $e\n$st');
+      return expenses;
+    }
+  }
+
   /// Updates an existing expense and refreshes its splits
   Future<Expense> updateExpense(Expense expense) async {
+    final is1on1 = expense.is1on1;
+    final destId = expense.destinationId;
+
     // Update local cache
-    final currentExpenses = cacheService.getCachedExpenses(expense.cohortId);
+    final currentExpenses = is1on1
+        ? cacheService.getCachedFriendExpenses(destId)
+        : cacheService.getCachedExpenses(destId);
     final updatedList = currentExpenses.map((e) {
       return e.id == expense.id ? expense : e;
     }).toList();
-    await cacheService.saveExpenses(expense.cohortId, updatedList);
+
+    if (is1on1) {
+      await cacheService.saveFriendExpenses(destId, updatedList);
+    } else {
+      await cacheService.saveExpenses(destId, updatedList);
+    }
 
     if (!supabaseService.isConfigured || !isUuid(expense.id)) {
       return expense;
@@ -268,6 +456,39 @@ class ExpenseRepository {
       return e;
     }).toList();
     await cacheService.saveExpenses(cohortId, updated);
+
+    if (!supabaseService.isConfigured || !isUuid(expenseId)) return;
+
+    try {
+      String? updatedNotes = targetExpense?.notes;
+      final delTag = '[FS_DELETED: ${jsonEncode({'deleted_at': now.toIso8601String()})}]';
+      updatedNotes = (updatedNotes == null || updatedNotes.isEmpty)
+          ? delTag
+          : '$updatedNotes\n$delTag';
+
+      await supabaseService.client
+          .from('expenses')
+          .update({
+            'notes': updatedNotes,
+            'updated_at': now.toIso8601String(),
+          })
+          .eq('id', expenseId);
+    } catch (_) {}
+  }
+
+  /// Soft deletes a 1-on-1 friend expense
+  Future<void> deleteFriendExpense(String expenseId, String friendshipId) async {
+    final now = DateTime.now();
+    final currentExpenses = cacheService.getCachedFriendExpenses(friendshipId);
+    Expense? targetExpense;
+    final updated = currentExpenses.map((e) {
+      if (e.id == expenseId) {
+        targetExpense = e.copyWith(isDeleted: true, deletedAt: now);
+        return targetExpense!;
+      }
+      return e;
+    }).toList();
+    await cacheService.saveFriendExpenses(friendshipId, updated);
 
     if (!supabaseService.isConfigured || !isUuid(expenseId)) return;
 

@@ -8,6 +8,7 @@ import '../../core/models/comment.dart';
 import '../../core/models/expense_shortcut.dart';
 import '../../core/models/need_item.dart';
 import '../../core/models/reminder_settings.dart';
+import '../../core/models/friend.dart';
 
 /// Provides offline persistence and caching across the application via SharedPreferences
 class LocalCacheService {
@@ -24,6 +25,8 @@ class LocalCacheService {
   static const String _kShortcutsPrefix = 'fairshare_cached_shortcuts_';
   static const String _kNeedsPrefix = 'fairshare_cached_needs_';
   static const String _kRemindersPrefix = 'fairshare_cached_reminders_';
+  static const String _kCachedFriends = 'fairshare_cached_friends';
+  static const String _kFriendExpensesPrefix = 'fairshare_cached_friend_expenses_';
   static const String _kOfflineQueue = 'fairshare_offline_queue';
   static const String _kOnboardingCompleted = 'fairshare_onboarding_completed';
   static const String _kAppTourSeen = 'fairshare_app_tour_seen';
@@ -232,6 +235,50 @@ class LocalCacheService {
       }
     } catch (_) {}
     return null;
+  }
+
+  // --- Friends Cache ---
+
+  Future<void> saveFriends(List<Friend> friends) async {
+    final encoded = jsonEncode(friends.map((f) => f.toJson()).toList());
+    await _prefs.setString(_kCachedFriends, encoded);
+  }
+
+  List<Friend> getCachedFriends({String? currentUserId}) {
+    final raw = _prefs.getString(_kCachedFriends);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return decoded
+            .whereType<Map<String, dynamic>>()
+            .map((j) => Friend.fromJson(j, currentUserId: currentUserId))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // --- Friend 1-on-1 Expenses Cache ---
+
+  Future<void> saveFriendExpenses(String friendshipId, List<Expense> expenses) async {
+    final encoded = jsonEncode(expenses.map((e) => e.toJson()).toList());
+    await _prefs.setString('$_kFriendExpensesPrefix$friendshipId', encoded);
+  }
+
+  List<Expense> getCachedFriendExpenses(String friendshipId) {
+    final raw = _prefs.getString('$_kFriendExpensesPrefix$friendshipId');
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return decoded
+            .whereType<Map<String, dynamic>>()
+            .map((j) => Expense.fromJson(j))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
   }
 
   // --- Offline Mutation Queue ---

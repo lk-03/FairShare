@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../core/models/group.dart';
 import '../../../../data/providers/groups_provider.dart';
@@ -24,7 +25,9 @@ class JoinGroupSheet extends ConsumerStatefulWidget {
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => JoinGroupSheet(onScanQr: onScanQr),
+      builder: (ctx) => JoinGroupSheet(
+        onScanQr: onScanQr ?? () => context.push('/scan'),
+      ),
     );
   }
 
@@ -57,6 +60,15 @@ class _JoinGroupSheetState extends ConsumerState<JoinGroupSheet> {
         });
       }
     } catch (_) {}
+  }
+
+  void _triggerScanQr() {
+    Navigator.of(context).pop();
+    if (widget.onScanQr != null) {
+      widget.onScanQr!();
+    } else {
+      context.push('/scan');
+    }
   }
 
   Future<void> _handleJoin() async {
@@ -175,7 +187,96 @@ class _JoinGroupSheetState extends ConsumerState<JoinGroupSheet> {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
+
+            // Scan QR Code Action Card
+            Material(
+              color: colors.accentPill,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: colors.cyan.withValues(alpha: 0.35),
+                  width: 1,
+                ),
+              ),
+              child: InkWell(
+                onTap: _triggerScanQr,
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: colors.cyan.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.qr_code_scanner_rounded,
+                          color: colors.cyan,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Scan Group QR Code',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: colors.textMain,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              "Point your camera at a friend's invite QR",
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: colors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: colors.textSecondary,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+
+            // Divider with text "OR ENTER CODE MANUALLY"
+            Row(
+              children: [
+                Expanded(child: Divider(color: colors.border, height: 1)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    'OR ENTER CODE MANUALLY',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+                Expanded(child: Divider(color: colors.border, height: 1)),
+              ],
+            ),
+            const SizedBox(height: 18),
 
             if (_error != null) ...[
               Container(
@@ -260,7 +361,7 @@ class _JoinGroupSheetState extends ConsumerState<JoinGroupSheet> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 IconButton.filledTonal(
                   onPressed: _pasteClipboard,
                   style: IconButton.styleFrom(
@@ -273,6 +374,20 @@ class _JoinGroupSheetState extends ConsumerState<JoinGroupSheet> {
                   ),
                   tooltip: 'Paste from clipboard',
                   icon: Icon(Icons.content_paste_rounded, color: colors.cyan),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filledTonal(
+                  onPressed: _triggerScanQr,
+                  style: IconButton.styleFrom(
+                    backgroundColor: colors.accentPill,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(color: colors.cyan.withValues(alpha: 0.4), width: 1),
+                    ),
+                    padding: const EdgeInsets.all(14),
+                  ),
+                  tooltip: 'Scan QR Code',
+                  icon: Icon(Icons.qr_code_scanner_rounded, color: colors.cyan),
                 ),
               ],
             ),

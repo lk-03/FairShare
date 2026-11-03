@@ -15,7 +15,8 @@ import '../../../expenses/presentation/widgets/expense_details_sheet.dart';
 enum ActivityFilter { all, expenses, comments }
 
 class ActivityScreen extends ConsumerStatefulWidget {
-  const ActivityScreen({super.key});
+  final bool embedded;
+  const ActivityScreen({super.key, this.embedded = false});
 
   @override
   ConsumerState<ActivityScreen> createState() => _ActivityScreenState();
@@ -263,7 +264,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            if (isDesktop) ...[
+            if (isDesktop && !widget.embedded) ...[
               // Desktop Toolbar Header
               SliverToBoxAdapter(
                 child: Center(
@@ -318,7 +319,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                   ),
                 ),
               ),
-            ] else ...[
+            ] else if (!widget.embedded) ...[
               // Mobile Gradient Header
               SliverToBoxAdapter(
                 child: ThemeGradientHeader(

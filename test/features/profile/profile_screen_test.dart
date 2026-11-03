@@ -3,14 +3,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fairshare/config/theme/app_theme.dart';
+import 'package:fairshare/core/models/group.dart';
+import 'package:fairshare/core/models/group_member.dart';
 import 'package:fairshare/core/models/profile.dart';
 import 'package:fairshare/data/local/local_cache_service.dart';
 import 'package:fairshare/data/providers/auth_provider.dart';
+import 'package:fairshare/data/providers/groups_provider.dart';
 import 'package:fairshare/features/profile/presentation/screens/profile_screen.dart';
 import 'package:fairshare/features/profile/presentation/widgets/edit_profile_sheet.dart';
 import 'package:fairshare/features/profile/presentation/widgets/set_upi_sheet.dart';
 import 'package:fairshare/features/profile/presentation/widgets/splitwise_import_sheet.dart';
 import 'package:fairshare/features/profile/presentation/widgets/theme_settings_sheet.dart';
+
+class _MockGroupsNotifier extends GroupsNotifier {
+  final List<Group> _groups;
+  _MockGroupsNotifier(this._groups);
+
+  @override
+  AsyncValue<List<Group>> build() => AsyncValue.data(_groups);
+}
 
 void main() {
   late SharedPreferences prefs;
@@ -26,6 +37,50 @@ void main() {
     createdAt: DateTime(2026, 1, 1),
   );
 
+  final testCloudGroup = Group(
+    id: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
+    name: 'Apartment 404',
+    inviteCode: 'APT404',
+    createdBy: 'user_alex_123',
+    isLocal: false,
+    createdAt: DateTime(2026, 1, 1),
+    updatedAt: DateTime(2026, 1, 1),
+    members: [
+      GroupMember(
+        id: 'gm_1',
+        cohortId: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
+        userId: 'user_alex_123',
+        role: 'admin',
+        joinedAt: DateTime(2026, 1, 1),
+        profile: testUser,
+      ),
+      GroupMember(
+        id: 'gm_2',
+        cohortId: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
+        userId: 'user_njj',
+        role: 'member',
+        joinedAt: DateTime(2026, 1, 1),
+        originalCsvName: 'Njj',
+      ),
+      GroupMember(
+        id: 'gm_3',
+        cohortId: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
+        userId: 'user_kattu',
+        role: 'member',
+        joinedAt: DateTime(2026, 1, 1),
+        originalCsvName: 'KATTU PUCHI',
+      ),
+      GroupMember(
+        id: 'gm_4',
+        cohortId: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
+        userId: 'user_keith',
+        role: 'member',
+        joinedAt: DateTime(2026, 1, 1),
+        originalCsvName: 'keith james',
+      ),
+    ],
+  );
+
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();
@@ -33,11 +88,14 @@ void main() {
     await cacheService.saveCurrentUser(testUser);
   });
 
-  Widget buildTestWidget({UserProfile? initialUser}) {
+  Widget buildTestWidget({UserProfile? initialUser, List<Group>? groups}) {
     return ProviderScope(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
         localCacheServiceProvider.overrideWithValue(cacheService),
+        groupsProvider.overrideWith(
+          () => _MockGroupsNotifier(groups ?? [testCloudGroup]),
+        ),
       ],
       child: Consumer(
         builder: (context, ref, _) {
@@ -192,8 +250,7 @@ void main() {
 
     expect(find.byType(CsvImportSheet), findsOneWidget);
     expect(find.text('Browse & Import CSV File'), findsOneWidget);
-    expect(find.text('Browse CSV File'), findsOneWidget);
-    expect(find.text('How to export CSV from Splitwise'), findsOneWidget);
+    expect(find.text('How to export from Splitwise'), findsOneWidget);
 
     // Close sheet
     await tester.tap(find.byIcon(Icons.close_rounded));
@@ -233,9 +290,9 @@ void main() {
     await tester.pumpAndSettle();
 
     // Should now be on step 1 (Preview & Map)
-    expect(find.text('NEW GROUP NAME'), findsOneWidget);
-    expect(find.text('WHICH MEMBER IN THIS CSV ARE YOU?'), findsOneWidget);
-    expect(find.text('Create Group & Import (5 Expenses)'), findsOneWidget);
+    expect(find.text('Importing into Cloud Group'), findsOneWidget);
+    expect(find.text('Apartment 404'), findsWidgets);
+    expect(find.text('Import History into Apartment 404 (5 Expenses)'), findsOneWidget);
     expect(find.text('LK'), findsWidgets);
     expect(find.text('Njj'), findsWidgets);
     expect(find.text('KATTU PUCHI'), findsWidgets);

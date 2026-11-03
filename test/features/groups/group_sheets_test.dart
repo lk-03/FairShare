@@ -11,6 +11,7 @@ import 'package:fairshare/data/providers/auth_provider.dart';
 import 'package:fairshare/data/providers/groups_provider.dart';
 import 'package:fairshare/features/groups/presentation/widgets/edit_group_sheet.dart';
 import 'package:fairshare/features/groups/presentation/widgets/group_qr_sheet.dart';
+import 'package:fairshare/features/home/presentation/widgets/join_group_sheet.dart';
 
 void main() {
   setUp(() {
@@ -113,6 +114,42 @@ void main() {
 
     await tester.tap(find.text('Save Changes'));
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('JoinGroupSheet renders QR scan card, manual input, and fires onScanQr', (tester) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    bool scanQrFired = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.buildTheme(brightness: Brightness.dark),
+        home: Scaffold(
+          body: JoinGroupSheet(
+            onScanQr: () => scanQrFired = true,
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Join a Group'), findsOneWidget);
+    expect(find.text('Scan Group QR Code'), findsOneWidget);
+    expect(find.text("Point your camera at a friend's invite QR"), findsOneWidget);
+    expect(find.text('OR ENTER CODE MANUALLY'), findsOneWidget);
+    expect(find.text('INVITE CODE'), findsOneWidget);
+    expect(find.byIcon(Icons.qr_code_scanner_rounded), findsWidgets);
+    expect(find.text('Join Group'), findsOneWidget);
+
+    // Tap Scan Group QR Code card
+    await tester.tap(find.text('Scan Group QR Code'));
+    await tester.pumpAndSettle();
+
+    expect(scanQrFired, isTrue);
   });
 }
 
