@@ -90,6 +90,42 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
+      - name: Configure Google Services
+        run: |
+          if [ ! -f android/app/google-services.json ]; then
+            cat << 'EOF' > android/app/google-services.json
+{
+  "project_info": {
+    "project_number": "923279064108",
+    "project_id": "fairshare-9b4d7",
+    "storage_bucket": "fairshare-9b4d7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:923279064108:android:f0e33232d4672955692589",
+        "android_client_info": {
+          "package_name": "com.fairshare.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCdJvcDhRioShz8SEe3rj8VfMIhTbKdErQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
+EOF
+          fi
+
       - name: Build Android Release APK
         run: flutter build apk --release
 
