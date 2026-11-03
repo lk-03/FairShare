@@ -340,4 +340,122 @@ void main() {
     expect(find.text('Cloud Groups Only'), findsOneWidget);
     expect(find.textContaining('Weekend Trek'), findsOneWidget);
   });
+
+  testWidgets('CsvImportSheet imports 2 active members (Noel, Kowsic) and 1 shadow member (Suren)',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final prefs = await SharedPreferences.getInstance();
+    final cacheService = LocalCacheService(prefs);
+
+    final mockNoelUser = UserProfile(
+      id: 'user_noel',
+      email: 'noel@fairshare.app',
+      fullName: 'Noel',
+      createdAt: DateTime(2026, 1, 1),
+    );
+
+    final testGroup2 = Group(
+      id: 'group_cloud_2',
+      name: 'Hackathon Squad',
+      currency: 'INR',
+      category: 'event',
+      inviteCode: 'HACK123',
+      createdBy: 'user_lk',
+      members: [
+        GroupMember(
+          id: 'gm_kowsic',
+          cohortId: 'group_cloud_2',
+          userId: 'user_lk',
+          role: 'admin',
+          joinedAt: DateTime(2026, 1, 1),
+          profile: testUser,
+        ),
+        GroupMember(
+          id: 'gm_noel',
+          cohortId: 'group_cloud_2',
+          userId: 'user_noel',
+          role: 'member',
+          joinedAt: DateTime(2026, 1, 1),
+          profile: mockNoelUser,
+        ),
+      ],
+      createdAt: DateTime(2026, 1, 1),
+      updatedAt: DateTime(2026, 1, 1),
+    );
+
+    const mock3PersonCsv = '''Date,Description,Category,Cost,Currency,Noel,Kowsic,Suren
+2026-10-20,Team Lunch,Food,900.00,INR,600.00,-300.00,-300.00
+2026-10-21,Cab Ride,Transport,600.00,INR,-300.00,0.00,300.00
+''';
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          localCacheServiceProvider.overrideWithValue(cacheService),
+          currentUserProvider.overrideWith(() => _MockCurrentUserNotifier(testUser)),
+          groupsProvider.overrideWith(() => _MockGroupsNotifier([testGroup2])),
+          groupExpensesProvider('group_cloud_2')
+              .overrideWith(() => _MockGroupExpensesNotifier('group_cloud_2', [])),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.buildTheme(brightness: Brightness.dark),
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => Center(
+                child: ElevatedButton(
+                  onPressed: () => CsvImportSheet.show(ctx, targetGroup: testGroup2),
+                  child: const Text('Open 3-Person Import'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open 3-Person Import'));
+    await tester.pumpAndSettle();
+
+    // Paste CSV
+    final pasteHeader = find.text('Or paste CSV text directly');
+    await tester.ensureVisible(pasteHeader);
+    await tester.tap(pasteHeader);
+    await tester.pumpAndSettle();
+
+    final inputField = find.byType(TextField);
+    await tester.ensureVisible(inputField);
+    await tester.enterText(inputField, mock3PersonCsv);
+    await tester.pumpAndSettle();
+
+    // Tap Preview
+    final previewBtn = find.text('Preview Pasted CSV');
+    await tester.ensureVisible(previewBtn);
+    await tester.tap(previewBtn);
+    await tester.pumpAndSettle();
+
+    // Step 1: Verify Noel and Kowsic are active, Suren is settled
+    expect(find.text('MAP CSV MEMBERS TO GROUP ROSTER'), findsOneWidget);
+    expect(find.text('Noel'), findsWidgets);
+    expect(find.text('Kowsic'), findsWidgets);
+    expect(find.text('Suren'), findsWidgets);
+    expect(find.text('+ New Shadow Member'), findsOneWidget);
+
+    // Tap Import History button
+    final importBtn = find.text('Import History into Hackathon Squad (2 Expenses)');
+    await tester.ensureVisible(importBtn);
+    await tester.tap(importBtn);
+    await tester.pumpAndSettle();
+
+    // Verify cache updated with 2 expenses
+    final saved = cacheService.getCachedExpenses('group_cloud_2');
+    expect(saved.length, 2);
+  });
 }

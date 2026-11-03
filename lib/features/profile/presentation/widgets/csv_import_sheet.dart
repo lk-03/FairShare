@@ -4,12 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:uuid/uuid.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../core/models/expense.dart';
 import '../../../../core/models/group.dart';
 import '../../../../core/models/group_member.dart';
-import '../../../../core/models/profile.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/utils/splitwise_csv_parser.dart';
 import '../../../../core/widgets/user_avatar.dart';
@@ -302,7 +300,6 @@ class _CsvImportSheetState extends ConsumerState<CsvImportSheet> {
 
     try {
       final Map<String, String> memberToUserId = {};
-      final List<GroupMember> newShadowMembers = [];
 
       for (int i = 0; i < result.memberNames.length; i++) {
         final rawName = result.memberNames[i];
@@ -312,34 +309,9 @@ class _CsvImportSheetState extends ConsumerState<CsvImportSheet> {
         if (mappedUserId != '__SHADOW__') {
           memberToUserId[rawName] = mappedUserId;
         } else {
-          final shadowUserId = const Uuid().v4();
-          final shadowMemberId = const Uuid().v4();
-          memberToUserId[rawName] = shadowUserId;
-
-          newShadowMembers.add(
-            GroupMember(
-              id: shadowMemberId,
-              cohortId: targetGroup.id,
-              userId: shadowUserId,
-              role: 'member',
-              joinedAt: DateTime.now(),
-              isPlaceholder: true,
-              originalCsvName: cleanName,
-              profile: UserProfile(
-                id: shadowUserId,
-                fullName: cleanName,
-                createdAt: DateTime.now(),
-              ),
-            ),
-          );
+          // Identify as shadow member so expense repository safely proxies foreign keys
+          memberToUserId[rawName] = 'shadow_$cleanName';
         }
-      }
-
-      if (newShadowMembers.isNotEmpty) {
-        await ref.read(groupRepositoryProvider).addMembersToCohort(
-              targetGroup.id,
-              newShadowMembers,
-            );
       }
 
       setState(() {

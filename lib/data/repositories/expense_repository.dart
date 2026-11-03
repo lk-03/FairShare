@@ -282,17 +282,44 @@ class ExpenseRepository {
     }
 
     try {
+      final currentProfile = await profileRepository.getCurrentProfile();
+      final currentUserId = currentProfile.id;
+      final Set<String> validMemberUserIds = {currentUserId};
+
+      try {
+        final membersData = await supabaseService.client
+            .from('group_members')
+            .select('user_id')
+            .eq('cohort_id', cohortId);
+        for (final m in (membersData as List)) {
+          final uid = (m as Map<String, dynamic>)['user_id'] as String?;
+          if (uid != null && isUuid(uid)) {
+            validMemberUserIds.add(uid);
+          }
+        }
+      } catch (_) {
+        // Fallback: group_members query couldn't be resolved, rely on verified profiles
+      }
+
       final List<Map<String, dynamic>> expensePayloads = [];
       final List<Map<String, dynamic>> splitPayloads = [];
 
       for (final exp in expenses) {
         String paidByUserId = exp.paidByUserId;
-        if (!isUuid(paidByUserId)) {
-          final profile = await profileRepository.getCurrentProfile();
-          paidByUserId = profile.id;
+        String? notesPayload = exp.notes;
+
+        if (!isUuid(paidByUserId) || !validMemberUserIds.contains(paidByUserId)) {
+          final originalPayerNote = exp.paidByName != null && exp.paidByName!.isNotEmpty
+              ? '[Original Payer: ${exp.paidByName}]'
+              : (paidByUserId.isNotEmpty ? '[Original Payer ID: $paidByUserId]' : null);
+          if (originalPayerNote != null) {
+            notesPayload = (notesPayload == null || notesPayload.isEmpty)
+                ? originalPayerNote
+                : '$notesPayload\n$originalPayerNote';
+          }
+          paidByUserId = currentUserId;
         }
 
-        String? notesPayload = exp.notes;
         if (exp.payers.length > 1) {
           final payersJson = jsonEncode(exp.payers.map((p) => p.toJson()).toList());
           final tag = '[FS_PAYERS: $payersJson]';
@@ -303,31 +330,39 @@ class ExpenseRepository {
 
         final expId = isUuid(exp.id) ? exp.id : const Uuid().v4();
 
-        expensePayloads.add({
-          'id': expId,
-          'cohort_id': cohortId,
-          'title': exp.title,
-          'category': exp.category,
-          'custom_icon': exp.customIcon,
-          'total_amount': exp.totalAmount,
-          'currency': exp.currency,
-          'paid_by_user_id': paidByUserId,
-          'split_type': exp.splitType.toDbString(),
-          'receipt_url': exp.receiptUrl,
-          'notes': notesPayload,
-          'created_at': exp.createdAt.toIso8601String(),
-        });
+        // Ensure category is lowercase string
+        final cleanCategory = exp.category.trim().toLowerCase();
 
         for (final split in exp.splits) {
-          if (isUuid(split.userId)) {
+          if (isUuid(split.userId) && validMemberUserIds.contains(split.userId)) {
             splitPayloads.add({
               'expense_id': expId,
               'user_id': split.userId,
               'amount': split.amount,
               if (split.percentage != null) 'percentage': split.percentage,
             });
+          } else {
+            final shadowNote = '[Shadow Split: ${split.userId} owed ₹${split.amount.toStringAsFixed(2)}]';
+            notesPayload = (notesPayload == null || notesPayload.isEmpty)
+                ? shadowNote
+                : '$notesPayload\n$shadowNote';
           }
         }
+
+        expensePayloads.add({
+          'id': expId,
+          'cohort_id': cohortId,
+          'title': exp.title,
+          'category': cleanCategory,
+          'custom_icon': exp.customIcon,
+          'total_amount': exp.totalAmount,
+          'currency': exp.currency,
+          'paid_by_user_id': paidByUserId,
+          'split_type': 'exact',
+          'receipt_url': exp.receiptUrl,
+          'notes': notesPayload,
+          'created_at': exp.createdAt.toIso8601String(),
+        });
       }
 
       // Batch insert into public.expenses in chunks of 50
@@ -349,10 +384,12 @@ class ExpenseRepository {
         await supabaseService.client.from('expense_splits').insert(chunk);
       }
 
-      return expenses;
+      // Re-fetch and sync with Supabase
+      final savedExpenses = await fetchExpensesForCohort(cohortId);
+      return savedExpenses.isNotEmpty ? savedExpenses : expenses;
     } catch (e, st) {
       debugPrint('[ExpenseRepository] batchCreateExpenses error: $e\n$st');
-      return expenses;
+      rethrow;
     }
   }
 
