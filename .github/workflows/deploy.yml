@@ -93,37 +93,7 @@ jobs:
       - name: Configure Google Services
         run: |
           if [ ! -f android/app/google-services.json ]; then
-            cat << 'EOF' > android/app/google-services.json
-{
-  "project_info": {
-    "project_number": "923279064108",
-    "project_id": "fairshare-9b4d7",
-    "storage_bucket": "fairshare-9b4d7.firebasestorage.app"
-  },
-  "client": [
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:923279064108:android:f0e33232d4672955692589",
-        "android_client_info": {
-          "package_name": "com.fairshare.app"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyCdJvcDhRioShz8SEe3rj8VfMIhTbKdErQ"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    }
-  ],
-  "configuration_version": "1"
-}
-EOF
+            echo "ewogICJwcm9qZWN0X2luZm8iOiB7CiAgICAicHJvamVjdF9udW1iZXIiOiAiOTIzMjc5MDY0MTA4IiwKICAgICJwcm9qZWN0X2lkIjogImZhaXJzaGFyZS05YjRkNyIsCiAgICAic3RvcmFnZV9idWNrZXQiOiAiZmFpcnNoYXJlLTliNGQ3LmZpcmViYXNlc3RvcmFnZS5hcHAiCiAgfSwKICAiY2xpZW50IjogWwogICAgewogICAgICAiY2xpZW50X2luZm8iOiB7CiAgICAgICAgIm1vYmlsZXNka19hcHBfaWQiOiAiMTo5MjMyNzkwNjQxMDg6YW5kcm9pZDpmMGUzMzIzMmQ0NjcyOTU1NjkyNTg5IiwKICAgICAgICAiYW5kcm9pZF9jbGllbnRfaW5mbyI6IHsKICAgICAgICAgICJwYWNrYWdlX25hbWUiOiAiY29tLmZhaXJzaGFyZS5hcHAiCiAgICAgICAgfQogICAgICB9LAogICAgICAib2F1dGhfY2xpZW50IjogW10sCiAgICAgICJhcGlfa2V5IjogWwogICAgICAgIHsKICAgICAgICAgICJjdXJyZW50X2tleSI6ICJBSXphU3lDZEp2Y0RoUmlvU2h6OFNFZTNyajhWZk1JaFRiS2RFclEiCiAgICAgICAgfQogICAgICBdLAogICAgICAic2VydmljZXMiOiB7CiAgICAgICAgImFwcGludml0ZV9zZXJ2aWNlIjogewogICAgICAgICAgIm90aGVyX3BsYXRmb3JtX29hdXRoX2NsaWVudCI6IFtdCiAgICAgICAgfQogICAgICB9CiAgICB9CiAgXSwKICAiY29uZmlndXJhdGlvbl92ZXJzaW9uIjogIjEiCn0=" | base64 -d > android/app/google-services.json
           fi
 
       - name: Build Android Release APK
