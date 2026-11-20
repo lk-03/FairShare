@@ -3,12 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fairshare/config/theme/app_theme.dart';
+import 'package:fairshare/core/models/friend.dart';
 import 'package:fairshare/core/models/group.dart';
 import 'package:fairshare/core/models/group_member.dart';
 import 'package:fairshare/core/models/profile.dart';
 import 'package:fairshare/data/local/local_cache_service.dart';
 import 'package:fairshare/data/providers/auth_provider.dart';
+import 'package:fairshare/data/providers/friends_provider.dart';
 import 'package:fairshare/data/providers/groups_provider.dart';
+import 'package:fairshare/features/groups/presentation/widgets/add_friends_to_group_sheet.dart';
 import 'package:fairshare/features/groups/presentation/widgets/edit_group_sheet.dart';
 import 'package:fairshare/features/groups/presentation/widgets/group_qr_sheet.dart';
 import 'package:fairshare/features/home/presentation/widgets/join_group_sheet.dart';
@@ -151,6 +154,90 @@ void main() {
 
     expect(scanQrFired, isTrue);
   });
+
+  testWidgets('AddFriendsToGroupSheet renders mutual friends, allows selection, and submits', (tester) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final prefs = await SharedPreferences.getInstance();
+    final cacheService = LocalCacheService(prefs);
+
+    final now = DateTime(2026, 1, 1);
+    final friend1 = Friend(
+      id: 'f_mutual_1',
+      friendUserId: 'user_friend_1',
+      profile: UserProfile(
+        id: 'user_friend_1',
+        fullName: 'Tara Sharma',
+        username: 'tara_s',
+        email: 'tara@example.com',
+        createdAt: now,
+      ),
+      status: FriendshipStatus.accepted,
+      createdBy: 'user_1',
+      isLocal: false,
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    // Friend who is already a member of testGroup (should NOT appear in available list)
+    final friendAlreadyInGroup = Friend(
+      id: 'f_already_in',
+      friendUserId: 'user_1', // same as testGroup.members[0].userId
+      profile: testUser,
+      status: FriendshipStatus.accepted,
+      createdBy: 'user_1',
+      isLocal: false,
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          localCacheServiceProvider.overrideWithValue(cacheService),
+          currentUserProvider.overrideWith(() => _MockCurrentUser(testUser)),
+          friendsProvider.overrideWith(() => _MockFriendsNotifier([friend1, friendAlreadyInGroup])),
+          groupsProvider.overrideWith(() => _MockGroups([testGroup])),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.buildTheme(brightness: Brightness.dark),
+          home: Scaffold(
+            body: AddFriendsToGroupSheet(group: testGroup),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Verify title and description
+    expect(find.text('Add Friends to Group'), findsOneWidget);
+    expect(find.text('Add mutual friends into "Flat 402 - Bangalore"'), findsOneWidget);
+
+    // Tara Sharma should be displayed
+    expect(find.text('Tara Sharma'), findsOneWidget);
+
+    // user_1 is already in group, so Alex Vance should NOT appear in the selection list
+    expect(find.text('Alex Vance'), findsNothing);
+
+    // Initial button state: 0 selected
+    expect(find.text('Select Friends to Add'), findsOneWidget);
+
+    // Tap Tara Sharma to select
+    await tester.tap(find.text('Tara Sharma'));
+    await tester.pumpAndSettle();
+
+    // Button should update to 1 selected
+    expect(find.text('Add 1 Friend'), findsOneWidget);
+
+    // Tap submit button
+    await tester.tap(find.text('Add 1 Friend'));
+    await tester.pumpAndSettle();
+  });
 }
 
 class _MockCurrentUser extends CurrentUserNotifier {
@@ -173,4 +260,15 @@ class _MockGroups extends GroupsNotifier {
 
   @override
   Future<void> updateGroup(String groupId, Map<String, dynamic> updates) async {}
+
+  @override
+  Future<List<GroupMember>> addFriendsToGroup(String groupId, List<Friend> friends) async => [];
+}
+
+class _MockFriendsNotifier extends FriendsNotifier {
+  final List<Friend> _friends;
+  _MockFriendsNotifier(this._friends);
+
+  @override
+  Future<List<Friend>> build() async => _friends;
 }

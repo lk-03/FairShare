@@ -62,6 +62,44 @@ class FriendsNotifier extends AsyncNotifier<List<Friend>> {
     }
   }
 
+  Future<bool> acceptRequest(String friendshipId) async {
+    final user = ref.read(currentUserProvider);
+    final repo = ref.read(friendRepositoryProvider);
+    final success = await repo.acceptFriendRequest(friendshipId, currentUserId: user?.id);
+    if (success) {
+      final current = state.value ?? [];
+      state = AsyncValue.data(current.map((f) {
+        if (f.id == friendshipId) {
+          return f.copyWith(status: FriendshipStatus.accepted, updatedAt: DateTime.now());
+        }
+        return f;
+      }).toList());
+    }
+    return success;
+  }
+
+  Future<bool> declineRequest(String friendshipId) async {
+    final user = ref.read(currentUserProvider);
+    final repo = ref.read(friendRepositoryProvider);
+    final success = await repo.declineFriendRequest(friendshipId, currentUserId: user?.id);
+    if (success) {
+      final current = state.value ?? [];
+      state = AsyncValue.data(current.where((f) => f.id != friendshipId).toList());
+    }
+    return success;
+  }
+
+  Future<bool> cancelRequest(String friendshipId) async {
+    final user = ref.read(currentUserProvider);
+    final repo = ref.read(friendRepositoryProvider);
+    final success = await repo.cancelFriendRequest(friendshipId, currentUserId: user?.id);
+    if (success) {
+      final current = state.value ?? [];
+      state = AsyncValue.data(current.where((f) => f.id != friendshipId).toList());
+    }
+    return success;
+  }
+
   Future<bool> removeFriend(String friendshipId) async {
     final user = ref.read(currentUserProvider);
     final repo = ref.read(friendRepositoryProvider);
@@ -76,6 +114,39 @@ class FriendsNotifier extends AsyncNotifier<List<Friend>> {
 
 final friendsProvider = AsyncNotifierProvider<FriendsNotifier, List<Friend>>(() {
   return FriendsNotifier();
+});
+
+/// Exposes strictly accepted/confirmed mutual friends and local contacts
+final acceptedFriendsProvider = Provider<List<Friend>>((ref) {
+  final friendsAsync = ref.watch(friendsProvider);
+  final all = friendsAsync.value ?? [];
+  return all.where((f) => f.isAccepted || f.isLocal).toList();
+});
+
+/// Exposes incoming pending requests for the current user
+final incomingFriendRequestsProvider = Provider<List<Friend>>((ref) {
+  final friendsAsync = ref.watch(friendsProvider);
+  final all = friendsAsync.value ?? [];
+  final user = ref.watch(currentUserProvider);
+  final uid = user?.id ?? '';
+  return all.where((f) => f.isIncoming(uid)).toList();
+});
+
+/// Exposes outgoing pending requests sent by the current user
+final outgoingFriendRequestsProvider = Provider<List<Friend>>((ref) {
+  final friendsAsync = ref.watch(friendsProvider);
+  final all = friendsAsync.value ?? [];
+  final user = ref.watch(currentUserProvider);
+  final uid = user?.id ?? '';
+  return all.where((f) => f.isOutgoing(uid)).toList();
+});
+
+/// Checks if a given user is a mutual friend of the current user
+final isFriendProvider = Provider.family<bool, String>((ref, targetUserId) {
+  final currentUser = ref.watch(currentUserProvider);
+  if (currentUser != null && currentUser.id == targetUserId) return true;
+  final accepted = ref.watch(acceptedFriendsProvider);
+  return accepted.any((f) => f.friendUserId == targetUserId);
 });
 
 class FriendExpensesNotifier extends Notifier<AsyncValue<List<Expense>>> {
@@ -174,8 +245,7 @@ final friendBalanceProvider = Provider.family<FriendBalance, Friend>((ref, frien
 /// Aggregates all direct 1-on-1 balances across all friends
 final friendsAggregateBalanceProvider =
     Provider<({double youOwe, double youAreOwed, double net})>((ref) {
-  final friendsAsync = ref.watch(friendsProvider);
-  final friends = friendsAsync.value ?? [];
+  final friends = ref.watch(acceptedFriendsProvider);
 
   double totalOwe = 0.0;
   double totalOwed = 0.0;

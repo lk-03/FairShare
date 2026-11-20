@@ -96,6 +96,24 @@ jobs:
             echo "ewogICJwcm9qZWN0X2luZm8iOiB7CiAgICAicHJvamVjdF9udW1iZXIiOiAiOTIzMjc5MDY0MTA4IiwKICAgICJwcm9qZWN0X2lkIjogImZhaXJzaGFyZS05YjRkNyIsCiAgICAic3RvcmFnZV9idWNrZXQiOiAiZmFpcnNoYXJlLTliNGQ3LmZpcmViYXNlc3RvcmFnZS5hcHAiCiAgfSwKICAiY2xpZW50IjogWwogICAgewogICAgICAiY2xpZW50X2luZm8iOiB7CiAgICAgICAgIm1vYmlsZXNka19hcHBfaWQiOiAiMTo5MjMyNzkwNjQxMDg6YW5kcm9pZDpmMGUzMzIzMmQ0NjcyOTU1NjkyNTg5IiwKICAgICAgICAiYW5kcm9pZF9jbGllbnRfaW5mbyI6IHsKICAgICAgICAgICJwYWNrYWdlX25hbWUiOiAiY29tLmZhaXJzaGFyZS5hcHAiCiAgICAgICAgfQogICAgICB9LAogICAgICAib2F1dGhfY2xpZW50IjogW10sCiAgICAgICJhcGlfa2V5IjogWwogICAgICAgIHsKICAgICAgICAgICJjdXJyZW50X2tleSI6ICJBSXphU3lDZEp2Y0RoUmlvU2h6OFNFZTNyajhWZk1JaFRiS2RFclEiCiAgICAgICAgfQogICAgICBdLAogICAgICAic2VydmljZXMiOiB7CiAgICAgICAgImFwcGludml0ZV9zZXJ2aWNlIjogewogICAgICAgICAgIm90aGVyX3BsYXRmb3JtX29hdXRoX2NsaWVudCI6IFtdCiAgICAgICAgfQogICAgICB9CiAgICB9CiAgXSwKICAiY29uZmlndXJhdGlvbl92ZXJzaW9uIjogIjEiCn0=" | base64 -d > android/app/google-services.json
           fi
 
+      - name: Configure Android Signing Keystore
+        run: |
+          mkdir -p credentials
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > credentials/fairshare-release.keystore
+          fi
+          if [ -f credentials/fairshare-release.keystore ]; then
+            cat << 'EOF' > android/key.properties
+storePassword=fairshare123
+keyPassword=fairshare123
+keyAlias=fairshare
+storeFile=../credentials/fairshare-release.keystore
+EOF
+            echo "Release keystore configured successfully for CI release build."
+          else
+            echo "::warning ::Release keystore not found; release will fall back to debug signing."
+          fi
+
       - name: Build Android Release APK
         run: flutter build apk --release
 

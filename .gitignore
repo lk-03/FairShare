@@ -40,6 +40,8 @@ credentials/
 # Flutter Native Build Outputs & Ephemeral Files
 **/android/.gradle/
 **/android/local.properties
+**/android/key.properties
+**/key.properties
 **/android/app/build/
 **/android/**/GeneratedPluginRegistrant.java
 **/ios/Flutter/Generated.xcconfig

@@ -20,6 +20,7 @@ import '../../../expenses/presentation/widgets/expense_details_sheet.dart';
 import '../../../../core/widgets/user_avatar.dart';
 import '../../../expenses/presentation/widgets/settle_up_sheet.dart';
 import '../../../needs/presentation/widgets/needs_list_view.dart';
+import '../widgets/add_friends_to_group_sheet.dart';
 import '../widgets/edit_group_sheet.dart';
 import '../widgets/group_qr_sheet.dart';
 import '../widgets/member_profile_sheet.dart';
@@ -565,6 +566,11 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
             icon: Icon(Icons.share_rounded, color: colors.cyan),
             tooltip: 'Share Settlement Invoice',
           ),
+          IconButton(
+            onPressed: () => AddFriendsToGroupSheet.show(context, group: group),
+            icon: Icon(Icons.person_add_alt_1_rounded, color: colors.cyan),
+            tooltip: 'Add Friends',
+          ),
           if (!group.isOffline) ...[
             IconButton(
               onPressed: () => _handleShowQR(group),
@@ -585,7 +591,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               side: BorderSide(color: colors.border),
             ),
             onSelected: (action) {
-              if (action == 'settings') {
+              if (action == 'add_friends') {
+                AddFriendsToGroupSheet.show(context, group: group);
+              } else if (action == 'settings') {
                 context.push('/groups/${group.id}/settings');
               } else if (action == 'edit') {
                 _handleEditGroup(group);
@@ -603,6 +611,16 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               }
             },
             itemBuilder: (ctx) => [
+              PopupMenuItem(
+                value: 'add_friends',
+                child: Row(
+                  children: [
+                    Icon(Icons.person_add_alt_1_rounded, size: 18, color: colors.cyan),
+                    const SizedBox(width: 10),
+                    Text('Add Friends', style: TextStyle(fontSize: 13, color: colors.cyan, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
               PopupMenuItem(
                 value: 'share_invoice',
                 child: Row(

@@ -9,6 +9,7 @@ import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/widgets/user_avatar.dart';
 import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/expenses_provider.dart';
+import '../../../../data/providers/friends_provider.dart';
 import '../../../expenses/presentation/widgets/settle_up_sheet.dart';
 
 class MemberProfileSheet extends ConsumerWidget {
@@ -42,6 +43,9 @@ class MemberProfileSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentUser = ref.watch(currentUserProvider);
     final isSelf = member.userId == currentUser?.id;
+    final isFriend = ref.watch(isFriendProvider(member.userId));
+    final outgoingRequests = ref.watch(outgoingFriendRequestsProvider);
+    final isRequested = outgoingRequests.any((f) => f.friendUserId == member.userId);
     final debts = ref.watch(groupDebtsProvider(cohort.id));
 
     DirectDebt? mutualDebt;
@@ -117,25 +121,144 @@ class MemberProfileSheet extends ConsumerWidget {
                   color: AppColors.textPrimary,
                 ),
               ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceCard,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.borderSubtle),
-                ),
-                child: Text(
-                  '${member.role.toUpperCase()} · ${cohort.name}',
+              if (member.profile?.username != null && member.profile!.username!.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  '@${member.profile!.username}',
                   style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textMuted,
-                    letterSpacing: 0.5,
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
+              ],
+              // EMAIL: ONLY IF FRIEND OR SELF
+              if ((isSelf || isFriend) && member.profile?.email != null && member.profile!.email!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.email_outlined, size: 13, color: AppColors.textSecondary),
+                    const SizedBox(width: 4),
+                    Text(
+                      member.profile!.email!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 6),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceCard,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.borderSubtle),
+                    ),
+                    child: Text(
+                      '${member.role.toUpperCase()} · ${cohort.name}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textMuted,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  if (isFriend && !isSelf) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.emerald.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.emerald.withValues(alpha: 0.4)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.check_rounded, size: 11, color: AppColors.emerald),
+                          SizedBox(width: 4),
+                          Text(
+                            'Friend',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.emerald,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
               ),
-              const SizedBox(height: 24),
+              if (!isSelf && !isFriend) ...[
+                const SizedBox(height: 10),
+                if (isRequested)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.amber.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.amber.withValues(alpha: 0.4)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.schedule_rounded, size: 13, color: AppColors.amber),
+                        SizedBox(width: 6),
+                        Text(
+                          'Friend Request Sent',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.amber,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      await ref.read(friendsProvider.notifier).addFriend(
+                            friendUserId: member.userId,
+                            name: member.displayName,
+                            username: member.profile?.username,
+                            email: member.profile?.email,
+                            phone: member.profile?.phoneNumber,
+                            vpaId: member.profile?.vpaId,
+                          );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Friend request sent to ${member.displayName}!'),
+                            backgroundColor: AppColors.primaryTeal,
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.person_add_rounded, size: 14),
+                    label: const Text('Add Friend', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryTeal,
+                      foregroundColor: Colors.black,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+              ],
+              const SizedBox(height: 20),
 
               // Bilateral Balance Card
               if (!isSelf) ...[

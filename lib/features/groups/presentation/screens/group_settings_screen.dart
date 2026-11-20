@@ -14,6 +14,7 @@ import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/expenses_provider.dart';
 import '../../../../data/providers/groups_provider.dart';
 import '../../../profile/presentation/widgets/csv_import_sheet.dart';
+import '../widgets/add_friends_to_group_sheet.dart';
 
 class GroupSettingsScreen extends ConsumerStatefulWidget {
   final String groupId;
@@ -1185,6 +1186,7 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
     String? currentUserId,
     AppThemeColors colors,
   ) {
+    final extraActions = group.isLocal ? 2 : 1;
     return Material(
       color: colors.surface,
       shape: RoundedRectangleBorder(
@@ -1194,13 +1196,13 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
       child: ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        itemCount: group.isLocal ? members.length + 1 : members.length,
+        itemCount: members.length + extraActions,
         separatorBuilder: (_, _) => Divider(
           color: colors.border.withValues(alpha: 0.5),
           height: 1,
         ),
         itemBuilder: (context, index) {
-          if (group.isLocal && index == members.length) {
+          if (index == members.length) {
             return ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               leading: Container(
@@ -1209,14 +1211,44 @@ class _GroupSettingsScreenState extends ConsumerState<GroupSettingsScreen> {
                   color: colors.cyan.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.person_add_rounded, color: colors.cyan, size: 20),
+                child: Icon(Icons.group_add_rounded, color: colors.cyan, size: 20),
+              ),
+              title: Text(
+                'Add Friends to Group',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: colors.cyan,
+                ),
+              ),
+              subtitle: Text(
+                'Invite mutual FairShare friends directly',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colors.textSecondary,
+                ),
+              ),
+              onTap: () => AddFriendsToGroupSheet.show(context, group: group),
+            );
+          }
+
+          if (group.isLocal && index == members.length + 1) {
+            return ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colors.amber.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.person_add_rounded, color: colors.amber, size: 20),
               ),
               title: Text(
                 'Add Person to Quick Group',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: colors.cyan,
+                  color: colors.amber,
                 ),
               ),
               onTap: () => _showAddLocalMemberDialog(group),

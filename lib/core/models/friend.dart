@@ -52,6 +52,11 @@ class Friend {
   String? get email => profile.email;
   String? get username => profile.username;
   bool get isLocalContact => isLocal;
+  bool get isPending => status == FriendshipStatus.pending;
+  bool get isAccepted => status == FriendshipStatus.accepted;
+  bool isIncoming(String currentUserId) => isPending && createdBy != currentUserId;
+  bool isOutgoing(String currentUserId) => isPending && createdBy == currentUserId;
+
   String get emailOrHandle {
     if (email != null && email!.isNotEmpty) return email!;
     if (username != null && username!.isNotEmpty) return '@$username';

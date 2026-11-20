@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/group.dart';
 import '../../core/models/group_member.dart';
 import '../../core/models/comment.dart';
+import '../../core/models/friend.dart';
 import '../../core/models/profile.dart';
 import '../repositories/group_repository.dart';
 import 'auth_provider.dart';
@@ -239,6 +240,46 @@ class GroupsNotifier extends Notifier<AsyncValue<List<Group>>> {
     }).toList();
     state = AsyncValue.data(updated);
     return newMember;
+  }
+
+  /// Adds multiple mutual friends to an existing group cohort
+  Future<List<GroupMember>> addFriendsToGroup(
+    String groupId,
+    List<Friend> friends,
+  ) async {
+    if (friends.isEmpty) return [];
+
+    final now = DateTime.now();
+    final newMembers = friends.map((f) {
+      final uid = f.friendUserId;
+      return GroupMember(
+        id: 'gm_${now.millisecondsSinceEpoch}_$uid',
+        cohortId: groupId,
+        userId: uid,
+        role: 'member',
+        joinedAt: now,
+        profile: f.profile,
+      );
+    }).toList();
+
+    final repo = ref.read(groupRepositoryProvider);
+    final saved = await repo.addMembersToCohort(groupId, newMembers);
+
+    final currentGroups = state.value ?? [];
+    final updated = currentGroups.map((g) {
+      if (g.id == groupId) {
+        final existingUserIds = g.members.map((m) => m.userId).toSet();
+        final additions = newMembers.where((m) => !existingUserIds.contains(m.userId)).toList();
+        return g.copyWith(
+          members: [...g.members, ...additions],
+        );
+      }
+      return g;
+    }).toList();
+
+    state = AsyncValue.data(updated);
+    ref.invalidate(groupMembersProvider(groupId));
+    return saved;
   }
 
   /// Renames a member in a group

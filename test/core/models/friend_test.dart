@@ -76,6 +76,47 @@ void main() {
       expect(restored.displayName, friend.displayName);
       expect(restored.status, FriendshipStatus.accepted);
     });
+
+    test('request status and incoming/outgoing detection works', () {
+      final outgoing = Friend(
+        id: 'fs_out',
+        friendUserId: 'target_user',
+        profile: profile,
+        createdBy: 'my_id',
+        status: FriendshipStatus.pending,
+        createdAt: now,
+        updatedAt: now,
+      );
+      expect(outgoing.isPending, isTrue);
+      expect(outgoing.isAccepted, isFalse);
+      expect(outgoing.isOutgoing('my_id'), isTrue);
+      expect(outgoing.isIncoming('my_id'), isFalse);
+      expect(outgoing.isIncoming('target_user'), isTrue);
+
+      final incoming = Friend(
+        id: 'fs_in',
+        friendUserId: 'requester_id',
+        profile: profile,
+        createdBy: 'requester_id',
+        status: FriendshipStatus.pending,
+        createdAt: now,
+        updatedAt: now,
+      );
+      expect(incoming.isIncoming('my_id'), isTrue);
+      expect(incoming.isOutgoing('my_id'), isFalse);
+
+      final accepted = Friend(
+        id: 'fs_acc',
+        friendUserId: 'target_user',
+        profile: profile,
+        createdBy: 'my_id',
+        status: FriendshipStatus.accepted,
+        createdAt: now,
+        updatedAt: now,
+      );
+      expect(accepted.isAccepted, isTrue);
+      expect(accepted.isPending, isFalse);
+    });
   });
 
   group('FriendBalance model', () {

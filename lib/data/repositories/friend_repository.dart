@@ -109,15 +109,60 @@ class FriendRepository {
         final uid1 = currentUserId.compareTo(friendUserId) < 0 ? currentUserId : friendUserId;
         final uid2 = currentUserId.compareTo(friendUserId) < 0 ? friendUserId : currentUserId;
 
-        final inserted = await supabaseService.client.from('friendships').upsert({
-          'user_id_1': uid1,
-          'user_id_2': uid2,
-          'status': 'accepted',
-          'created_by': currentUserId,
-          'updated_at': DateTime.now().toIso8601String(),
-        }, onConflict: 'user_id_1,user_id_2').select('*, profile_1:user_id_1(*), profile_2:user_id_2(*)').single();
+        // Check if a friendship record already exists between uid1 and uid2
+        final existing = await supabaseService.client
+            .from('friendships')
+            .select('*, profile_1:user_id_1(*), profile_2:user_id_2(*)')
+            .eq('user_id_1', uid1)
+            .eq('user_id_2', uid2)
+            .maybeSingle();
 
-        final map = inserted;
+        Map<String, dynamic> map;
+        if (existing != null) {
+          final existingStatus = existing['status'] as String? ?? 'pending';
+          final existingCreatedBy = existing['created_by'] as String? ?? '';
+
+          if (existingStatus == 'pending' && existingCreatedBy != currentUserId) {
+            // Other user had already requested current user!
+            // Both have requested / current user accepts -> status becomes 'accepted'
+            map = await supabaseService.client
+                .from('friendships')
+                .update({
+                  'status': 'accepted',
+                  'updated_at': DateTime.now().toIso8601String(),
+                })
+                .eq('id', existing['id'])
+                .select('*, profile_1:user_id_1(*), profile_2:user_id_2(*)')
+                .single();
+          } else if (existingStatus == 'declined') {
+            // Re-requesting after previous decline
+            map = await supabaseService.client
+                .from('friendships')
+                .update({
+                  'status': 'pending',
+                  'created_by': currentUserId,
+                  'updated_at': DateTime.now().toIso8601String(),
+                })
+                .eq('id', existing['id'])
+                .select('*, profile_1:user_id_1(*), profile_2:user_id_2(*)')
+                .single();
+          } else {
+            map = existing;
+          }
+        } else {
+          // Create new pending friendship request
+          map = await supabaseService.client
+              .from('friendships')
+              .insert({
+                'user_id_1': uid1,
+                'user_id_2': uid2,
+                'status': 'pending',
+                'created_by': currentUserId,
+                'updated_at': DateTime.now().toIso8601String(),
+              })
+              .select('*, profile_1:user_id_1(*), profile_2:user_id_2(*)')
+              .single();
+        }
         final isUser1 = uid1 == currentUserId;
         final friendProfileMap = isUser1 ? map['profile_2'] : map['profile_1'];
 
@@ -173,6 +218,85 @@ class FriendRepository {
     final currentFriends = cacheService.getCachedFriends(currentUserId: currentUserId);
     await cacheService.saveFriends([localFriend, ...currentFriends]);
     return localFriend;
+  }
+
+  /// Accepts an incoming friend request
+  Future<bool> acceptFriendRequest(String friendshipId, {String? currentUserId}) async {
+    if (supabaseService.isConfigured && isUuid(friendshipId)) {
+      try {
+        await supabaseService.client.from('friendships').update({
+          'status': 'accepted',
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('id', friendshipId);
+
+        if (currentUserId != null) {
+          final currentFriends = cacheService.getCachedFriends(currentUserId: currentUserId);
+          final updated = currentFriends.map((f) {
+            if (f.id == friendshipId) {
+              return f.copyWith(
+                status: FriendshipStatus.accepted,
+                updatedAt: DateTime.now(),
+              );
+            }
+            return f;
+          }).toList();
+          await cacheService.saveFriends(updated);
+        }
+        return true;
+      } catch (e) {
+        debugPrint('Error accepting friend request: $e');
+        return false;
+      }
+    } else if (currentUserId != null) {
+      // Offline/local fallback
+      final currentFriends = cacheService.getCachedFriends(currentUserId: currentUserId);
+      final updated = currentFriends.map((f) {
+        if (f.id == friendshipId) {
+          return f.copyWith(
+            status: FriendshipStatus.accepted,
+            updatedAt: DateTime.now(),
+          );
+        }
+        return f;
+      }).toList();
+      await cacheService.saveFriends(updated);
+      return true;
+    }
+    return false;
+  }
+
+  /// Declines an incoming friend request
+  Future<bool> declineFriendRequest(String friendshipId, {String? currentUserId}) async {
+    if (supabaseService.isConfigured && isUuid(friendshipId)) {
+      try {
+        await supabaseService.client.from('friendships').update({
+          'status': 'declined',
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('id', friendshipId);
+
+        if (currentUserId != null) {
+          final currentFriends = cacheService.getCachedFriends(currentUserId: currentUserId);
+          final updated = currentFriends.where((f) => f.id != friendshipId).toList();
+          await cacheService.saveFriends(updated);
+        }
+        return true;
+      } catch (e) {
+        debugPrint('Error declining friend request: $e');
+        return false;
+      }
+    } else if (currentUserId != null) {
+      // Offline/local fallback
+      final currentFriends = cacheService.getCachedFriends(currentUserId: currentUserId);
+      final updated = currentFriends.where((f) => f.id != friendshipId).toList();
+      await cacheService.saveFriends(updated);
+      return true;
+    }
+    return false;
+  }
+
+  /// Cancels an outgoing pending friend request
+  Future<bool> cancelFriendRequest(String friendshipId, {String? currentUserId}) async {
+    return removeFriend(friendshipId, currentUserId: currentUserId);
   }
 
   /// Removes a friendship or local contact

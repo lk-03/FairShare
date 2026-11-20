@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../config/theme/app_colors.dart';
+import '../../../../core/models/friend.dart';
 import '../../../../core/utils/currency_formatter.dart';
+import '../../../../core/widgets/user_avatar.dart';
+import '../../../../data/providers/auth_provider.dart';
 import '../../../../data/providers/friends_provider.dart';
 import '../../../activity/presentation/screens/activity_screen.dart';
 import '../widgets/add_friend_sheet.dart';
@@ -247,7 +250,14 @@ class _FriendsActivityHubScreenState extends ConsumerState<FriendsActivityHubScr
           ),
         ),
         data: (allFriends) {
-          final filteredFriends = allFriends.where((friend) {
+          final currentUser = ref.watch(currentUserProvider);
+          final myId = currentUser?.id ?? '';
+
+          final acceptedFriends = allFriends.where((f) => f.isAccepted || f.isLocal).toList();
+          final incomingRequests = allFriends.where((f) => f.isIncoming(myId)).toList();
+          final outgoingRequests = allFriends.where((f) => f.isOutgoing(myId)).toList();
+
+          final filteredFriends = acceptedFriends.where((friend) {
             if (_searchQuery.isEmpty) return true;
             final nameMatch = friend.displayName.toLowerCase().contains(_searchQuery);
             final emailMatch = (friend.email ?? '').toLowerCase().contains(_searchQuery);
@@ -276,6 +286,14 @@ class _FriendsActivityHubScreenState extends ConsumerState<FriendsActivityHubScr
                           _buildSearchBar(colors),
 
                           const SizedBox(height: 16),
+
+                          // Incoming Friend Requests
+                          if (incomingRequests.isNotEmpty)
+                            _buildIncomingRequestsSection(incomingRequests, colors),
+
+                          // Outgoing Sent Requests
+                          if (outgoingRequests.isNotEmpty)
+                            _buildOutgoingRequestsSection(outgoingRequests, colors),
 
                           // Header count & Add CTA
                           Row(
@@ -525,6 +543,172 @@ class _FriendsActivityHubScreenState extends ConsumerState<FriendsActivityHubScr
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         ),
+      ),
+    );
+  }
+
+  Widget _buildIncomingRequestsSection(List<Friend> requests, dynamic colors) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surfaceElevated,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.cyan.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: colors.cyan.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.person_add_alt_1_rounded, size: 16, color: colors.cyan),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Friend Requests (${requests.length})',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: colors.textMain,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: requests.length,
+            separatorBuilder: (_, _) => Divider(
+              color: colors.borderSubtle,
+              height: 16,
+            ),
+            itemBuilder: (ctx, index) {
+              final req = requests[index];
+              return Row(
+                children: [
+                  UserAvatar(
+                    avatarUrl: req.avatarUrl,
+                    name: req.displayName,
+                    radius: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          req.displayName,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: colors.textMain,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          req.username != null && req.username!.isNotEmpty
+                              ? '@${req.username}'
+                              : 'FairShare User',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colors.textSecondary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => ref.read(friendsProvider.notifier).acceptRequest(req.id),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: colors.cyan,
+                      foregroundColor: Colors.black,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Accept', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  ),
+                  const SizedBox(width: 6),
+                  IconButton(
+                    onPressed: () => ref.read(friendsProvider.notifier).declineRequest(req.id),
+                    icon: Icon(Icons.close_rounded, size: 18, color: colors.textSecondary),
+                    tooltip: 'Decline',
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOutgoingRequestsSection(List<Friend> requests, dynamic colors) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: colors.surfaceElevated,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.schedule_rounded, size: 16, color: colors.amber),
+              const SizedBox(width: 8),
+              Text(
+                'Sent Requests Pending (${requests.length})',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: colors.textMain,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...requests.map((req) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  UserAvatar(
+                    avatarUrl: req.avatarUrl,
+                    name: req.displayName,
+                    radius: 16,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      req.displayName,
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colors.textMain),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => ref.read(friendsProvider.notifier).cancelRequest(req.id),
+                    style: TextButton.styleFrom(foregroundColor: colors.textSecondary),
+                    child: const Text('Cancel', style: TextStyle(fontSize: 12)),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../config/theme/app_colors.dart';
+import '../../../../core/models/friend.dart';
 import '../../../../core/models/profile.dart';
 import '../../../../core/widgets/user_avatar.dart';
 import '../../../../data/providers/auth_provider.dart';
@@ -84,7 +85,7 @@ class _AddFriendSheetState extends ConsumerState<AddFriendSheet>
   Future<void> _handleAddCloudUser(UserProfile profile) async {
     setState(() => _isSaving = true);
     try {
-      await ref.read(friendsProvider.notifier).addFriend(
+      final friend = await ref.read(friendsProvider.notifier).addFriend(
             friendUserId: profile.id,
             name: profile.fullName,
             username: profile.username,
@@ -94,9 +95,14 @@ class _AddFriendSheetState extends ConsumerState<AddFriendSheet>
           );
       if (mounted) {
         Navigator.of(context).pop();
+        final isAccepted = friend?.isAccepted ?? false;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${profile.displayName} added as friend!'),
+            content: Text(
+              isAccepted
+                  ? '${profile.displayName} is now your friend!'
+                  : 'Friend request sent to ${profile.displayName}!',
+            ),
             backgroundColor: AppColors.primaryTeal,
           ),
         );
@@ -105,6 +111,29 @@ class _AddFriendSheetState extends ConsumerState<AddFriendSheet>
       if (mounted) {
         setState(() {
           _error = 'Could not add friend: $e';
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleAcceptRequest(Friend friend, String displayName) async {
+    setState(() => _isSaving = true);
+    try {
+      await ref.read(friendsProvider.notifier).acceptRequest(friend.id);
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Accepted friend request from $displayName!'),
+            backgroundColor: AppColors.primaryTeal,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Could not accept friend request: $e';
           _isSaving = false;
         });
       }
@@ -341,6 +370,14 @@ class _AddFriendSheetState extends ConsumerState<AddFriendSheet>
                 separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final profile = _searchResults[index];
+                  final currentUser = ref.watch(currentUserProvider);
+                  final myId = currentUser?.id ?? '';
+                  final allFriends = ref.watch(friendsProvider).value ?? [];
+                  final existing = allFriends.where((f) => f.friendUserId == profile.id).firstOrNull;
+                  final isFriend = existing != null && (existing.isAccepted || existing.isLocal);
+                  final isOutgoing = existing != null && existing.isOutgoing(myId);
+                  final isIncoming = existing != null && existing.isIncoming(myId);
+
                   return Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -369,7 +406,9 @@ class _AddFriendSheetState extends ConsumerState<AddFriendSheet>
                                 ),
                               ),
                               Text(
-                                profile.username != null ? '@${profile.username}' : (profile.email ?? ''),
+                                profile.username != null && profile.username!.isNotEmpty
+                                    ? '@${profile.username}'
+                                    : (isFriend && profile.email != null ? profile.email! : 'FairShare User'),
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: colors.textSecondary,
@@ -378,22 +417,90 @@ class _AddFriendSheetState extends ConsumerState<AddFriendSheet>
                             ],
                           ),
                         ),
-                        ElevatedButton(
-                          onPressed: _isSaving ? null : () => _handleAddCloudUser(profile),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: colors.cyan,
-                            foregroundColor: Colors.black,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            shape: RoundedRectangleBorder(
+                        if (isFriend)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: AppColors.emerald.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.emerald.withValues(alpha: 0.4)),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.check_rounded, size: 14, color: AppColors.emerald),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Friends',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.emerald,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else if (isOutgoing)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: colors.amber.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: colors.amber.withValues(alpha: 0.4)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.schedule_rounded, size: 14, color: colors.amber),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Requested',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: colors.amber,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else if (isIncoming)
+                          ElevatedButton(
+                            onPressed: _isSaving
+                                ? null
+                                : () => _handleAcceptRequest(existing, profile.displayName),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryTeal,
+                              foregroundColor: Colors.black,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: const Text(
+                              'Accept',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                            ),
+                          )
+                        else
+                          ElevatedButton(
+                            onPressed: _isSaving ? null : () => _handleAddCloudUser(profile),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: colors.cyan,
+                              foregroundColor: Colors.black,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: const Text(
+                              'Add',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                             ),
                           ),
-                          child: const Text(
-                            'Add',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                          ),
-                        ),
                       ],
                     ),
                   );
