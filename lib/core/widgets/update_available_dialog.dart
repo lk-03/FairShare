@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/theme/app_colors.dart';
-import '../config/app_config.dart';
 import '../models/app_update_info.dart';
 import '../services/update_check_service.dart';
 
@@ -101,7 +100,7 @@ class _UpdateAvailableDialogState extends ConsumerState<UpdateAvailableDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final currentVer = _cleanVersion(AppConfig.appVersion);
+    final currentVer = _cleanVersion(widget.updateInfo.currentVersion);
     final targetVer = _cleanVersion(widget.updateInfo.tagName);
 
     return Dialog(

@@ -5,6 +5,7 @@ import '../config/app_config.dart';
 class AppUpdateInfo {
   final String tagName;
   final String version;
+  final String currentVersion;
   final String releaseNotes;
   final String? apkDownloadUrl;
   final DateTime? publishedAt;
@@ -13,6 +14,7 @@ class AppUpdateInfo {
   const AppUpdateInfo({
     required this.tagName,
     required this.version,
+    this.currentVersion = AppConfig.defaultAppVersion,
     required this.releaseNotes,
     this.apkDownloadUrl,
     this.publishedAt,
@@ -70,8 +72,9 @@ class AppUpdateInfo {
   /// Parses a GitHub Release JSON object into an [AppUpdateInfo].
   factory AppUpdateInfo.fromGitHubReleaseJson(
     Map<String, dynamic> json, {
-    String currentVersion = AppConfig.appVersion,
+    String? currentVersion,
   }) {
+    final effectiveCurrent = currentVersion ?? AppConfig.appVersion;
     final tagName = json['tag_name'] as String? ?? '';
     final cleanVersion = tagName.replaceFirst(RegExp(r'^[vV]'), '');
     final body = json['body'] as String? ?? 'No release notes provided.';
@@ -94,11 +97,12 @@ class AppUpdateInfo {
       publishedDate = DateTime.tryParse(publishedStr);
     }
 
-    final hasUpdate = isRemoteNewer(tagName, currentVersion);
+    final hasUpdate = isRemoteNewer(tagName, effectiveCurrent);
 
     return AppUpdateInfo(
       tagName: tagName,
       version: cleanVersion,
+      currentVersion: effectiveCurrent,
       releaseNotes: body,
       apkDownloadUrl: apkUrl,
       publishedAt: publishedDate,

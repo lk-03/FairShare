@@ -46,6 +46,25 @@ class MainActivity : FlutterActivity() {
                 } catch (e: Exception) {
                     result.error("INSTALL_ERROR", e.localizedMessage, null)
                 }
+            } else if (call.method == "getAppVersion") {
+                try {
+                    val pInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                        context.packageManager.getPackageInfo(context.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        context.packageManager.getPackageInfo(context.packageName, 0)
+                    }
+                    val versionName = pInfo.versionName ?: ""
+                    val versionCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                        pInfo.longVersionCode
+                    } else {
+                        @Suppress("DEPRECATION")
+                        pInfo.versionCode.toLong()
+                    }
+                    result.success(if (versionName.isNotEmpty()) "$versionName.$versionCode" else "")
+                } catch (e: Exception) {
+                    result.error("VERSION_ERROR", e.localizedMessage, null)
+                }
             } else {
                 result.notImplemented()
             }

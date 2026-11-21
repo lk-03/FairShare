@@ -26,10 +26,12 @@ class UpdateCheckService {
   /// Queries the latest GitHub Release for [repository] and determines if a newer version is available.
   Future<AppUpdateInfo?> checkForUpdate({
     String? repository,
-    String currentVersion = AppConfig.appVersion,
+    String? currentVersion,
   }) async {
     final repo = repository ?? AppConfig.githubRepo;
     if (repo.isEmpty) return null;
+
+    final versionToCompare = currentVersion ?? AppConfig.appVersion;
 
     try {
       final uri = Uri.parse('https://api.github.com/repos/$repo/releases/latest');
@@ -45,7 +47,7 @@ class UpdateCheckService {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         return AppUpdateInfo.fromGitHubReleaseJson(
           data,
-          currentVersion: currentVersion,
+          currentVersion: versionToCompare,
         );
       }
 

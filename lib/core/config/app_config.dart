@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// AppConfig centralizes all environmental variables and backend endpoints
@@ -12,6 +15,18 @@ class AppConfig {
       await dotenv.load(fileName: '.env');
     } catch (_) {
       // .env file not present or not bundled in assets; will use defaults
+    }
+
+    if (!kIsWeb && Platform.isAndroid) {
+      try {
+        const channel = MethodChannel('com.fairshare.app/updater');
+        final ver = await channel.invokeMethod<String>('getAppVersion');
+        if (ver != null && ver.isNotEmpty) {
+          _runtimeAppVersion = ver;
+        }
+      } catch (_) {
+        // Fallback to defaultAppVersion
+      }
     }
   }
 
@@ -49,7 +64,10 @@ class AppConfig {
   }
 
   static const String defaultGithubRepo = 'lk-03/FairShare';
-  static const String appVersion = '2026.10.23.1';
+  static const String defaultAppVersion = '2026.11.20.1';
+  static String _runtimeAppVersion = defaultAppVersion;
+  static String get appVersion => _runtimeAppVersion;
+  static set runtimeAppVersion(String v) => _runtimeAppVersion = v;
 
   static String get githubRepo {
     const envRepo = String.fromEnvironment('GITHUB_REPO');

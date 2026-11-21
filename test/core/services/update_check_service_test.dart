@@ -27,6 +27,8 @@ void main() {
       // Identical or older CalVer
       expect(AppUpdateInfo.isRemoteNewer('v2026.10.15.3', '2026.10.15.3'), isFalse);
       expect(AppUpdateInfo.isRemoteNewer('v2026.10.14.9', '2026.10.15.1'), isFalse);
+      expect(AppUpdateInfo.isRemoteNewer('v2026.11.20.1', '2026.11.20.1'), isFalse);
+      expect(AppUpdateInfo.isRemoteNewer('v2026.11.20.1', '2026.11.20+1'), isFalse);
     });
 
     test('returns false for identical or older versions', () {
